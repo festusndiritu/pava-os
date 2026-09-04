@@ -1,0 +1,190 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  MARKETING
+  POS
+}
+
+enum StockStatus {
+  IN_STOCK
+  SUPPLIER_ONLY
+  OUT_OF_STOCK
+}
+
+enum DocumentType {
+  QUOTE
+  INVOICE
+  RECEIPT
+}
+
+enum DocumentStatus {
+  DRAFT
+  QUOTED
+  INVOICED
+  PAID
+  CANCELLED
+}
+
+enum TransportMode {
+  NONE
+  ITEMIZED
+  DISTRIBUTED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  role         Role
+  email        String?  @unique
+  passwordHash String?
+  pinHash      String
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  documents    Document[]             @relation("CreatedByUser")
+  contacts     Contact[]
+  priceChanges ProductPriceHistory[]
+}
+
+model Brand {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  products Product[]
+}
+
+model Category {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  products Product[]
+}
+
+// e.g. "Kilogram" (kg), "Piece" (pc), "Length" (m), "Bag" (bag)
+model Unit {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  symbol   String
+  subUnits SubUnit[]
+  products Product[]
+}
+
+// e.g. under Unit "Bag": SubUnit "50kg bag" factor 50 (kg per bag)
+model SubUnit {
+  id     String @id @default(cuid())
+  unitId String
+  unit   Unit   @relation(fields: [unitId], references: [id])
+  name   String
+  factor Float
+}
+
+model Product {
+  id          String      @id @default(cuid())
+  name        String
+  spec        String? // size / grade, e.g. "Y12", "3mm x 6m", "SHS 50x50x3"
+  imageUrl    String? // served from /uploads/products/... — see products.controller.ts
+  brandId     String?
+  brand       Brand?      @relation(fields: [brandId], references: [id])
+  categoryId  String?
+  category    Category?   @relation(fields: [categoryId], references: [id])
+  unitId      String
+  unit        Unit        @relation(fields: [unitId], references: [id])
+  basePrice   Float
+  stockStatus StockStatus @default(IN_STOCK)
+  active      Boolean     @default(true)
+  updatedAt   DateTime    @updatedAt
+  createdAt   DateTime    @default(now())
+
+  items        DocumentItem[]
+  priceHistory ProductPriceHistory[]
+
+  @@index([categoryId])
+  @@index([brandId])
+}
+
+// Audit trail: one row per basePrice change. Past documents never read this —
+// they already have their own frozen unitPrice — this is purely "what did we
+// list this at, and when, and who changed it" for auditing/trust.
+model ProductPriceHistory {
+  id          String   @id @default(cuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  oldPrice    Float
+  newPrice    Float
+  changedById String
+  changedBy   User     @relation(fields: [changedById], references: [id])
+  changedAt   DateTime @default(now())
+
+  @@index([productId])
+  @@index([changedAt])
+}
+
+model Customer {
+  id            String   @id @default(cuid())
+  name          String
+  phone         String?
+  isCredit      Boolean  @default(false)
+  creditBalance Float    @default(0)
+  createdAt     DateTime @default(now())
+
+  documents Document[]
+}
+
+// Marketing guy's contact book
+model Contact {
+  id          String    @id @default(cuid())
+  name        String
+  phone       String?
+  source      String? // where the lead came from
+  notes       String?
+  followUpAt  DateTime?
+  createdById String
+  createdBy   User      @relation(fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
+}
+
+// Quote -> Invoice -> Receipt is ONE record; status tracks its lifecycle.
+model Document {
+  id              String         @id @default(cuid())
+  type            DocumentType // reflects current stage, kept for quick display
+  status          DocumentStatus @default(DRAFT)
+  customerId      String?
+  customer        Customer?      @relation(fields: [customerId], references: [id])
+  customerName    String? // free-text fallback when no Customer record exists
+  createdById     String
+  createdBy       User           @relation("CreatedByUser", fields: [createdById], references: [id])
+  transportMode   TransportMode  @default(NONE)
+  transportAmount Float          @default(0)
+  subtotal        Float          @default(0)
+  total           Float          @default(0)
+  notes           String?
+  createdAt       DateTime       @default(now())
+  invoicedAt      DateTime?
+  paidAt          DateTime?
+
+  items DocumentItem[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model DocumentItem {
+  id          String   @id @default(cuid())
+  documentId  String
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  productId   String?
+  product     Product? @relation(fields: [productId], references: [id])
+  description String // snapshot of product name+spec at time of sale
+  qty         Float
+  unitPrice   Float // bro's actual (possibly bargained) price for this line
+  discount    Float    @default(0)
+  lineTotal   Float
+
+  @@index([documentId])
+}

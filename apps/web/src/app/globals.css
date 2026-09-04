@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #F7F8FA;
+  --color-surface: #FFFFFF;
+  --color-border: #E4E7EC;
+
+  --color-ink-900: #101828;
+  --color-ink-600: #475467;
+  --color-ink-400: #98A2B3;
+
+  --color-accent: #0559C9;
+  --color-accent-hover: #0447A3;
+  --color-accent-soft: #EAF1FD;
+
+  --color-status-ok: #0B9E6F;
+  --color-status-okSoft: #E7F7F1;
+  --color-status-warn: #B76E00;
+  --color-status-warnSoft: #FFF4E5;
+  --color-status-bad: #C0362C;
+  --color-status-badSoft: #FBEAE9;
+
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-mono: var(--font-mono-custom), ui-monospace, monospace;
+
+  --radius-default: 6px;
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+body {
+  background-color: #F7F8FA;
+  color: #101828;
+}
+
+/* 80mm thermal printer receipt view */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  #print-area,
+  #print-area * {
+    visibility: visible;
+  }
+
+  #print-area {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 80mm;
+    font-family: var(--font-mono), monospace;
+    font-size: 11px;
+  }
+}
+
+.data-num {
+  font-family: var(--font-mono), monospace;
+  font-variant-numeric: tabular-nums;
+}
