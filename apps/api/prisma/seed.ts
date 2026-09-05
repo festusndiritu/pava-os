@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient, Role, StockStatus } from '../generated/prisma/client.js';
+import { PrismaClient, Role, Module, StockStatus } from '../generated/prisma/client.js';
 import bcrypt from 'bcryptjs';
 
 const adapter = new PrismaPg({
@@ -21,7 +21,8 @@ async function main() {
       name: 'Bro (Admin)',
       role: Role.ADMIN,
       email: 'bro@broshardware.local',
-      passwordHash: await bcrypt.hash(adminPassword, 10),
+      avatar: 'slate-01',
+      passwordHash: await bcrypt.hash(adminPassword, 12),
       pinHash: await bcrypt.hash(adminPin, 10),
     },
   });
@@ -31,9 +32,12 @@ async function main() {
     update: {},
     create: {
       name: 'Marketing Guy',
-      role: Role.MARKETING,
+      role: Role.STAFF,
       email: 'marketing@broshardware.local',
+      avatar: 'amber-02',
       pinHash: await bcrypt.hash(marketingPin, 10),
+      permissions: [Module.DASHBOARD, Module.MARKETING, Module.PRODUCTS, Module.LEADS, Module.CONTACTS],
+      createdById: admin.id,
     },
   });
 
@@ -42,9 +46,12 @@ async function main() {
     update: {},
     create: {
       name: 'Counter / Cashier',
-      role: Role.POS,
+      role: Role.STAFF,
       email: 'cashier@broshardware.local',
+      avatar: 'teal-03',
       pinHash: await bcrypt.hash(posPin, 10),
+      permissions: [Module.DASHBOARD, Module.POS, Module.PRODUCTS, Module.CUSTOMERS, Module.QUOTES, Module.INVOICES],
+      createdById: admin.id,
     },
   });
 

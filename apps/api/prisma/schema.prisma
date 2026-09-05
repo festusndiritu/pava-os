@@ -7,10 +7,36 @@ datasource db {
   provider = "postgresql"
 }
 
+// Two authentication tiers. ADMIN = email/password. STAFF = PIN.
+// Fine-grained access within STAFF (and any non-owner ADMIN) is controlled by
+// User.permissions below
 enum Role {
   ADMIN
-  MARKETING
+  STAFF
+}
+
+// One entry per sidebar module. Admin can grant any subset of these to a
+// staff account. ADMIN role implicitly has every module regardless of what's
+// stored here (see PermissionsGuard).
+enum Module {
+  DASHBOARD
   POS
+  PRODUCTS
+  INVENTORY
+  CUSTOMERS
+  QUOTES
+  INVOICES
+  CONTACTS
+  LEADS
+  MARKETING
+  HR
+  PAYROLL
+  EXPENSES
+  REPORTS
+  ANALYTICS
+  AUDIT
+  USERS
+  SETTINGS
 }
 
 enum StockStatus {
@@ -40,18 +66,63 @@ enum TransportMode {
 }
 
 model User {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   name         String
   role         Role
-  email        String?  @unique
-  passwordHash String?
-  pinHash      String
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now())
+  email        String?   @unique
+  passwordHash String? // ADMIN only
+  pinHash      String? // STAFF only (ADMIN may also keep one as a fallback, but is not required to)
+  avatar       String? // key into the frontend's predefined avatar set, e.g. "sky-01"
+  phone        String? // optional staff metadata
+  permissions  Module[]  @default([]) // ignored for ADMIN, who always has full access
+  active       Boolean   @default(true)
+  createdById  String?
+  createdBy    User?     @relation("StaffCreatedBy", fields: [createdById], references: [id])
+  createdStaff User[]    @relation("StaffCreatedBy")
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   documents    Document[]             @relation("CreatedByUser")
   contacts     Contact[]
   priceChanges ProductPriceHistory[]
+  sessions     Session[]
+  auditLogs    AuditLog[]
+
+  @@index([role])
+}
+
+// One row per issued refresh token. Lets us do sliding-inactivity timeouts
+// and *actually* revoke a login (plain JWTs can't be un-issued), without
+// making every request hit the DB — only /auth/refresh and /auth/logout do.
+model Session {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokenHash String    @unique
+  userAgent        String?
+  ip               String?
+  lastActiveAt     DateTime  @default(now())
+  expiresAt        DateTime // absolute cap regardless of activity
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id])
+  action     String // e.g. "auth.login", "user.permissions_changed"
+  entityType String?
+  entityId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
 }
 
 model Brand {
