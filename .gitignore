@@ -8,3 +8,4 @@ dist/
 !.env.local.example
 apps/api/uploads/
 apps/api/generated/
+bun.lock

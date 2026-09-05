@@ -3,6 +3,7 @@
 @theme {
   --color-bg: #F7F8FA;
   --color-surface: #FFFFFF;
+  --color-surface-raised: #FFFFFF;
   --color-border: #E4E7EC;
 
   --color-ink-900: #101828;
@@ -27,9 +28,46 @@
   --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04);
 }
 
+/* Dark palette. Every color above is a plain CSS custom property, so
+   anything referencing var(--color-x) — Tailwind arbitrary values or plain
+   inline styles — repaints automatically once html[data-theme="dark"] is
+   set. No component needs a `dark:` variant of its own. */
+:root[data-theme='dark'] {
+  --color-bg: #0B0D10;
+  --color-surface: #16181C;
+  --color-surface-raised: #1D2025;
+  --color-border: #2A2E35;
+
+  --color-ink-900: #F2F4F7;
+  --color-ink-600: #9AA4B2;
+  --color-ink-400: #6C7684;
+
+  --color-accent: #4C8DF0;
+  --color-accent-hover: #6AA5F5;
+  --color-accent-soft: #16233A;
+
+  --color-status-ok: #34D399;
+  --color-status-okSoft: #10261F;
+  --color-status-warn: #F0B429;
+  --color-status-warnSoft: #2B2110;
+  --color-status-bad: #F87171;
+  --color-status-badSoft: #2B1616;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.32);
+  color-scheme: dark;
+}
+
+html {
+  color-scheme: light;
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+
 body {
-  background-color: #F7F8FA;
-  color: #101828;
+  background-color: var(--color-bg);
+  color: var(--color-ink-900);
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 /* 80mm thermal printer receipt view */
@@ -56,4 +94,14 @@ body {
 .data-num {
   font-family: var(--font-mono), monospace;
   font-variant-numeric: tabular-nums;
+}
+
+@keyframes pava-shake {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(2px); }
+  30%, 50%, 70% { transform: translateX(-4px); }
+  40%, 60% { transform: translateX(4px); }
+}
+.animate-shake {
+  animation: pava-shake 0.4s ease-in-out;
 }

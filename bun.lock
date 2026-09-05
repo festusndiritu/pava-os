@@ -5,8 +5,8 @@
     "": {
       "name": "pava-hardware",
       "dependencies": {
-        "@nestjs/swagger": "^12.0.1"
-      }
+        "@nestjs/swagger": "^12.0.1",
+      },
     },
     "apps/api": {
       "name": "api",
@@ -26,7 +26,7 @@
         "multer": "2.3.0",
         "pg": "8.23.0",
         "reflect-metadata": "0.2.2",
-        "rxjs": "7.8.2"
+        "rxjs": "7.8.2",
       },
       "devDependencies": {
         "@nestjs/cli": "12.0.0",
@@ -35,17 +35,18 @@
         "@types/node": "^24.0.0",
         "@types/pg": "8.23.1",
         "prisma": "7.10.0",
-        "typescript": "5.9.3"
-      }
+        "typescript": "5.9.3",
+      },
     },
     "apps/web": {
       "name": "web",
       "version": "0.1.0",
       "dependencies": {
+        "lucide-react": "^0.469.0",
         "next": "16.3.2",
         "react": "19.2.8",
         "react-dom": "19.2.8",
-        "recharts": "3.10.1"
+        "recharts": "3.10.1",
       },
       "devDependencies": {
         "@tailwindcss/postcss": "4.3.3",
@@ -54,9 +55,9 @@
         "@types/react-dom": "19.2.7",
         "postcss": "8.5.28",
         "tailwindcss": "4.3.3",
-        "typescript": "5.9.3"
-      }
-    }
+        "typescript": "5.9.3",
+      },
+    },
   },
   "packages": {
     "@alloc/quick-lru": ["@alloc/quick-lru@5.3.0", "", {}, "sha512-U4+70Pc5ZS9osnCBCE5Jha/ciHM+Yp+CNMNC/7HvYbNRk1Ldd+f7qO65W5qfhu/TCv+/ozljlXXe9Nj8419DMA=="],
@@ -725,6 +726,8 @@
 
     "lru.min": ["lru.min@1.1.5", "", {}, "sha512-5J9ysMYUpYIg9RF2vJpy9SinEmSviFSe0GyPpCQ4L5QSkLAgeLXlTAOu2ZwWUU5m+0SBl6gUU1R1ZQB3aKypfA=="],
 
+    "lucide-react": ["lucide-react@0.469.0", "", { "peerDependencies": { "react": "^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-28vvUnnKQ/dBwiCQtwJw7QauYnE7yd2Cyp4tTTJpvglX4EMpbflcdBgrgToX2j71B3YvugK/NH3BGUk+E/p/Fw=="],
+
     "magic-string": ["magic-string@1.0.0", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.5" } }, "sha512-CGvjzMN08iv6w1mm4/x3Gh1hLb4VnyRUA15FFpl6CsCIGGoe36k7kY5KNz9QDbSBN5I/fWHM6ZlIkUTa5xdUEA=="],
 
     "math-intrinsics": ["math-intrinsics@1.1.0", "", {}, "sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g=="],
@@ -1083,6 +1086,6 @@
 
     "type-is/mime-types/mime-db": ["mime-db@1.52.0", "", {}, "sha512-sPU4uV7dYlvtWJxwwxHD0PuihVNiE7TyAbQ5SWxDCB9mUYvOgroQOwYQQOKPJ8CIbE+1ETVlOoK1UC2nU3gYvg=="],
 
-    "ora/string-width/strip-ansi/ansi-regex": ["ansi-regex@6.3.0", "", {}, "sha512-WpDfL7NO6j7tH88IDBNVdUJxDh9nmCteAVW9dsep846XdwF4naCBK+/tGLX3KJgcpgMRXCFlTM2hKGoK9FsdrQ=="]
+    "ora/string-width/strip-ansi/ansi-regex": ["ansi-regex@6.3.0", "", {}, "sha512-WpDfL7NO6j7tH88IDBNVdUJxDh9nmCteAVW9dsep846XdwF4naCBK+/tGLX3KJgcpgMRXCFlTM2hKGoK9FsdrQ=="],
   }
 }
