@@ -93,7 +93,7 @@ export function PinPad({
             key={i}
             className="h-3 w-3 rounded-full border transition-colors"
             style={{
-              borderColor: error ? 'var(--color-status-bad)' : 'var(--color-ink-400)',
+              borderColor: error ? 'var(--color-status-bad)' : 'var(--color-ink-600)',
               backgroundColor:
                 i < pin.length ? (error ? 'var(--color-status-bad)' : 'var(--color-ink-900)') : 'transparent',
             }}
@@ -101,7 +101,7 @@ export function PinPad({
         ))}
       </div>
 
-      <p className="h-5 text-xs font-medium" style={{ color: error ? 'var(--color-status-bad)' : 'var(--color-ink-400)' }}>
+      <p className="h-5 text-xs font-medium" style={{ color: error ? 'var(--color-status-bad)' : 'var(--color-ink-600)' }}>
         {error ?? 'Enter your 4-digit PIN'}
       </p>
 
@@ -134,7 +134,7 @@ export function PinPad({
           onClick={backspace}
           aria-label="Backspace"
           className="flex h-14 w-14 items-center justify-center rounded-full border transition-colors disabled:opacity-50"
-          style={{ ...keyStyle, color: 'var(--color-ink-400)' }}
+          style={{ ...keyStyle, color: 'var(--color-ink-600)' }}
         >
           <Delete size={18} strokeWidth={2} />
         </button>

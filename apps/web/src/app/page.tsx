@@ -36,7 +36,7 @@ export default function DashboardPlaceholder() {
         <p className="mt-4 font-medium" style={{ color: 'var(--color-ink-900)' }}>
           Signed in as {user.name}
         </p>
-        <p className="mt-1 text-sm" style={{ color: 'var(--color-ink-400)' }}>
+        <p className="mt-1 text-sm" style={{ color: 'var(--color-ink-600)' }}>
           Role: {user.role}
           {user.role === 'STAFF' && user.permissions.length > 0 ? ` · ${user.permissions.length} module(s)` : ''}
         </p>

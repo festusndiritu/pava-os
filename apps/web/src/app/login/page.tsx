@@ -8,6 +8,7 @@ import { ApiError } from '../../lib/api';
 import { Avatar } from '../../components/Avatar';
 import { BrandMark } from '../../components/BrandMark';
 import { ThemeToggle } from '../../components/ThemeToggle';
+import { BrandPanel } from '../../components/login/BrandPanel';
 import { StaffGrid } from '../../components/login/StaffGrid';
 import { PinPad } from '../../components/login/PinPad';
 import { AdminLoginForm } from '../../components/login/AdminLoginForm';
@@ -47,87 +48,90 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center px-4" style={{ backgroundColor: 'var(--color-bg)' }}>
-      <div className="absolute right-4 top-4">
-        <ThemeToggle />
-      </div>
+    <main className="min-h-screen lg:grid lg:grid-cols-2" style={{ backgroundColor: 'var(--color-bg)' }}>
+      <BrandPanel />
 
-      <div
-        className="w-full max-w-md rounded-lg border p-8"
-        style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', boxShadow: 'var(--shadow-card)' }}
-      >
-        <div className="mb-8 flex flex-col items-center text-center">
-          <BrandMark size={40} />
-          <h1 className="mt-4 text-base font-semibold tracking-tight" style={{ color: 'var(--color-ink-900)' }}>
-            Pava Steel Hardware
-          </h1>
-          <p className="mt-1 text-sm" style={{ color: 'var(--color-ink-400)' }}>
-            {mode === 'admin' ? 'Administrator sign-in' : 'Select your account to continue'}
-          </p>
+      <div className="relative flex min-h-screen flex-col items-center justify-center px-6 py-12">
+        <div className="absolute right-4 top-4">
+          <ThemeToggle />
         </div>
 
-        {mode === 'staff-grid' && (
-          <StaffGrid
-            onSelect={(s) => {
-              setSelectedStaff(s);
-              setMode('staff-pin');
-              setPinError(null);
-            }}
-          />
-        )}
+        {/* Brand identity for mobile, where BrandPanel is hidden */}
+        <div className="mb-8 flex flex-col items-center text-center lg:hidden">
+          <BrandMark size={36} />
+          <h1 className="mt-3 text-base font-semibold tracking-tight" style={{ color: 'var(--color-ink-900)' }}>
+            Pava Steel Hardware
+          </h1>
+        </div>
 
-        {mode === 'staff-pin' && selectedStaff && (
-          <div className="flex flex-col items-center gap-4">
-            <Avatar name={selectedStaff.name} avatar={selectedStaff.avatar} size={56} />
-            <p className="text-sm font-medium" style={{ color: 'var(--color-ink-900)' }}>
-              {selectedStaff.name}
-            </p>
-            <PinPad
-              onComplete={handlePinComplete}
-              error={pinError}
-              disabled={pinSubmitting}
-              onErrorClear={() => setPinError(null)}
-            />
-            <button
-              type="button"
-              onClick={() => {
-                setMode('staff-grid');
-                setSelectedStaff(null);
+        <div className="w-full max-w-sm">
+          <p className="mb-6 text-center text-sm" style={{ color: 'var(--color-ink-600)' }}>
+            {mode === 'admin' ? 'Administrator sign-in' : 'Select your account to continue'}
+          </p>
+
+          {mode === 'staff-grid' && (
+            <StaffGrid
+              onSelect={(s) => {
+                setSelectedStaff(s);
+                setMode('staff-pin');
                 setPinError(null);
               }}
-              className="flex items-center gap-1.5 text-sm font-medium"
-              style={{ color: 'var(--color-accent)' }}
-            >
-              <ChevronLeft size={15} strokeWidth={2} />
-              Not you?
-            </button>
-          </div>
-        )}
+            />
+          )}
 
-        {mode === 'admin' && <AdminLoginForm onSuccess={() => router.replace('/dashboard')} />}
+          {mode === 'staff-pin' && selectedStaff && (
+            <div className="flex flex-col items-center gap-4">
+              <Avatar name={selectedStaff.name} avatar={selectedStaff.avatar} size={56} />
+              <p className="text-sm font-medium" style={{ color: 'var(--color-ink-900)' }}>
+                {selectedStaff.name}
+              </p>
+              <PinPad
+                onComplete={handlePinComplete}
+                error={pinError}
+                disabled={pinSubmitting}
+                onErrorClear={() => setPinError(null)}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('staff-grid');
+                  setSelectedStaff(null);
+                  setPinError(null);
+                }}
+                className="flex items-center gap-1.5 text-sm font-medium"
+                style={{ color: 'var(--color-accent)' }}
+              >
+                <ChevronLeft size={15} strokeWidth={2} />
+                Not you?
+              </button>
+            </div>
+          )}
 
-        {mode !== 'staff-pin' && (
-          <div className="mt-8 border-t pt-4 text-center" style={{ borderColor: 'var(--color-border)' }}>
-            <button
-              type="button"
-              onClick={() => setMode(mode === 'admin' ? 'staff-grid' : 'admin')}
-              className="inline-flex items-center gap-1.5 text-sm"
-              style={{ color: 'var(--color-ink-400)' }}
-            >
-              {mode === 'admin' ? (
-                <>
-                  <ArrowLeft size={14} strokeWidth={2} />
-                  Back to staff sign-in
-                </>
-              ) : (
-                <>
-                  <ShieldCheck size={14} strokeWidth={2} />
-                  Sign in as administrator
-                </>
-              )}
-            </button>
-          </div>
-        )}
+          {mode === 'admin' && <AdminLoginForm onSuccess={() => router.replace('/dashboard')} />}
+
+          {mode !== 'staff-pin' && (
+            <div className="mt-8 border-t pt-4 text-center" style={{ borderColor: 'var(--color-border)' }}>
+              <button
+                type="button"
+                onClick={() => setMode(mode === 'admin' ? 'staff-grid' : 'admin')}
+                className="inline-flex items-center gap-1.5 text-sm"
+                style={{ color: 'var(--color-ink-600)' }}
+              >
+                {mode === 'admin' ? (
+                  <>
+                    <ArrowLeft size={14} strokeWidth={2} />
+                    Back to staff sign-in
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck size={14} strokeWidth={2} />
+                    Sign in as administrator
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </main>
   );

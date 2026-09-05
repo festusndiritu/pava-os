@@ -33,9 +33,9 @@ export function StaffGrid({ onSelect }: { onSelect: (staff: StaffOption) => void
 
   if (!staff) {
     return (
-      <div className="grid grid-cols-3 gap-4 sm:grid-cols-4">
+      <div className="flex flex-wrap justify-center gap-x-5 gap-y-5">
         {[...Array(4)].map((_, i) => (
-          <div key={i} className="flex flex-col items-center gap-2 animate-pulse">
+          <div key={i} className="flex w-20 flex-col items-center gap-2 animate-pulse">
             <div className="h-16 w-16 rounded-full" style={{ backgroundColor: 'var(--color-border)' }} />
             <div className="h-3 w-14 rounded" style={{ backgroundColor: 'var(--color-border)' }} />
           </div>
@@ -50,7 +50,7 @@ export function StaffGrid({ onSelect }: { onSelect: (staff: StaffOption) => void
         <p className="font-medium" style={{ color: 'var(--color-ink-900)' }}>
           No active staff accounts yet
         </p>
-        <p className="mt-1 text-sm" style={{ color: 'var(--color-ink-400)' }}>
+        <p className="mt-1 text-sm" style={{ color: 'var(--color-ink-600)' }}>
           Ask an administrator to create one under Users &amp; Access.
         </p>
       </div>
@@ -58,13 +58,13 @@ export function StaffGrid({ onSelect }: { onSelect: (staff: StaffOption) => void
   }
 
   return (
-    <div className="grid grid-cols-3 gap-4 sm:grid-cols-4">
+    <div className="flex flex-wrap justify-center gap-x-5 gap-y-5">
       {staff.map((s) => (
         <button
           key={s.id}
           type="button"
           onClick={() => onSelect(s)}
-          className="flex flex-col items-center gap-2 rounded-lg py-3 transition-colors hover:bg-[var(--color-bg)] focus:outline-none focus:ring-2"
+          className="flex w-20 flex-col items-center gap-2 rounded-lg py-3 transition-colors hover:bg-[var(--color-bg)] focus:outline-none focus:ring-2"
           style={{ ['--tw-ring-color' as string]: 'var(--color-accent-soft)' }}
         >
           <Avatar name={s.name} avatar={s.avatar} size={64} />

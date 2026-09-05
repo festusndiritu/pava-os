@@ -34,7 +34,7 @@ export function ThemeToggle() {
             className="flex h-7 w-7 items-center justify-center rounded transition-colors"
             style={{
               backgroundColor: active ? 'var(--color-bg)' : 'transparent',
-              color: active ? 'var(--color-ink-900)' : 'var(--color-ink-400)',
+              color: active ? 'var(--color-ink-900)' : 'var(--color-ink-600)',
             }}
           >
             <Icon size={14} strokeWidth={2} />

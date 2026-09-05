@@ -39,7 +39,7 @@ export function AdminLoginForm({ onSuccess }: { onSuccess: () => void }) {
         <label
           htmlFor="admin-email"
           className="text-[11px] font-semibold uppercase"
-          style={{ color: 'var(--color-ink-400)', letterSpacing: '0.06em' }}
+          style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}
         >
           Email
         </label>
@@ -48,7 +48,7 @@ export function AdminLoginForm({ onSuccess }: { onSuccess: () => void }) {
             size={16}
             strokeWidth={2}
             className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
-            style={{ color: 'var(--color-ink-400)' }}
+            style={{ color: 'var(--color-ink-600)' }}
           />
           <input
             id="admin-email"
@@ -69,7 +69,7 @@ export function AdminLoginForm({ onSuccess }: { onSuccess: () => void }) {
         <label
           htmlFor="admin-password"
           className="text-[11px] font-semibold uppercase"
-          style={{ color: 'var(--color-ink-400)', letterSpacing: '0.06em' }}
+          style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}
         >
           Password
         </label>
@@ -78,7 +78,7 @@ export function AdminLoginForm({ onSuccess }: { onSuccess: () => void }) {
             size={16}
             strokeWidth={2}
             className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
-            style={{ color: 'var(--color-ink-400)' }}
+            style={{ color: 'var(--color-ink-600)' }}
           />
           <input
             id="admin-password"
@@ -97,7 +97,7 @@ export function AdminLoginForm({ onSuccess }: { onSuccess: () => void }) {
             aria-label={showPassword ? 'Hide password' : 'Show password'}
             tabIndex={-1}
             className="absolute right-2.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded transition-colors"
-            style={{ color: 'var(--color-ink-400)' }}
+            style={{ color: 'var(--color-ink-600)' }}
           >
             {showPassword ? <EyeOff size={16} strokeWidth={2} /> : <Eye size={16} strokeWidth={2} />}
           </button>
