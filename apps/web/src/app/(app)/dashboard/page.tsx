@@ -2,6 +2,9 @@
 
 import { useAuth } from '../../../lib/auth-context';
 
+// Real dashboard (sales performance, attention items, charts — see brief
+// section 40) is its own module, built separately. This proves the shell +
+// permission-gated routing works end to end in the meantime.
 export default function DashboardPage() {
   const { user } = useAuth();
   if (!user) return null;

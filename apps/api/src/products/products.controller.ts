@@ -20,6 +20,7 @@ import { ProductsService } from './products.service.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/roles.guard.js';
 import { Roles } from '../auth/roles.decorator.js';
+import { CreateProductDto, UpdateProductDto } from './dto/product.dto.js';
 
 @UseGuards(JwtAuthGuard)
 @Controller('products')
@@ -31,8 +32,14 @@ export class ProductsController {
     @Query('search') search?: string,
     @Query('brandId') brandId?: string,
     @Query('categoryId') categoryId?: string,
+    @Query('familyId') familyId?: string,
   ) {
-    return this.products.findAll({ search, brandId, categoryId });
+    return this.products.findAll({ search, brandId, categoryId, familyId });
+  }
+
+  @Get('families')
+  families() {
+    return this.products.families();
   }
 
   @Get(':id')
@@ -43,14 +50,14 @@ export class ProductsController {
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN)
   @Post()
-  create(@Body() body: any) {
+  create(@Body() body: CreateProductDto) {
     return this.products.create(body);
   }
 
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN)
   @Patch(':id')
-  update(@Param('id') id: string, @Req() req: any, @Body() body: any) {
+  update(@Param('id') id: string, @Req() req: any, @Body() body: UpdateProductDto) {
     return this.products.update(id, req.user.sub, body);
   }
 

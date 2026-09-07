@@ -9,7 +9,7 @@ datasource db {
 
 // Two authentication tiers. ADMIN = email/password. STAFF = PIN.
 // Fine-grained access within STAFF (and any non-owner ADMIN) is controlled by
-// User.permissions below
+// User.permissions below, not by this enum — see Module.
 enum Role {
   ADMIN
   STAFF
@@ -157,7 +157,8 @@ model SubUnit {
 
 model Product {
   id          String      @id @default(cuid())
-  name        String
+  name        String // technical name, e.g. "SHS 40x40x1.2mm" — never shown to marketing/customers as the only label
+  displayName String? // human/customer-facing, e.g. "Square Pipe 1.5\" — 16G". Falls back to `name` when null.
   spec        String? // size / grade, e.g. "Y12", "3mm x 6m", "SHS 50x50x3"
   imageUrl    String? // served from /uploads/products/... — see products.controller.ts
   brandId     String?
@@ -172,11 +173,55 @@ model Product {
   updatedAt   DateTime    @updatedAt
   createdAt   DateTime    @default(now())
 
+  // Structured attributes for search/comparison (brief §7) — deliberately
+  // plain fields rather than a generic EAV table: the attribute set is small,
+  // known in advance, and needs to be queryable/sortable/comparable directly
+  // (e.g. "all 1.5in square pipe sorted by gauge").
+  shape       String? // free text for now, e.g. "SQUARE", "ROUND", "FLAT", "ANGLE" — business vocabulary varies too much to lock into an enum yet
+  nominalSize String? // e.g. "1.5 inch"
+  widthMm     Float?
+  heightMm    Float?
+  thicknessMm Float?
+  gauge       Int?
+  material    String? @default("STEEL")
+
+  familyId String?
+  family   ProductFamily? @relation(fields: [familyId], references: [id])
+  aliases  ProductAlias[]
+
   items        DocumentItem[]
   priceHistory ProductPriceHistory[]
 
   @@index([categoryId])
   @@index([brandId])
+  @@index([familyId])
+  @@index([shape, nominalSize])
+  @@index([gauge])
+}
+
+// Groups technically-distinct products (different gauges/thicknesses of the
+// same nominal item) for search/marketing/comparison purposes only — never
+// for inventory or pricing. Products stay separate inventory/pricing
+// entities regardless of family (brief §10).
+model ProductFamily {
+  id       String    @id @default(cuid())
+  name     String    @unique // e.g. "Square Pipe 1.5\""
+  products Product[]
+}
+
+// One row per free-text term a product should be found by, e.g. "square
+// pipe", "box section", "16 gauge", "40x40" — stored pre-normalized (see
+// products/search-normalize.ts) so a normalized incoming query can just
+// substring-match against `term` directly.
+model ProductAlias {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  term      String
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+  @@index([term])
 }
 
 // Audit trail: one row per basePrice change. Past documents never read this —

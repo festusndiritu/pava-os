@@ -4,7 +4,7 @@ export function BrandPanel() {
   return (
     <div
       className="relative hidden flex-col justify-between overflow-hidden p-10 lg:flex"
-      style={{ backgroundColor: 'var(--color-ink-900)' }}
+      style={{ backgroundColor: 'var(--color-brand-panel)' }}
     >
       {/* Abstract, restrained artwork — nested square outlines evoke steel
           tube cross-sections without being a literal illustration. */}
@@ -42,13 +42,13 @@ export function BrandPanel() {
         <h2 className="text-2xl font-semibold leading-snug tracking-tight text-white">
           Run the whole working day from one system.
         </h2>
-        <p className="mt-3 text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.6)' }}>
-          Sales, inventory, customers, and more, in one place.
+        <p className="mt-3 text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.72)' }}>
+          Sales, inventory, customers, and the rest of Pava Steel Hardware's operations, in one place.
         </p>
       </div>
 
-      <p className="relative text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>
-        © {new Date().getFullYear()} Pava Steel &amp; Hardware. All rights reserved.
+      <p className="relative text-xs" style={{ color: 'rgba(255,255,255,0.55)' }}>
+        © {new Date().getFullYear()} Pava Steel Hardware. All rights reserved.
       </p>
     </div>
   );
