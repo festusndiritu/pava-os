@@ -5,6 +5,7 @@ import { AuditModule } from './audit/audit.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { UsersModule } from './users/users.module.js';
 import { ProductsModule } from './products/products.module.js';
+import { InventoryModule } from './inventory/inventory.module.js';
 import { BrandsModule } from './brands/brands.module.js';
 import { CategoriesModule } from './categories/categories.module.js';
 import { UnitsModule } from './units/units.module.js';
@@ -20,6 +21,7 @@ import { DocumentsModule } from './documents/documents.module.js';
     AuthModule,
     UsersModule,
     ProductsModule,
+    InventoryModule,
     BrandsModule,
     CategoriesModule,
     UnitsModule,
@@ -29,4 +31,3 @@ import { DocumentsModule } from './documents/documents.module.js';
   ],
 })
 export class AppModule {}
-
