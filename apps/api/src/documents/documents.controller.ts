@@ -33,13 +33,13 @@ export class DocumentsController {
   }
 
   @Post(':id/convert-to-invoice')
-  convertToInvoice(@Param('id') id: string) {
-    return this.documents.convertToInvoice(id);
+  convertToInvoice(@Param('id') id: string, @Req() req: any) {
+    return this.documents.convertToInvoice(id, req.user.sub);
   }
 
   @Post(':id/mark-paid')
-  markPaid(@Param('id') id: string) {
-    return this.documents.markPaid(id);
+  markPaid(@Param('id') id: string, @Req() req: any) {
+    return this.documents.markPaid(id, req.user.sub);
   }
 
   @Post(':id/cancel')

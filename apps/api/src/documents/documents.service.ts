@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { DocumentStatus, DocumentType, TransportMode } from '../../generated/prisma/client.js';
+import { DocumentStatus, DocumentType, LedgerEntryType, TransportMode } from '../../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 type ItemInput = {
@@ -102,28 +102,63 @@ export class DocumentsService {
   }
 
   // Quote -> Invoice is a status change on the SAME record. No copy, no new id,
-  // so history (who quoted it, when) is never lost.
-  async convertToInvoice(id: string) {
+  // so history (who quoted it, when) is never lost. If the customer is a
+  // credit account, this also books the invoice onto their credit ledger —
+  // see brief §26, Customer.creditBalance is never touched directly.
+  async convertToInvoice(id: string, actorId: string) {
     const doc = await this.findOne(id);
     if (doc.status !== DocumentStatus.QUOTED) {
       throw new BadRequestException('Only a quoted document can be converted to an invoice');
     }
-    return this.prisma.document.update({
-      where: { id },
-      data: { type: DocumentType.INVOICE, status: DocumentStatus.INVOICED, invoicedAt: new Date() },
-    });
+
+    const ops: any[] = [
+      this.prisma.document.update({
+        where: { id },
+        data: { type: DocumentType.INVOICE, status: DocumentStatus.INVOICED, invoicedAt: new Date() },
+      }),
+    ];
+
+    if (doc.customerId && doc.customer?.isCredit) {
+      ops.push(
+        this.prisma.customerLedgerEntry.create({
+          data: { customerId: doc.customerId, type: LedgerEntryType.INVOICE, amount: doc.total, documentId: doc.id, createdById: actorId },
+        }),
+        this.prisma.customer.update({ where: { id: doc.customerId }, data: { creditBalance: { increment: doc.total } } }),
+      );
+    }
+
+    const [updated] = await this.prisma.$transaction(ops);
+    return updated;
   }
 
-  // Invoice -> Paid (which is effectively "receipt issued"). Same record again.
-  async markPaid(id: string) {
+  // Invoice -> Paid (which is effectively "receipt issued"). Same record
+  // again. For a credit customer this assumes the invoice is paid in full —
+  // partial payments against an open invoice are a deeper Phase 6 concern;
+  // for now the ledger's PAYMENT entry always matches the invoice total.
+  async markPaid(id: string, actorId: string) {
     const doc = await this.findOne(id);
     if (doc.status !== DocumentStatus.INVOICED) {
       throw new BadRequestException('Only an invoiced document can be marked paid');
     }
-    return this.prisma.document.update({
-      where: { id },
-      data: { type: DocumentType.RECEIPT, status: DocumentStatus.PAID, paidAt: new Date() },
-    });
+
+    const ops: any[] = [
+      this.prisma.document.update({
+        where: { id },
+        data: { type: DocumentType.RECEIPT, status: DocumentStatus.PAID, paidAt: new Date() },
+      }),
+    ];
+
+    if (doc.customerId && doc.customer?.isCredit) {
+      ops.push(
+        this.prisma.customerLedgerEntry.create({
+          data: { customerId: doc.customerId, type: LedgerEntryType.PAYMENT, amount: -doc.total, documentId: doc.id, note: 'Invoice paid in full', createdById: actorId },
+        }),
+        this.prisma.customer.update({ where: { id: doc.customerId }, data: { creditBalance: { decrement: doc.total } } }),
+      );
+    }
+
+    const [updated] = await this.prisma.$transaction(ops);
+    return updated;
   }
 
   async cancel(id: string) {
