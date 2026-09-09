@@ -68,7 +68,7 @@ export default function ProductsPage() {
             Products
           </h1>
           <p className="mt-0.5 text-sm" style={{ color: 'var(--color-ink-600)' }}>
-            Search by trade terms, dimensions, or technical name — not just SKU.
+            Search by trade terms, dimensions, or technical name.
           </p>
         </div>
         <button
@@ -198,7 +198,7 @@ export default function ProductsPage() {
         </table>
 
         {/* Mobile: stacked cards instead of a squeezed table (brief §63) */}
-        <div className="divide-y md:hidden" style={{ borderColor: 'var(--color-border)' }}>
+        <div className="divide-y divide-[var(--color-border)] md:hidden">
           {products === null &&
             [...Array(3)].map((_, i) => (
               <div key={i} className="p-4">

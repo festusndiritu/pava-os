@@ -90,6 +90,7 @@ model User {
   auditLogs    AuditLog[]
   inventoryReceipts  InventoryReceipt[]
   inventoryMovements InventoryMovement[]
+  customerLedgerEntries CustomerLedgerEntry[]
 
   @@index([role])
 }
@@ -323,15 +324,53 @@ model InventoryMovement {
   @@index([createdAt])
 }
 
+enum LedgerEntryType {
+  INVOICE
+  PAYMENT
+  ADJUSTMENT
+  OPENING
+  REFUND
+  WRITE_OFF
+}
+
 model Customer {
   id            String   @id @default(cuid())
   name          String
+  businessName  String?
   phone         String?
+  altPhone      String?
+  location      String?
+  address       String?
+  notes         String?
   isCredit      Boolean  @default(false)
-  creditBalance Float    @default(0)
+  creditLimit   Float?
+  creditBalance Float    @default(0) // cached running total — always written alongside a CustomerLedgerEntry, never set directly (brief §26)
+  updatedAt     DateTime @updatedAt
   createdAt     DateTime @default(now())
 
-  documents Document[]
+  documents     Document[]
+  ledgerEntries CustomerLedgerEntry[]
+}
+
+// The credit ledger (brief §26) — every change to what a customer owes is
+// one row here, explaining itself (invoice, payment, adjustment, opening
+// balance, refund, write-off). Customer.creditBalance is a cached sum,
+// always updated in the same transaction as the entry that changes it.
+model CustomerLedgerEntry {
+  id          String          @id @default(cuid())
+  customerId  String
+  customer    Customer        @relation(fields: [customerId], references: [id])
+  type        LedgerEntryType
+  amount      Float // signed: +increases balance owed (invoice/opening), -decreases (payment/refund/write-off)
+  documentId  String?
+  document    Document?       @relation(fields: [documentId], references: [id])
+  note        String?
+  createdById String
+  createdBy   User            @relation(fields: [createdById], references: [id])
+  createdAt   DateTime        @default(now())
+
+  @@index([customerId])
+  @@index([documentId])
 }
 
 // Marketing guy's contact book
@@ -366,7 +405,8 @@ model Document {
   invoicedAt      DateTime?
   paidAt          DateTime?
 
-  items DocumentItem[]
+  items         DocumentItem[]
+  ledgerEntries CustomerLedgerEntry[]
 
   @@index([status])
   @@index([createdAt])
