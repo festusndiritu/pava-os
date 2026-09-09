@@ -45,7 +45,8 @@ export default function InventoryPage() {
       </div>
 
       <div className="mt-5 overflow-hidden rounded-lg border" style={{ borderColor: 'var(--color-border)' }}>
-        <table className="w-full text-sm">
+        {/* Desktop/tablet table */}
+        <table className="hidden w-full text-sm md:table">
           <thead>
             <tr className="border-b text-left" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)' }}>
               <th className="px-4 py-2.5 font-medium" style={{ color: 'var(--color-ink-600)' }}>
@@ -136,6 +137,62 @@ export default function InventoryPage() {
             })}
           </tbody>
         </table>
+
+        {/* Mobile: stacked cards, tap to expand line items (brief §63) */}
+        <div className="divide-y md:hidden" style={{ borderColor: 'var(--color-border)' }}>
+          {receipts === null &&
+            [...Array(3)].map((_, i) => (
+              <div key={i} className="p-4">
+                <div className="h-4 w-2/3 animate-pulse rounded" style={{ backgroundColor: 'var(--color-border)' }} />
+              </div>
+            ))}
+
+          {receipts?.length === 0 && (
+            <div className="px-4 py-12 text-center">
+              <Boxes size={28} strokeWidth={1.5} className="mx-auto mb-2" style={{ color: 'var(--color-ink-600)' }} />
+              <p className="text-sm font-medium" style={{ color: 'var(--color-ink-900)' }}>
+                No inventory receipts yet
+              </p>
+              <p className="mt-1 text-sm" style={{ color: 'var(--color-ink-600)' }}>
+                Receive your first stock delivery to start tracking quantities and acquisition costs.
+              </p>
+            </div>
+          )}
+
+          {receipts?.map((r) => {
+            const total = r.batches.reduce((sum, b) => sum + b.quantityReceived * b.unitCost, 0);
+            const isOpen = expanded === r.id;
+            return (
+              <div key={r.id}>
+                <button type="button" onClick={() => setExpanded(isOpen ? null : r.id)} className="flex w-full flex-col gap-1 p-4 text-left transition-colors active:bg-[var(--color-bg)]">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="font-medium" style={{ color: 'var(--color-ink-900)' }}>
+                      {r.supplier}
+                    </p>
+                    <p className="shrink-0 font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>
+                      KSh {total.toLocaleString()}
+                    </p>
+                  </div>
+                  <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
+                    {fmtDate(r.receivedAt)} {r.reference ? `· ${r.reference}` : ''} · {r.receivedBy.name}
+                  </p>
+                </button>
+                {isOpen && (
+                  <div className="flex flex-col gap-1.5 px-4 pb-4" style={{ backgroundColor: 'var(--color-bg)' }}>
+                    {r.batches.map((b) => (
+                      <div key={b.id} className="flex items-center justify-between text-xs pt-2">
+                        <span style={{ color: 'var(--color-ink-900)' }}>{b.product.displayName ?? b.product.name}</span>
+                        <span className="data-num" style={{ color: 'var(--color-ink-600)' }}>
+                          {b.quantityReceived} × KSh {b.unitCost.toLocaleString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       <ReceiveInventoryDrawer

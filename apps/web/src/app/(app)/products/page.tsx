@@ -68,7 +68,7 @@ export default function ProductsPage() {
             Products
           </h1>
           <p className="mt-0.5 text-sm" style={{ color: 'var(--color-ink-600)' }}>
-            Search by trade terms, dimensions, or technical name.
+            Search by trade terms, dimensions, or technical name — not just SKU.
           </p>
         </div>
         <button
