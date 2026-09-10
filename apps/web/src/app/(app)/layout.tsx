@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { X } from 'lucide-react';
 import { useAuth } from '../../lib/auth-context';
 import { Sidebar } from '../../components/shell/Sidebar';
@@ -10,8 +10,13 @@ import { IdleWarningDialog } from '../../components/shell/IdleWarningDialog';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, loading } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  // POS wants every pixel it can get on a counter screen — the sidebar
+  // stays gone there; topbar (sign out, theme, calculator) is worth keeping.
+  const isPos = pathname?.startsWith('/pos');
 
   useEffect(() => {
     if (!loading && !user) router.replace('/login');
@@ -25,12 +30,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen" style={{ backgroundColor: 'var(--color-bg)' }}>
       {/* Desktop sidebar */}
-      <aside
-        className="hidden w-60 shrink-0 border-r lg:block"
-        style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
-      >
-        <Sidebar />
-      </aside>
+      {!isPos && (
+        <aside
+          className="hidden w-60 shrink-0 border-r lg:block"
+          style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
+        >
+          <Sidebar />
+        </aside>
+      )}
 
       {/* Mobile slide-over */}
       {mobileNavOpen && (

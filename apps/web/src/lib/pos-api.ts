@@ -1,4 +1,3 @@
-
 import { api } from './api';
 import type { Product } from './products-api';
 
@@ -31,6 +30,7 @@ export interface PosSaleResultItem {
   id: string;
   description: string;
   qty: number;
+  basePrice: number;
   unitPrice: number;
   discount: number;
   lineTotal: number;

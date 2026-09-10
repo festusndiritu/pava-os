@@ -110,6 +110,12 @@ export class InventoryService {
   // that represents real stock actually leaving at cost: sales (once POS
   // wires this in), damage, loss. Throws on insufficient stock unless the
   // caller explicitly authorizes going negative.
+  //
+  // Accepts an optional `client` (a Prisma transaction client) so callers
+  // like DocumentsService.posSale can run this INSIDE their own
+  // transaction — finalizing a sale must be one atomic operation (brief
+  // §70: validate stock, freeze document lines, consume inventory, all or
+  // nothing), not two separate commits that could leave things half-done.
   async consumeFifo(
     productId: string,
     quantity: number,
@@ -117,10 +123,11 @@ export class InventoryService {
     createdById: string,
     note?: string,
     allowNegative = false,
+    client?: any,
   ) {
     if (quantity <= 0) throw new BadRequestException('Quantity must be positive');
 
-    return this.prisma.$transaction(async (tx) => {
+    const run = async (tx: any) => {
       const batches = await tx.inventoryBatch.findMany({
         where: { productId, remainingQuantity: { gt: 0 } },
         orderBy: { createdAt: 'asc' },
@@ -174,7 +181,9 @@ export class InventoryService {
       });
 
       return { totalCost, averageCost: totalCost / (quantity - Math.max(remaining, 0) || 1), consumed, shortfall: Math.max(remaining, 0) };
-    });
+    };
+
+    return client ? run(client) : this.prisma.$transaction(run);
   }
 
   async adjust(input: AdjustInput, createdById: string) {

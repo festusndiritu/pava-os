@@ -65,6 +65,13 @@ enum TransportMode {
   DISTRIBUTED
 }
 
+enum PaymentMethod {
+  CASH
+  MPESA
+  CARD
+  CREDIT
+}
+
 model User {
   id           String    @id @default(cuid())
   name         String
@@ -75,6 +82,7 @@ model User {
   avatar       String? // key into the frontend's predefined avatar set, e.g. "sky-01"
   phone        String? // optional staff metadata
   permissions  Module[]  @default([]) // ignored for ADMIN, who always has full access
+  maxDiscountPercent Float @default(0) // STAFF discount cap, enforced server-side in POS; ignored for ADMIN (unlimited)
   active       Boolean   @default(true)
   createdById  String?
   createdBy    User?     @relation("StaffCreatedBy", fields: [createdById], references: [id])
@@ -398,6 +406,8 @@ model Document {
   createdBy       User           @relation("CreatedByUser", fields: [createdById], references: [id])
   transportMode   TransportMode  @default(NONE)
   transportAmount Float          @default(0)
+  roundingAdjustment Float       @default(0) // sum of per-line commercial rounding, never silently dropped (brief §13)
+  paymentMethod   PaymentMethod?
   subtotal        Float          @default(0)
   total           Float          @default(0)
   notes           String?
@@ -420,8 +430,11 @@ model DocumentItem {
   product     Product? @relation(fields: [productId], references: [id])
   description String // snapshot of product name+spec at time of sale
   qty         Float
-  unitPrice   Float // bro's actual (possibly bargained) price for this line
+  basePrice   Float    @default(0) // the "normal" per-unit price before this line's discount — what the receipt shows as struck-through/reference price
+  unitPrice   Float // final customer-facing unit price: transport-folded + commercially rounded where applicable
   discount    Float    @default(0)
+  transportAllocated Float @default(0) // this line's share of the document's transport charge (brief §18)
+  roundingAdjustment Float @default(0) // difference introduced by rounding this line's unit price (brief §13)
   lineTotal   Float
 
   @@index([documentId])

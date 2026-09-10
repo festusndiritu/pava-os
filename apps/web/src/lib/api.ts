@@ -1,5 +1,10 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
+export function resolveImageUrl(path: string | null | undefined): string | null {
+  if (!path) return null;
+  return path.startsWith('http') ? path : `${API_URL}${path}`;
+}
+
 const ACCESS_KEY = 'pava.accessToken';
 const REFRESH_KEY = 'pava.refreshToken';
 
