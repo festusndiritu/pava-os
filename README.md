@@ -22,31 +22,68 @@ apps/web   -> Next.js frontend
 3. `bun run prisma:migrate` — creates tables.
 4. `bun run prisma:seed` — creates an initial admin user, a couple of units/brands/categories, and sample products so the UI isn't empty.
 5. `bun run dev:api` in one terminal, `bun run dev:web` in another.
-6. Visit the web app, log in as admin with the seeded credentials (printed by the seed script), then create PIN logins for the marketing and POS/cashier accounts from the Admin > Users screen (not yet built — see "What's stubbed" below; for now, create them via the API or seed script directly).
+6. Visit the web app, log in as admin with the seeded credentials (printed by the seed script), then create PIN logins for the marketing and POS/cashier accounts from the Admin > Users screen.
 
-## What's actually implemented vs. scaffolded
+## Status against the Pava OS spec
 
-**Implemented (working logic, not just placeholders):**
-- Prisma schema: users/roles, brands, categories, units + subunits, products (with photo), product price-change history, customers, contacts, documents + document items
-- Auth: JWT issuance, PIN login for staff (marketing/POS), email+password login for admin, roles guard
-- Products CRUD (create/edit forms, not just a table) with brand/category/unit filtering and photo upload (served from `/uploads/products/...`)
-- **Transaction immutability**: `DocumentItem` stores its own frozen `unitPrice`/`description`/`lineTotal` at creation time and is never re-read from `Product` afterward — there is no edit endpoint on documents, only status transitions. Changing a product's price today never changes yesterday's quote/invoice/receipt.
-- **Price audit trail**: editing a product's `basePrice` writes a `ProductPriceHistory` row (old price, new price, who, when) via `GET /products/:id/price-history` — separate from and irrelevant to past transactions, purely so you can answer "what was this listed at on a given day"
-- Documents: create as quote, convert to invoice, mark paid (generates receipt state), line items with per-line discount, transport handling (itemized vs distributed)
-- Frontend: login page, role-based layout/sidebar per role (Admin/Marketing/POS), Admin dashboard with a real chart wired to real sales data, Products table with create/edit/photo, POS quick price-lookup + document builder, print stylesheet sized for an 80mm thermal printer
-- Contacts CRUD (marketing "contact book") with follow-up date
+The financial core is the priority in the spec, and it's the most complete
+part of this build. Breadth (Leads, Marketing export, HR/Payroll/Expenses,
+Reports/Analytics, Settings) is what's left.
 
-**Deliberately stubbed / left for you to build next (so this ships instead of ballooning):**
-- WhatsApp-shareable pricelist generator (image/PDF export) — the data and UI hook are there (`/marketing`), the actual html2canvas/jsPDF export button is a TODO
-- Reports/analytics beyond the one dashboard chart and the price-history endpoint — schema supports more (every document/line item is queryable), no dedicated report pages built yet
-- Credit customer balance tracking beyond the raw `creditBalance` field — no ledger/payment history yet
-- User management UI (creating/resetting PINs) — currently only via seed script or direct API calls
-- A UI screen for viewing a product's price history (the endpoint exists, no page consumes it yet)
-- Any inventory *deduction* logic (stock is a status flag, not a quantity ledger, matching how the shop actually sells — full-length/whole-unit stock, not decremented per sale, per your description)
+**Solidly implemented (real logic, matches the spec's invariants):**
+- **Auth & access**: JWT + refresh sessions, PIN login (staff) and
+  email/password login (admin), password/PIN hashing, sliding inactivity
+  timeout (30 min admin / 60 min staff, configurable, separate from the
+  absolute session cap). Granular `Module[]` permissions on `User`, enforced
+  server-side via `PermissionsGuard` — never frontend-only. Users & Access
+  page supports PIN reset and module toggles.
+- **Catalogue & search**: `Product` carries both a technical `name` and a
+  customer-facing `displayName`, plus structured attributes (`shape`,
+  `nominalSize`, `widthMm`, `heightMm`, `thicknessMm`, `gauge`). `ProductAlias`
+  and `ProductFamily` exist and are used by search.
+  `search-normalize.ts` genuinely normalizes inch notation, unicode
+  fractions, gauge phrasing, and dimension pairs before matching — this is
+  not a stub.
+- **Inventory**: real ledger — `InventoryReceipt` → `InventoryBatch` →
+  `InventoryMovement`, FIFO consumption, `Product.stockQuantity`/`lastCost`
+  are cached projections written inside the same transaction as the
+  movement that changes them. Receiving UI exists.
+- **POS / documents**: finalizing a sale is one transaction — discount-limit
+  validation, transport allocation (by quantity, by line value, or manual),
+  commercial rounding with any leftover tracked in `roundingAdjustment`
+  (never silently dropped), FIFO inventory consumption, and a frozen
+  `DocumentItem` snapshot (`basePrice`/`unitPrice`/`transportAllocated`/
+  `roundingAdjustment`/`lineTotal`) that's never re-read from `Product`
+  afterward. Quote → invoice → paid lifecycle, cancel, 80mm thermal print
+  stylesheet.
+- **Customer credit**: `CustomerLedgerEntry` is a real ledger (invoice,
+  payment, adjustment, opening, refund, write-off), not a bare mutable
+  balance — with a credit UI badge and detail drawer.
+- **Price history**: editing `Product.basePrice` writes a
+  `ProductPriceHistory` row (old/new price, who, when) via
+  `GET /products/:id/price-history`.
 
-This is meant to match your workflow: build the schema right once, ship the
-quote→invoice→receipt core first, layer contacts/reports/inventory on top
-without a rewrite.
+**Partially built:**
+- Contacts: full CRUD API exists but has **no frontend page** yet.
+- Audit: `AuditLog` is written from auth/users/customers/inventory/documents,
+  but there's no Audit Trail page to view it yet.
+- Product aliases/families: manageable via API, no admin UI for them yet.
+- Receiving-time "suggest new selling price" prompt (spec §23) — not wired
+  into the receiving UI yet.
+
+**Not started:**
+- Leads (no model, no pipeline)
+- Marketing / WhatsApp-friendly pricelist export
+- HR, Payroll, Advances, Expenses (no schema, no modules)
+- Settings module (`BusinessSetting`) — rounding increment, document
+  prefixes, etc. are currently request-time parameters, not persisted
+  business config
+- Reports/Analytics beyond the dashboard chart and one sales-summary
+  endpoint — no gross-profit, margin, discount, or transport reporting yet
+
+This is meant to match the phased build order in the spec: get the schema
+and the pricing/inventory/transport invariants right first, then layer
+Leads/Marketing/HR/Reports on top without a rewrite.
 
 ## Runtime / dependency baseline
 

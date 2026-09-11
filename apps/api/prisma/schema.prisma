@@ -7,17 +7,14 @@ datasource db {
   provider = "postgresql"
 }
 
-// Two authentication tiers. ADMIN = email/password. STAFF = PIN.
-// Fine-grained access within STAFF (and any non-owner ADMIN) is controlled by
-// User.permissions below, not by this enum — see Module.
+// Authentication tiers. ADMIN = email/password. STAFF = PIN.
 enum Role {
   ADMIN
   STAFF
 }
 
 // One entry per sidebar module. Admin can grant any subset of these to a
-// staff account. ADMIN role implicitly has every module regardless of what's
-// stored here (see PermissionsGuard).
+// staff account. ADMIN role implicitly has every module
 enum Module {
   DASHBOARD
   POS

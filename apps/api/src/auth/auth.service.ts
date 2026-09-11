@@ -118,9 +118,7 @@ export class AuthService {
     return this.issuePair(this.toAuthedUser(user), meta);
   }
 
-  // Staff login: userId (selected from a list on the login screen) + PIN.
-  // Deliberately returns the same generic error for "no such user", "inactive",
-  // and "wrong PIN" so the API never confirms which case applies.
+  // Staff login: userId + PIN.
   async loginWithPin(userId: string, pin: string, meta?: RequestMeta) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || !user.active || !user.pinHash) {
@@ -141,8 +139,7 @@ export class AuthService {
   }
 
   // Sliding-inactivity refresh. Rejects if the session was revoked, has hit
-  // its absolute cap, or has been idle longer than the user's role allows —
-  // in all three cases the session is also revoked so it can't be replayed.
+  // its absolute cap, or has been idle longer than the user's role allows
   async refresh(refreshToken: string, meta?: RequestMeta) {
     const tokenHash = this.hashToken(refreshToken);
     const session = await this.prisma.session.findUnique({
@@ -238,8 +235,7 @@ export class AuthService {
     return { ok: true };
   }
 
-  // A user may rename/re-avatar themselves but never touch their own
-  // permissions or role — those routes live in UsersService (admin-only).
+  // A user may rename/re-avatar themselves but never touch their own permissions or role
   async updateOwnProfile(userId: string, data: { name?: string; avatar?: string }) {
     const user = await this.prisma.user.update({
       where: { id: userId },
@@ -253,9 +249,7 @@ export class AuthService {
     return user;
   }
 
-  // Public, unauthenticated: powers the staff login tile grid. Only ever
-  // returns id/name/avatar for active STAFF accounts — never hashes, never
-  // ADMIN accounts (admins sign in via the separate password form).
+  // Public, unauthenticated: powers the staff login tile grid
   async listLoginableStaff() {
     return this.prisma.user.findMany({
       where: { active: true, role: Role.STAFF },

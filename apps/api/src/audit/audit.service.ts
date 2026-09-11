@@ -9,9 +9,7 @@ export interface AuditEntry {
   metadata?: Record<string, unknown>;
 }
 
-// Fire-and-forget audit writes: a logging failure must never break the
-// request that triggered it (rule #19 says don't silently swallow failures —
-// so we still log to stderr, we just don't let it bubble up as a 500).
+// Fire-and-forget audit writes: a logging failure must never break the request that triggered it
 @Injectable()
 export class AuditService {
   private readonly logger = new Logger(AuditService.name);
