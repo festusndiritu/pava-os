@@ -6,6 +6,7 @@ import { PermissionsGuard } from '../auth/permissions.guard.js';
 import { Permissions } from '../auth/permissions.decorator.js';
 import { Module } from '../../generated/prisma/client.js';
 import { CreatePosSaleDto } from './dto/pos-sale.dto.js';
+import { CreateDocumentDto } from './dto/document.dto.js';
 
 @UseGuards(JwtAuthGuard)
 @Controller('documents')
@@ -31,8 +32,10 @@ export class DocumentsController {
     return this.documents.findOne(id);
   }
 
+  @UseGuards(PermissionsGuard)
+  @Permissions(Module.QUOTES, Module.INVOICES)
   @Post()
-  create(@Req() req: any, @Body() body: any) {
+  create(@Req() req: any, @Body() body: CreateDocumentDto) {
     return this.documents.create(req.user.sub, body);
   }
 
@@ -43,16 +46,22 @@ export class DocumentsController {
     return this.documents.posSale(req.user.sub, req.user.role, body);
   }
 
+  @UseGuards(PermissionsGuard)
+  @Permissions(Module.QUOTES, Module.INVOICES)
   @Post(':id/convert-to-invoice')
   convertToInvoice(@Param('id') id: string, @Req() req: any) {
     return this.documents.convertToInvoice(id, req.user.sub);
   }
 
+  @UseGuards(PermissionsGuard)
+  @Permissions(Module.INVOICES)
   @Post(':id/mark-paid')
   markPaid(@Param('id') id: string, @Req() req: any) {
     return this.documents.markPaid(id, req.user.sub);
   }
 
+  @UseGuards(PermissionsGuard)
+  @Permissions(Module.QUOTES, Module.INVOICES)
   @Post(':id/cancel')
   cancel(@Param('id') id: string) {
     return this.documents.cancel(id);

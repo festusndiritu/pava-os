@@ -66,6 +66,7 @@ export class DocumentsService {
             productId: i.productId,
             description: i.description,
             qty: i.qty,
+            basePrice: i.unitPrice,
             unitPrice: i.unitPrice,
             discount: i.discount || 0,
             lineTotal: lineTotals[idx],
@@ -109,33 +110,39 @@ export class DocumentsService {
   }
 
   // Quote -> Invoice is a status change on the SAME record. No copy, no new id,
-  // so history (who quoted it, when) is never lost. If the customer is a
-  // credit account, this also books the invoice onto their credit ledger —
-  // see brief §26, Customer.creditBalance is never touched directly.
+  // so history (who quoted it, when) is never lost. This is also where stock
+  // actually leaves for the quote/invoice workflow (unlike POS, which
+  // deducts immediately) — an invoice is the point the sale is committed,
+  // even if payment (credit) comes later. If the customer is a credit
+  // account, this also books the invoice onto their credit ledger — see
+  // brief §26, Customer.creditBalance is never touched directly.
   async convertToInvoice(id: string, actorId: string) {
     const doc = await this.findOne(id);
     if (doc.status !== DocumentStatus.QUOTED) {
       throw new BadRequestException('Only a quoted document can be converted to an invoice');
     }
 
-    const ops: any[] = [
-      this.prisma.document.update({
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.document.update({
         where: { id },
         data: { type: DocumentType.INVOICE, status: DocumentStatus.INVOICED, invoicedAt: new Date() },
-      }),
-    ];
+      });
 
-    if (doc.customerId && doc.customer?.isCredit) {
-      ops.push(
-        this.prisma.customerLedgerEntry.create({
+      for (const item of doc.items) {
+        if (item.productId) {
+          await this.inventory.consumeFifo(item.productId, item.qty, 'SALE', actorId, `Invoice ${doc.id}`, false, tx);
+        }
+      }
+
+      if (doc.customerId && doc.customer?.isCredit) {
+        await tx.customerLedgerEntry.create({
           data: { customerId: doc.customerId, type: LedgerEntryType.INVOICE, amount: doc.total, documentId: doc.id, createdById: actorId },
-        }),
-        this.prisma.customer.update({ where: { id: doc.customerId }, data: { creditBalance: { increment: doc.total } } }),
-      );
-    }
+        });
+        await tx.customer.update({ where: { id: doc.customerId }, data: { creditBalance: { increment: doc.total } } });
+      }
 
-    const [updated] = await this.prisma.$transaction(ops);
-    return updated;
+      return updated;
+    });
   }
 
   // Invoice -> Paid (which is effectively "receipt issued"). Same record
