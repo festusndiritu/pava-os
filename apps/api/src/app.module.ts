@@ -12,6 +12,7 @@ import { CategoriesModule } from './categories/categories.module.js';
 import { UnitsModule } from './units/units.module.js';
 import { CustomersModule } from './customers/customers.module.js';
 import { ContactsModule } from './contacts/contacts.module.js';
+import { LeadsModule } from './leads/leads.module.js';
 import { DocumentsModule } from './documents/documents.module.js';
 
 @Module({
@@ -29,6 +30,7 @@ import { DocumentsModule } from './documents/documents.module.js';
     UnitsModule,
     CustomersModule,
     ContactsModule,
+    LeadsModule,
     DocumentsModule,
   ],
 })

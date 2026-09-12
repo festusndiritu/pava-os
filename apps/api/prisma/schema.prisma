@@ -7,14 +7,17 @@ datasource db {
   provider = "postgresql"
 }
 
-// Authentication tiers. ADMIN = email/password. STAFF = PIN.
+// Two authentication tiers. ADMIN = email/password. STAFF = PIN.
+// Fine-grained access within STAFF (and any non-owner ADMIN) is controlled by
+// User.permissions below, not by this enum — see Module.
 enum Role {
   ADMIN
   STAFF
 }
 
 // One entry per sidebar module. Admin can grant any subset of these to a
-// staff account. ADMIN role implicitly has every module
+// staff account. ADMIN role implicitly has every module regardless of what's
+// stored here (see PermissionsGuard).
 enum Module {
   DASHBOARD
   POS
@@ -89,7 +92,9 @@ model User {
   updatedAt    DateTime  @updatedAt
 
   documents    Document[]             @relation("CreatedByUser")
-  contacts     Contact[]
+  leadsCreated      Lead[]    @relation("LeadCreatedBy")
+  leadsAssigned     Lead[]    @relation("LeadAssignedTo")
+  contactsCreated   Contact[] @relation("ContactCreatedBy")
   priceChanges ProductPriceHistory[]
   sessions     Session[]
   auditLogs    AuditLog[]
@@ -355,6 +360,7 @@ model Customer {
 
   documents     Document[]
   ledgerEntries CustomerLedgerEntry[]
+  convertedFromLeads Lead[]
 }
 
 // The credit ledger (brief §26) — every change to what a customer owes is
@@ -379,15 +385,62 @@ model CustomerLedgerEntry {
 }
 
 // Marketing guy's contact book
+enum LeadStage {
+  NEW
+  CONTACTED
+  QUALIFIED
+  QUOTE_REQUIRED
+  QUOTE_SENT
+  NEGOTIATING
+  WON
+  LOST
+}
+
+// Renamed from the original "Contact" model — its fields (source, followUpAt,
+// a sales pipeline) always matched what the brief calls a Lead, not the
+// phone-book Contact described in brief §32-33. Keeping the data, fixing
+// the label, and adding a real Contact model below rather than collapsing
+// both concepts into one table (brief explicitly forbids that).
+model Lead {
+  id                  String     @id @default(cuid())
+  name                String
+  company             String?
+  phone               String?
+  email               String?
+  location            String?
+  source              String? // where the lead came from
+  stage               LeadStage  @default(NEW)
+  expectedValue       Float?
+  notes               String?
+  followUpAt          DateTime?
+  assignedToId        String?
+  assignedTo          User?      @relation("LeadAssignedTo", fields: [assignedToId], references: [id])
+  convertedCustomerId String?
+  convertedCustomer   Customer?  @relation(fields: [convertedCustomerId], references: [id])
+  createdById         String
+  createdBy           User       @relation("LeadCreatedBy", fields: [createdById], references: [id])
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  @@index([stage])
+  @@index([assignedToId])
+}
+
+// The operational phone book (brief §32): suppliers, drivers, technicians —
+// not customers, not sales leads. `role` stays free text since real-world
+// job types here vary too much to lock into an enum.
 model Contact {
   id          String    @id @default(cuid())
   name        String
+  company     String?
+  role        String?
   phone       String?
-  source      String? // where the lead came from
+  altPhone    String?
   notes       String?
+  tags        String[]  @default([])
   followUpAt  DateTime?
   createdById String
-  createdBy   User      @relation(fields: [createdById], references: [id])
+  createdBy   User      @relation("ContactCreatedBy", fields: [createdById], references: [id])
   createdAt   DateTime  @default(now())
 }
 
