@@ -7,6 +7,7 @@ import { UsersModule } from './users/users.module.js';
 import { ProductsModule } from './products/products.module.js';
 import { InventoryModule } from './inventory/inventory.module.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
+import { SettingsModule } from './settings/settings.module.js';
 import { BrandsModule } from './brands/brands.module.js';
 import { CategoriesModule } from './categories/categories.module.js';
 import { UnitsModule } from './units/units.module.js';
@@ -25,6 +26,7 @@ import { DocumentsModule } from './documents/documents.module.js';
     ProductsModule,
     InventoryModule,
     DashboardModule,
+    SettingsModule,
     BrandsModule,
     CategoriesModule,
     UnitsModule,

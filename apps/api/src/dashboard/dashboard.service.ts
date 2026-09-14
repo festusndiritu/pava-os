@@ -1,8 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { DocumentStatus, Module, Role } from '../../generated/prisma/client.js';
-
-const LOW_STOCK_THRESHOLD = 5; // hardcoded until a Settings module exists to make this configurable
+import { SettingsService } from '../settings/settings.service.js';
 
 function has(role: Role, permissions: string[], allowed: Module[]) {
   return role === Role.ADMIN || allowed.some((m) => permissions.includes(m));
@@ -10,7 +9,10 @@ function has(role: Role, permissions: string[], allowed: Module[]) {
 
 @Injectable()
 export class DashboardService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private settings: SettingsService,
+  ) {}
 
   async summary(role: Role, permissions: string[]) {
     const canSeeSales = has(role, permissions, ['POS', 'INVOICES', 'ANALYTICS', 'REPORTS'] as Module[]);
@@ -68,8 +70,9 @@ export class DashboardService {
     }
 
     if (canSeeStock) {
+      const { lowStockThreshold } = await this.settings.get();
       const lowStock = await this.prisma.product.findMany({
-        where: { active: true, stockQuantity: { lte: LOW_STOCK_THRESHOLD } },
+        where: { active: true, stockQuantity: { lte: lowStockThreshold } },
         orderBy: { stockQuantity: 'asc' },
         take: 10,
         include: { unit: { select: { symbol: true } } },

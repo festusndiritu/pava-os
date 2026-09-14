@@ -57,13 +57,14 @@ export function DocumentDetailDrawer({ documentId, onClose, onChanged }: { docum
   }
 
   const status = doc ? STATUS_LABEL[doc.status] : null;
+  const docNumber = doc?.receiptNumber ?? doc?.invoiceNumber ?? doc?.quoteNumber;
 
   return (
     <Drawer
       open
       onClose={onClose}
       title={doc?.customer?.businessName || doc?.customer?.name || doc?.customerName || 'Walk-in customer'}
-      subtitle={doc ? `${doc.type === 'QUOTE' ? 'Quote' : doc.type === 'INVOICE' ? 'Invoice' : 'Receipt'} · ${fmtDate(doc.createdAt)}` : undefined}
+      subtitle={doc ? `${docNumber ? `${docNumber} · ` : ''}${doc.type === 'QUOTE' ? 'Quote' : doc.type === 'INVOICE' ? 'Invoice' : 'Receipt'} · ${fmtDate(doc.createdAt)}` : undefined}
       footer={
         doc && (
           <div className="flex flex-col gap-2">

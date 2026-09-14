@@ -3,6 +3,7 @@ import { DocumentStatus, DocumentType, LedgerEntryType, PaymentMethod, Role, Tra
 import { PrismaService } from '../prisma/prisma.service.js';
 import { InventoryService } from '../inventory/inventory.service.js';
 import { AuditService } from '../audit/audit.service.js';
+import { SettingsService } from '../settings/settings.service.js';
 import type { CreatePosSaleDto } from './dto/pos-sale.dto.js';
 
 type ItemInput = {
@@ -39,6 +40,7 @@ export class DocumentsService {
     private prisma: PrismaService,
     private inventory: InventoryService,
     private audit: AuditService,
+    private settings: SettingsService,
   ) {}
 
   async create(createdById: string, input: CreateDocumentInput) {
@@ -49,31 +51,35 @@ export class DocumentsService {
     const transportAmount = input.transportAmount || 0;
     const { lineTotals, subtotal, total } = computeTotals(input.items, transportMode, transportAmount);
 
-    return this.prisma.document.create({
-      data: {
-        type: DocumentType.QUOTE,
-        status: DocumentStatus.QUOTED,
-        customerId: input.customerId,
-        customerName: input.customerName,
-        createdById,
-        transportMode,
-        transportAmount,
-        subtotal,
-        total,
-        notes: input.notes,
-        items: {
-          create: input.items.map((i, idx) => ({
-            productId: i.productId,
-            description: i.description,
-            qty: i.qty,
-            basePrice: i.unitPrice,
-            unitPrice: i.unitPrice,
-            discount: i.discount || 0,
-            lineTotal: lineTotals[idx],
-          })),
+    return this.prisma.$transaction(async (tx) => {
+      const quoteNumber = await this.settings.nextNumber('QUOTE', tx);
+      return tx.document.create({
+        data: {
+          type: DocumentType.QUOTE,
+          status: DocumentStatus.QUOTED,
+          customerId: input.customerId,
+          customerName: input.customerName,
+          createdById,
+          transportMode,
+          transportAmount,
+          subtotal,
+          total,
+          notes: input.notes,
+          quoteNumber,
+          items: {
+            create: input.items.map((i, idx) => ({
+              productId: i.productId,
+              description: i.description,
+              qty: i.qty,
+              basePrice: i.unitPrice,
+              unitPrice: i.unitPrice,
+              discount: i.discount || 0,
+              lineTotal: lineTotals[idx],
+            })),
+          },
         },
-      },
-      include: { items: true, customer: true, createdBy: { select: { name: true } } },
+        include: { items: true, customer: true, createdBy: { select: { name: true } } },
+      });
     });
   }
 
@@ -123,9 +129,10 @@ export class DocumentsService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      const invoiceNumber = await this.settings.nextNumber('INVOICE', tx);
       const updated = await tx.document.update({
         where: { id },
-        data: { type: DocumentType.INVOICE, status: DocumentStatus.INVOICED, invoicedAt: new Date() },
+        data: { type: DocumentType.INVOICE, status: DocumentStatus.INVOICED, invoicedAt: new Date(), invoiceNumber },
       });
 
       for (const item of doc.items) {
@@ -155,24 +162,22 @@ export class DocumentsService {
       throw new BadRequestException('Only an invoiced document can be marked paid');
     }
 
-    const ops: any[] = [
-      this.prisma.document.update({
+    return this.prisma.$transaction(async (tx) => {
+      const receiptNumber = await this.settings.nextNumber('RECEIPT', tx);
+      const updated = await tx.document.update({
         where: { id },
-        data: { type: DocumentType.RECEIPT, status: DocumentStatus.PAID, paidAt: new Date() },
-      }),
-    ];
+        data: { type: DocumentType.RECEIPT, status: DocumentStatus.PAID, paidAt: new Date(), receiptNumber },
+      });
 
-    if (doc.customerId && doc.customer?.isCredit) {
-      ops.push(
-        this.prisma.customerLedgerEntry.create({
+      if (doc.customerId && doc.customer?.isCredit) {
+        await tx.customerLedgerEntry.create({
           data: { customerId: doc.customerId, type: LedgerEntryType.PAYMENT, amount: -doc.total, documentId: doc.id, note: 'Invoice paid in full', createdById: actorId },
-        }),
-        this.prisma.customer.update({ where: { id: doc.customerId }, data: { creditBalance: { decrement: doc.total } } }),
-      );
-    }
+        });
+        await tx.customer.update({ where: { id: doc.customerId }, data: { creditBalance: { decrement: doc.total } } });
+      }
 
-    const [updated] = await this.prisma.$transaction(ops);
-    return updated;
+      return updated;
+    });
   }
 
   async cancel(id: string) {
@@ -285,7 +290,8 @@ export class DocumentsService {
     }
 
     // --- Per-line pricing: base -> (+transport if folded) -> commercial rounding ---
-    const roundingIncrement = input.roundingIncrement || 5;
+    const businessSettings = await this.settings.get();
+    const roundingIncrement = input.roundingIncrement || businessSettings.roundingIncrement;
     const roundUp = (v: number) => Math.ceil(v / roundingIncrement) * roundingIncrement;
 
     let subtotal = 0;
@@ -353,6 +359,8 @@ export class DocumentsService {
         });
       }
 
+      const number = status === DocumentStatus.INVOICED ? await this.settings.nextNumber('INVOICE', tx) : await this.settings.nextNumber('RECEIPT', tx);
+
       const created = await tx.document.create({
         data: {
           type,
@@ -369,6 +377,8 @@ export class DocumentsService {
           notes: input.notes,
           invoicedAt: status === DocumentStatus.INVOICED ? now : undefined,
           paidAt: status === DocumentStatus.PAID ? now : undefined,
+          invoiceNumber: status === DocumentStatus.INVOICED ? number : undefined,
+          receiptNumber: status === DocumentStatus.PAID ? number : undefined,
           items: { create: items },
         },
       });

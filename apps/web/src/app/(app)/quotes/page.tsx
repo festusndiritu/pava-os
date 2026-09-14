@@ -50,6 +50,7 @@ export default function QuotesPage() {
         <table className="hidden w-full text-sm md:table">
           <thead>
             <tr className="border-b text-left" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)' }}>
+              <th className="px-4 py-2.5 font-medium" style={{ color: 'var(--color-ink-600)' }}>Number</th>
               <th className="px-4 py-2.5 font-medium" style={{ color: 'var(--color-ink-600)' }}>Customer</th>
               <th className="px-4 py-2.5 font-medium" style={{ color: 'var(--color-ink-600)' }}>Date</th>
               <th className="px-4 py-2.5 font-medium" style={{ color: 'var(--color-ink-600)' }}>Status</th>
@@ -60,14 +61,14 @@ export default function QuotesPage() {
             {docs === null &&
               [...Array(4)].map((_, i) => (
                 <tr key={i} className="border-b" style={{ borderColor: 'var(--color-border)' }}>
-                  <td className="px-4 py-3" colSpan={4}>
+                  <td className="px-4 py-3" colSpan={5}>
                     <div className="h-4 w-2/3 animate-pulse rounded" style={{ backgroundColor: 'var(--color-border)' }} />
                   </td>
                 </tr>
               ))}
             {docs?.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-12 text-center">
+                <td colSpan={5} className="px-4 py-12 text-center">
                   <FileText size={28} strokeWidth={1.5} className="mx-auto mb-2" style={{ color: 'var(--color-ink-600)' }} />
                   <p className="text-sm font-medium" style={{ color: 'var(--color-ink-900)' }}>No quotes yet</p>
                 </td>
@@ -77,6 +78,7 @@ export default function QuotesPage() {
               const badge = STATUS_BADGE[d.status] ?? STATUS_BADGE.QUOTED;
               return (
                 <tr key={d.id} onClick={() => setDetailId(d.id)} className="cursor-pointer border-b transition-colors last:border-0 hover:bg-[var(--color-bg)]" style={{ borderColor: 'var(--color-border)' }}>
+                  <td className="px-4 py-3 data-num" style={{ color: 'var(--color-ink-600)' }}>{d.quoteNumber ?? '—'}</td>
                   <td className="px-4 py-3 font-medium" style={{ color: 'var(--color-ink-900)' }}>{d.customer?.businessName || d.customer?.name || d.customerName || 'Walk-in'}</td>
                   <td className="px-4 py-3" style={{ color: 'var(--color-ink-600)' }}>{fmtDate(d.createdAt)}</td>
                   <td className="px-4 py-3">
@@ -111,7 +113,7 @@ export default function QuotesPage() {
                   <p className="shrink-0 font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>KSh {d.total.toLocaleString()}</p>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span style={{ color: 'var(--color-ink-600)' }}>{fmtDate(d.createdAt)}</span>
+                  <span style={{ color: 'var(--color-ink-600)' }}>{d.quoteNumber ?? fmtDate(d.createdAt)}</span>
                   <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: badge.bg, color: badge.fg }}>{d.status === 'CANCELLED' ? 'Cancelled' : 'Quote'}</span>
                 </div>
               </button>

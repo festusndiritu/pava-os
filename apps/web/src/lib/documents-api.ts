@@ -24,6 +24,9 @@ export interface SaleDocument {
   id: string;
   type: DocumentType;
   status: DocumentStatus;
+  quoteNumber: string | null;
+  invoiceNumber: string | null;
+  receiptNumber: string | null;
   customerId: string | null;
   customerName: string | null;
   customer: Customer | null;

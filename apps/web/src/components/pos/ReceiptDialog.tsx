@@ -45,6 +45,11 @@ export function ReceiptDialog({ sale, onClose }: { sale: PosSaleResult; onClose:
             <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>
               {fmtDateTime(sale.createdAt)}
             </p>
+            {(sale.receiptNumber || sale.invoiceNumber) && (
+              <p className="text-xs font-medium" style={{ color: 'var(--color-ink-900)' }}>
+                {sale.receiptNumber ?? sale.invoiceNumber}
+              </p>
+            )}
             <p className="text-xs" style={{ color: 'var(--color-ink-600)' }}>
               {sale.customer?.businessName || sale.customer?.name || sale.customerName || 'Walk-in customer'}
             </p>

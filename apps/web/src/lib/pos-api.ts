@@ -43,6 +43,8 @@ export interface PosSaleResult {
   id: string;
   type: string;
   status: string;
+  invoiceNumber: string | null;
+  receiptNumber: string | null;
   subtotal: number;
   total: number;
   transportAmount: number;

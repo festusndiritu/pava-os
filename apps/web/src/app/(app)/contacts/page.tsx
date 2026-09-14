@@ -31,7 +31,7 @@ export default function ContactsPage() {
             Contacts
           </h1>
           <p className="mt-0.5 text-sm" style={{ color: 'var(--color-ink-600)' }}>
-            Suppliers, drivers, technicians — the operational phonebook.
+            Suppliers, drivers, technicians - the operational phonebook
           </p>
         </div>
         <button

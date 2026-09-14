@@ -460,6 +460,12 @@ model Document {
   paymentMethod   PaymentMethod?
   subtotal        Float          @default(0)
   total           Float          @default(0)
+  // Assigned server-side the moment a document actually enters that stage
+  // (brief §53) — a quote keeps its QT number even after becoming an
+  // invoice, which gets its own INV number, and so on for PAID's RCT number.
+  quoteNumber     String?        @unique
+  invoiceNumber   String?        @unique
+  receiptNumber   String?        @unique
   notes           String?
   createdAt       DateTime       @default(now())
   invoicedAt      DateTime?
@@ -488,4 +494,25 @@ model DocumentItem {
   lineTotal   Float
 
   @@index([documentId])
+}
+
+// A single row (id is always "singleton") holding business-wide
+// configuration (brief §52): identity, document numbering prefixes/counters,
+// commercial rounding, and the low-stock threshold the dashboard uses.
+model BusinessSetting {
+  id                String   @id @default("singleton")
+  businessName      String   @default("Pava Steel Hardware")
+  address           String?
+  phone             String?
+  email             String?
+  quotePrefix       String   @default("QT")
+  invoicePrefix     String   @default("INV")
+  receiptPrefix     String   @default("RCT")
+  nextQuoteSeq      Int      @default(1)
+  nextInvoiceSeq    Int      @default(1)
+  nextReceiptSeq    Int      @default(1)
+  roundingIncrement Float    @default(5)
+  lowStockThreshold Float    @default(5)
+  documentFooter    String?
+  updatedAt         DateTime @updatedAt
 }
