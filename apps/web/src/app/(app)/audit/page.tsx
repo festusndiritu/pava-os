@@ -16,8 +16,10 @@ const ENTITY_ICONS: Record<string, React.ComponentType<{ size?: number; strokeWi
 
 function ActionBadge({ action }: { action: string }) {
   const actionLower = action.toLowerCase();
+
   let colorKey = 'accent';
-  if (actionLower.includes('create')) colorKey = 'ok';
+
+  if (actionLower.includes('create')) colorKey = 'ok'
   else if (actionLower.includes('update')) colorKey = 'info';
   else if (actionLower.includes('delete') || actionLower.includes('deactivate')) colorKey = 'bad';
   else if (actionLower.includes('login')) colorKey = 'accent';
@@ -47,25 +49,24 @@ function fmtDate(iso: string) {
 }
 
 export default function AuditPage() {
-  const { hasPermission } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [logs, setLogs] = useState<AuditLogEntry[] | null>(null);
-  const [pagination, setPagination] = useState<{ page: number; limit: number; total: number; totalPages: number } | null>(null);
-  const [filterAction, setFilterAction] = useState('');
-  const [filterEntity, setFilterEntity] = useState('');
-  const [page, setPage] = useState(1);
-
-  const limit = 30;
-
-  async function load() {
-    setLoading(true);
-    try {
-      const result = await auditApi.list({
-        page,
-        limit,
-        action: filterAction || undefined,
-        entityType: filterEntity || undefined,
-      });
+    const { hasPermission } = useAuth();
+    const [loading, setLoading] = useState(true);
+    const [logs, setLogs] = useState<AuditLogEntry[] | null>(null);
+    const [pagination, setPagination] = useState<{ page: number; limit: number; total: number; totalPages: number } | null>(null);
+    const [filterAction, setFilterAction] = useState('');
+    const [filterEntity, setFilterEntity] = useState('');
+    const [page, setPage] = useState(1);
+    const limit = 30;
+    
+    async function load() {
+      setLoading(true);
+        try {
+        const result = await auditApi.list({
+          page,
+          limit,
+          action: filterAction || undefined,
+          entityType: filterEntity || undefined,
+        });
       setLogs(result.data);
       setPagination(result.pagination);
     } catch (err) {
@@ -268,7 +269,7 @@ export default function AuditPage() {
         </table>
 
         {/* Mobile cards */}
-        <div className="divide-y md:hidden" style={{ borderColor: 'var(--color-border)' }}>
+        <div className="divide-y divide-[var(--color-border)] md:hidden">
           {loading &&
             [...Array(5)].map((_, i) => (
               <div key={i} className="p-4">

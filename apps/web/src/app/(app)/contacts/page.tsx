@@ -106,7 +106,7 @@ export default function ContactsPage() {
           </tbody>
         </table>
 
-        <div className="divide-y md:hidden" style={{ borderColor: 'var(--color-border)' }}>
+        <div className="divide-y divide-[var(--color-border)] md:hidden">
           {contacts === null &&
             [...Array(3)].map((_, i) => (
               <div key={i} className="p-4">
