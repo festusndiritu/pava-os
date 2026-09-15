@@ -154,6 +154,11 @@ async function main() {
     skipDuplicates: true,
   });
 
+  await prisma.expenseCategory.createMany({
+    data: ['Rent', 'Electricity', 'WiFi & Internet', 'Fuel & Transport', 'Repairs & Maintenance', 'Supplies', 'Other'].map((name) => ({ name })),
+    skipDuplicates: true,
+  });
+
   console.log('Seed complete.');
   console.log('Admin login -> email: bro@broshardware.local  password:', adminPassword);
   console.log('Admin PIN:', adminPin, '| Marketing PIN:', marketingPin, '| POS PIN:', posPin);
@@ -167,3 +172,4 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+  

@@ -15,6 +15,9 @@ import { CustomersModule } from './customers/customers.module.js';
 import { ContactsModule } from './contacts/contacts.module.js';
 import { LeadsModule } from './leads/leads.module.js';
 import { DocumentsModule } from './documents/documents.module.js';
+import { HrModule } from './hr/hr.module.js';
+import { PayrollModule } from './payroll/payroll.module.js';
+import { ExpensesModule } from './expenses/expenses.module.js';
 
 @Module({
   imports: [
@@ -34,6 +37,9 @@ import { DocumentsModule } from './documents/documents.module.js';
     ContactsModule,
     LeadsModule,
     DocumentsModule,
+    HrModule,
+    PayrollModule,
+    ExpensesModule,
   ],
 })
 export class AppModule {}

@@ -7,14 +7,11 @@ datasource db {
   provider = "postgresql"
 }
 
-// Authentication tiers. ADMIN = email/password. STAFF = PIN.
 enum Role {
   ADMIN
   STAFF
 }
 
-// One entry per sidebar module. Admin can grant any subset of these to a
-// staff account. ADMIN role implicitly has every module
 enum Module {
   DASHBOARD
   POS
@@ -69,45 +66,85 @@ enum PaymentMethod {
   CREDIT
 }
 
-model User {
-  id           String    @id @default(cuid())
-  name         String
-  role         Role
-  email        String?   @unique
-  passwordHash String? // ADMIN only
-  pinHash      String? // STAFF only (ADMIN may also keep one as a fallback, but is not required to)
-  avatar       String? // key into the frontend's predefined avatar set, e.g. "sky-01"
-  phone        String? // optional staff metadata
-  permissions  Module[]  @default([]) // ignored for ADMIN, who always has full access
-  maxDiscountPercent Float @default(0) // STAFF discount cap, enforced server-side in POS; ignored for ADMIN (unlimited)
-  active       Boolean   @default(true)
-  createdById  String?
-  createdBy    User?     @relation("StaffCreatedBy", fields: [createdById], references: [id])
-  createdStaff User[]    @relation("StaffCreatedBy")
-  lastLoginAt  DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+enum EmploymentStatus {
+  ACTIVE
+  ON_LEAVE
+  TERMINATED
+}
 
-  documents    Document[]             @relation("CreatedByUser")
-  contacts     Contact[]
-  priceChanges ProductPriceHistory[]
-  sessions     Session[]
-  auditLogs    AuditLog[]
-  inventoryReceipts  InventoryReceipt[]
-  inventoryMovements InventoryMovement[]
+enum AdvanceStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SETTLED
+}
+
+enum PayrollStatus {
+  DRAFT
+  FINALIZED
+  PAID
+}
+
+enum PayrollItemStatus {
+  PENDING
+  PAID
+}
+
+enum ExpenseStatus {
+  PENDING
+  APPROVED
+  PAID
+}
+
+enum LeadStage {
+  NEW
+  CONTACTED
+  QUALIFIED
+  QUOTE_REQUIRED
+  QUOTE_SENT
+  NEGOTIATING
+  WON
+  LOST
+}
+
+model User {
+  id                 String    @id @default(cuid())
+  name               String
+  role               Role
+  email              String?   @unique
+  passwordHash       String?
+  pinHash            String?
+  avatar             String?
+  phone              String?
+  permissions        Module[]  @default([])
+  maxDiscountPercent Float     @default(0)
+  active             Boolean   @default(true)
+  createdById        String?
+  createdBy          User?     @relation("StaffCreatedBy", fields: [createdById], references: [id])
+  createdStaff       User[]    @relation("StaffCreatedBy")
+  lastLoginAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  documents             Document[]            @relation("CreatedByUser")
+  leadsCreated          Lead[]                @relation("LeadCreatedBy")
+  leadsAssigned         Lead[]                @relation("LeadAssignedTo")
+  contactsCreated       Contact[]             @relation("ContactCreatedBy")
+  priceChanges          ProductPriceHistory[]
+  sessions              Session[]
+  auditLogs             AuditLog[]
+  inventoryReceipts     InventoryReceipt[]
+  inventoryMovements    InventoryMovement[]
   customerLedgerEntries CustomerLedgerEntry[]
-  employeesCreated  Employee[]
-  advancesApproved  EmployeeAdvance[] @relation("AdvanceApprovedBy")
-  advancesCreated   EmployeeAdvance[] @relation("AdvanceCreatedBy")
-  payrollRuns       PayrollRun[]
-  expenses          Expense[]
+  employeesCreated      Employee[]
+  advancesApproved      EmployeeAdvance[]     @relation("AdvanceApprovedBy")
+  advancesCreated       EmployeeAdvance[]     @relation("AdvanceCreatedBy")
+  payrollRuns           PayrollRun[]
+  expenses              Expense[]
 
   @@index([role])
 }
 
-// One row per issued refresh token. Lets us do sliding-inactivity timeouts
-// and *actually* revoke a login (plain JWTs can't be un-issued), without
-// making every request hit the DB — only /auth/refresh and /auth/logout do.
 model Session {
   id               String    @id @default(cuid())
   userId           String
@@ -116,7 +153,7 @@ model Session {
   userAgent        String?
   ip               String?
   lastActiveAt     DateTime  @default(now())
-  expiresAt        DateTime // absolute cap regardless of activity
+  expiresAt        DateTime
   revokedAt        DateTime?
   createdAt        DateTime  @default(now())
 
@@ -127,7 +164,7 @@ model AuditLog {
   id         String   @id @default(cuid())
   actorId    String?
   actor      User?    @relation(fields: [actorId], references: [id])
-  action     String // e.g. "auth.login", "user.permissions_changed"
+  action     String
   entityType String?
   entityId   String?
   metadata   Json?
@@ -150,7 +187,6 @@ model Category {
   products Product[]
 }
 
-// e.g. "Kilogram" (kg), "Piece" (pc), "Length" (m), "Bag" (bag)
 model Unit {
   id       String    @id @default(cuid())
   name     String    @unique
@@ -159,7 +195,6 @@ model Unit {
   products Product[]
 }
 
-// e.g. under Unit "Bag": SubUnit "50kg bag" factor 50 (kg per bag)
 model SubUnit {
   id     String @id @default(cuid())
   unitId String
@@ -170,10 +205,10 @@ model SubUnit {
 
 model Product {
   id          String      @id @default(cuid())
-  name        String // technical name, e.g. "SHS 40x40x1.2mm" — never shown to marketing/customers as the only label
-  displayName String? // human/customer-facing, e.g. "Square Pipe 1.5\" — 16G". Falls back to `name` when null.
-  spec        String? // size / grade, e.g. "Y12", "3mm x 6m", "SHS 50x50x3"
-  imageUrl    String? // served from /uploads/products/... — see products.controller.ts
+  name        String
+  displayName String?
+  spec        String?
+  imageUrl    String?
   brandId     String?
   brand       Brand?      @relation(fields: [brandId], references: [id])
   categoryId  String?
@@ -186,22 +221,15 @@ model Product {
   updatedAt   DateTime    @updatedAt
   createdAt   DateTime    @default(now())
 
-  // Cached projections for fast reads — always written inside the same
-  // transaction as the InventoryMovement that changes them (brief §21: the
-  // ledger is the source of truth, this is just a denormalized read model).
   stockQuantity Float  @default(0)
-  lastCost      Float? // most recent batch's unitCost — used to suggest a new selling price on receiving (brief §23)
+  lastCost      Float?
 
-  // Structured attributes for search/comparison (brief §7) — deliberately
-  // plain fields rather than a generic EAV table: the attribute set is small,
-  // known in advance, and needs to be queryable/sortable/comparable directly
-  // (e.g. "all 1.5in square pipe sorted by gauge").
-  shape       String? // free text for now, e.g. "SQUARE", "ROUND", "FLAT", "ANGLE" — business vocabulary varies too much to lock into an enum yet
-  nominalSize String? // e.g. "1.5 inch"
+  shape       String?
+  nominalSize String?
   widthMm     Float?
   heightMm    Float?
-  thicknessMm Float? // always stored in mm, even for inch-fraction shapes (angle/flat bar) — see products/shape-config.ts
-  gauge       Int? // optional cross-reference tag (e.g. 18 for a 1.0mm tube) — only set where the business actually uses gauge language
+  thicknessMm Float?
+  gauge       Int?
   material    String? @default("STEEL")
 
   familyId String?
@@ -220,20 +248,12 @@ model Product {
   @@index([gauge])
 }
 
-// Groups technically-distinct products (different gauges/thicknesses of the
-// same nominal item) for search/marketing/comparison purposes only — never
-// for inventory or pricing. Products stay separate inventory/pricing
-// entities regardless of family (brief §10).
 model ProductFamily {
   id       String    @id @default(cuid())
-  name     String    @unique // e.g. "Square Pipe 1.5\""
+  name     String    @unique
   products Product[]
 }
 
-// One row per free-text term a product should be found by, e.g. "square
-// pipe", "box section", "16 gauge", "40x40" — stored pre-normalized (see
-// products/search-normalize.ts) so a normalized incoming query can just
-// substring-match against `term` directly.
 model ProductAlias {
   id        String   @id @default(cuid())
   productId String
@@ -245,9 +265,6 @@ model ProductAlias {
   @@index([term])
 }
 
-// Audit trail: one row per basePrice change. Past documents never read this —
-// they already have their own frozen unitPrice — this is purely "what did we
-// list this at, and when, and who changed it" for auditing/trust.
 model ProductPriceHistory {
   id          String   @id @default(cuid())
   productId   String
@@ -273,8 +290,6 @@ enum MovementType {
   OPENING
 }
 
-// One row per delivery from a supplier. Purely a header — the actual
-// quantity/cost lives on the InventoryBatch rows it creates.
 model InventoryReceipt {
   id           String   @id @default(cuid())
   supplier     String
@@ -290,10 +305,6 @@ model InventoryReceipt {
   @@index([receivedAt])
 }
 
-// One row per acquisition cost lot — FIFO consumes these oldest-first
-// (brief §20). `remainingQuantity` is decremented as movements consume it;
-// `quantityReceived` never changes, so the original receipt is always
-// reconstructable even after the batch is fully sold through.
 model InventoryBatch {
   id                String           @id @default(cuid())
   productId         String
@@ -309,12 +320,9 @@ model InventoryBatch {
 
   @@index([productId])
   @@index([receiptId])
-  @@index([productId, createdAt]) // FIFO consumption order
+  @@index([productId, createdAt])
 }
 
-// The stock ledger (brief §21) — every change in quantity for any reason is
-// one row here. Product.stockQuantity is a cached sum of this table, always
-// written in the same transaction as the movement that changes it.
 model InventoryMovement {
   id          String          @id @default(cuid())
   productId   String
@@ -322,8 +330,8 @@ model InventoryMovement {
   batchId     String?
   batch       InventoryBatch? @relation(fields: [batchId], references: [id])
   type        MovementType
-  quantity    Float // signed: positive = stock in, negative = stock out
-  unitCost    Float? // cost basis consumed by this movement, where applicable (SALE/DAMAGE/LOSS draw down a batch's unitCost)
+  quantity    Float
+  unitCost    Float?
   note        String?
   createdById String
   createdBy   User            @relation(fields: [createdById], references: [id])
@@ -354,24 +362,21 @@ model Customer {
   notes         String?
   isCredit      Boolean  @default(false)
   creditLimit   Float?
-  creditBalance Float    @default(0) // cached running total — always written alongside a CustomerLedgerEntry, never set directly (brief §26)
+  creditBalance Float    @default(0)
   updatedAt     DateTime @updatedAt
   createdAt     DateTime @default(now())
 
-  documents     Document[]
-  ledgerEntries CustomerLedgerEntry[]
+  documents          Document[]
+  ledgerEntries      CustomerLedgerEntry[]
+  convertedFromLeads Lead[]
 }
 
-// The credit ledger (brief §26) — every change to what a customer owes is
-// one row here, explaining itself (invoice, payment, adjustment, opening
-// balance, refund, write-off). Customer.creditBalance is a cached sum,
-// always updated in the same transaction as the entry that changes it.
 model CustomerLedgerEntry {
   id          String          @id @default(cuid())
   customerId  String
   customer    Customer        @relation(fields: [customerId], references: [id])
   type        LedgerEntryType
-  amount      Float // signed: +increases balance owed (invoice/opening), -decreases (payment/refund/write-off)
+  amount      Float
   documentId  String?
   document    Document?       @relation(fields: [documentId], references: [id])
   note        String?
@@ -383,39 +388,72 @@ model CustomerLedgerEntry {
   @@index([documentId])
 }
 
-// Marketing guy's contact book
+// Sales pipeline leads — separate from the operational Contact phone book (brief §33)
+model Lead {
+  id                  String     @id @default(cuid())
+  name                String
+  company             String?
+  phone               String?
+  email               String?
+  location            String?
+  source              String?
+  stage               LeadStage  @default(NEW)
+  expectedValue       Float?
+  notes               String?
+  followUpAt          DateTime?
+  assignedToId        String?
+  assignedTo          User?      @relation("LeadAssignedTo", fields: [assignedToId], references: [id])
+  convertedCustomerId String?
+  convertedCustomer   Customer?  @relation(fields: [convertedCustomerId], references: [id])
+  createdById         String
+  createdBy           User       @relation("LeadCreatedBy", fields: [createdById], references: [id])
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  @@index([stage])
+  @@index([assignedToId])
+}
+
+// Operational phone book: suppliers, drivers, technicians (brief §32)
 model Contact {
   id          String    @id @default(cuid())
   name        String
+  company     String?
+  role        String?
   phone       String?
-  source      String? // where the lead came from
+  altPhone    String?
   notes       String?
+  tags        String[]  @default([])
   followUpAt  DateTime?
   createdById String
-  createdBy   User      @relation(fields: [createdById], references: [id])
+  createdBy   User      @relation("ContactCreatedBy", fields: [createdById], references: [id])
   createdAt   DateTime  @default(now())
 }
 
 // Quote -> Invoice -> Receipt is ONE record; status tracks its lifecycle.
 model Document {
-  id              String         @id @default(cuid())
-  type            DocumentType // reflects current stage, kept for quick display
-  status          DocumentStatus @default(DRAFT)
-  customerId      String?
-  customer        Customer?      @relation(fields: [customerId], references: [id])
-  customerName    String? // free-text fallback when no Customer record exists
-  createdById     String
-  createdBy       User           @relation("CreatedByUser", fields: [createdById], references: [id])
-  transportMode   TransportMode  @default(NONE)
-  transportAmount Float          @default(0)
-  roundingAdjustment Float       @default(0) // sum of per-line commercial rounding, never silently dropped (brief §13)
-  paymentMethod   PaymentMethod?
-  subtotal        Float          @default(0)
-  total           Float          @default(0)
-  notes           String?
-  createdAt       DateTime       @default(now())
-  invoicedAt      DateTime?
-  paidAt          DateTime?
+  id                 String         @id @default(cuid())
+  type               DocumentType
+  status             DocumentStatus @default(DRAFT)
+  customerId         String?
+  customer           Customer?      @relation(fields: [customerId], references: [id])
+  customerName       String?
+  createdById        String
+  createdBy          User           @relation("CreatedByUser", fields: [createdById], references: [id])
+  transportMode      TransportMode  @default(NONE)
+  transportAmount    Float          @default(0)
+  roundingAdjustment Float          @default(0)
+  paymentMethod      PaymentMethod?
+  subtotal           Float          @default(0)
+  total              Float          @default(0)
+  // Server-side assigned as each stage is reached (brief §53)
+  quoteNumber        String?        @unique
+  invoiceNumber      String?        @unique
+  receiptNumber      String?        @unique
+  notes              String?
+  createdAt          DateTime       @default(now())
+  invoicedAt         DateTime?
+  paidAt             DateTime?
 
   items         DocumentItem[]
   ledgerEntries CustomerLedgerEntry[]
@@ -424,44 +462,30 @@ model Document {
   @@index([createdAt])
 }
 
-enum EmploymentStatus {
-  ACTIVE
-  ON_LEAVE
-  TERMINATED
+model DocumentItem {
+  id                 String   @id @default(cuid())
+  documentId         String
+  document           Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  productId          String?
+  product            Product? @relation(fields: [productId], references: [id])
+  description        String
+  qty                Float
+  basePrice          Float    @default(0)
+  unitPrice          Float
+  discount           Float    @default(0)
+  transportAllocated Float    @default(0)
+  roundingAdjustment Float    @default(0)
+  lineTotal          Float
+
+  @@index([documentId])
 }
 
-enum AdvanceStatus {
-  PENDING
-  APPROVED
-  REJECTED
-  SETTLED // fully deducted through a finalized payroll item
-}
-
-enum PayrollStatus {
-  DRAFT
-  FINALIZED // items are locked; still awaiting payment
-  PAID // every item marked paid
-}
-
-enum PayrollItemStatus {
-  PENDING
-  PAID
-}
-
-enum ExpenseStatus {
-  PENDING
-  APPROVED
-  PAID
-}
-
-// HR profile (brief §36). Deliberately NOT linked to User/login — an
-// employee doesn't need system access to be on payroll, and a staff login
-// doesn't need an HR record. Salary is sensitive and only ever reachable
-// through the HR/PAYROLL-gated endpoints, never through a general roster.
+// HR profile (brief §36) — NOT linked to User/login on purpose.
+// An employee doesn't need system access to be on payroll.
 model Employee {
   id                    String           @id @default(cuid())
   displayName           String
-  avatar                String? // same predefined-avatar-key scheme as User
+  avatar                String?
   phone                 String?
   emergencyContactName  String?
   emergencyContactPhone String?
@@ -469,7 +493,7 @@ model Employee {
   department            String?
   employmentStartDate   DateTime?
   employmentStatus      EmploymentStatus @default(ACTIVE)
-  baseSalary            Float            @default(0) // current monthly base — payroll snapshots this per run, so a change here never rewrites history
+  baseSalary            Float            @default(0)
   notes                 String?
   createdById           String
   createdBy             User             @relation(fields: [createdById], references: [id])
@@ -482,9 +506,6 @@ model Employee {
   @@index([employmentStatus])
 }
 
-// Employee advances (brief §38). An approved advance sits PENDING settlement
-// until a payroll run deducts it — at which point it's linked to the
-// PayrollItem that settled it and never editable again.
 model EmployeeAdvance {
   id            String        @id @default(cuid())
   employeeId    String
@@ -506,10 +527,6 @@ model EmployeeAdvance {
   @@index([status])
 }
 
-// One payroll run per period (brief §37). Finalizing snapshots each
-// employee's base salary + any approved-but-unsettled advances into a
-// PayrollItem and locks them — later salary/advance changes never rewrite a
-// finalized run.
 model PayrollRun {
   id          String        @id @default(cuid())
   periodStart DateTime
@@ -528,21 +545,21 @@ model PayrollRun {
 }
 
 model PayrollItem {
-  id               String             @id @default(cuid())
+  id               String            @id @default(cuid())
   payrollRunId     String
-  payrollRun       PayrollRun         @relation(fields: [payrollRunId], references: [id])
+  payrollRun       PayrollRun        @relation(fields: [payrollRunId], references: [id])
   employeeId       String
-  employee         Employee           @relation(fields: [employeeId], references: [id])
-  baseSalary       Float // snapshot at finalize time
-  advancesDeducted Float              @default(0)
-  otherDeductions  Float              @default(0)
-  adjustments      Float              @default(0) // signed: bonus positive, other deduction negative
+  employee         Employee          @relation(fields: [employeeId], references: [id])
+  baseSalary       Float
+  advancesDeducted Float             @default(0)
+  otherDeductions  Float             @default(0)
+  adjustments      Float             @default(0)
   grossPay         Float
   netPay           Float
-  paymentStatus    PayrollItemStatus  @default(PENDING)
+  paymentStatus    PayrollItemStatus @default(PENDING)
   paymentDate      DateTime?
   notes            String?
-  createdAt        DateTime           @default(now())
+  createdAt        DateTime          @default(now())
 
   settledAdvances EmployeeAdvance[]
 
@@ -556,7 +573,6 @@ model ExpenseCategory {
   expenses Expense[]
 }
 
-// Business operating expenses (brief §39) — feeds analytics/reports later.
 model Expense {
   id            String           @id @default(cuid())
   categoryId    String?
@@ -578,20 +594,22 @@ model Expense {
   @@index([status])
 }
 
-model DocumentItem {
-  id          String   @id @default(cuid())
-  documentId  String
-  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  productId   String?
-  product     Product? @relation(fields: [productId], references: [id])
-  description String // snapshot of product name+spec at time of sale
-  qty         Float
-  basePrice   Float    @default(0) // the "normal" per-unit price before this line's discount — what the receipt shows as struck-through/reference price
-  unitPrice   Float // final customer-facing unit price: transport-folded + commercially rounded where applicable
-  discount    Float    @default(0)
-  transportAllocated Float @default(0) // this line's share of the document's transport charge (brief §18)
-  roundingAdjustment Float @default(0) // difference introduced by rounding this line's unit price (brief §13)
-  lineTotal   Float
-
-  @@index([documentId])
+// Singleton row (id always "singleton") — business identity, document
+// numbering prefixes/counters, rounding, low-stock threshold (brief §52).
+model BusinessSetting {
+  id                String   @id @default("singleton")
+  businessName      String   @default("Pava Steel Hardware")
+  address           String?
+  phone             String?
+  email             String?
+  quotePrefix       String   @default("QT")
+  invoicePrefix     String   @default("INV")
+  receiptPrefix     String   @default("RCT")
+  nextQuoteSeq      Int      @default(1)
+  nextInvoiceSeq    Int      @default(1)
+  nextReceiptSeq    Int      @default(1)
+  roundingIncrement Float    @default(5)
+  lowStockThreshold Float    @default(5)
+  documentFooter    String?
+  updatedAt         DateTime @updatedAt
 }

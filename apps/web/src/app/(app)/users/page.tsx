@@ -189,7 +189,7 @@ export default function UsersPage() {
         </table>
 
         {/* Mobile cards */}
-        <div className="divide-y md:hidden" style={{ borderColor: 'var(--color-border)' }}>
+        <div className="divide-y divide-[var(--color-border)] md:hidden">
           {users === null &&
             [...Array(3)].map((_, i) => (
               <div key={i} className="p-4">

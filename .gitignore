@@ -22,56 +22,6 @@ out/
 *.swp
 *.swo
 
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-env/
-venv/
-.venv/
-pip-log.txt
-pip-delete-this-directory.txt
-*.so
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.db
-*.log
-*.pot
-*.pyc
-*.pyo
-*.pyd
-.MF
-*.egg-info/
-.egg-info/
-.venv.bak/
-.venv.save/
-.installed.cfg
-.libs/
-lib/
-lib64/
-parts/
-sdist/
-develop-eggs/
-downloads/
-eggs/
-.eggs/
-share/python-eggs/
-lib/python*/site-packages/easy-install.pth
-.pytest_cache/
-.hypothesis/
-.coverage*
-.tox/
-.mypy_cache/
-.pyre/
-.pytype/
-cython_debug/
-
 # Node.js
 npm-debug.log*
 yarn-debug.log*
@@ -100,30 +50,6 @@ coverage/
 *~
 .DS_Store
 Thumbs.db
-
-# Compression
-*.zip
-*.gz
-*.tar
-*.tgz
-*.bz2
-*.xz
-*.7z
-*.rar
-*.zst
-*.lz4
-*.lzh
-*.cab
-*.arj
-*.rpm
-*.deb
-*.Z
-*.lz
-*.lzo
-*.tar.gz
-*.tar.bz2
-*.tar.xz
-*.tar.zst
 
 # Generated files
 generated/
