@@ -72,7 +72,17 @@ body {
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-/* 80mm thermal printer receipt view */
+.pdf-capture-offscreen {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  z-index: -1;
+}
+
+/* Printable documents — the thermal 80mm receipt strip, and the full A4
+   letterhead layout used for anything meant to be shared (quotes, invoices,
+   delivery notes). Both hide everything else on the page and reveal only
+   the one element carrying the matching class. */
 @media print {
   body * {
     visibility: hidden;
@@ -87,9 +97,22 @@ body {
     position: absolute;
     top: 0;
     left: 0;
+  }
+
+  #print-area.print-thermal {
     width: 80mm;
     font-family: var(--font-mono), monospace;
     font-size: 11px;
+  }
+
+  #print-area.print-a4 {
+    width: 210mm;
+    min-height: 297mm;
+    padding: 14mm;
+    font-family: var(--font-sans, sans-serif);
+    font-size: 12px;
+    color: #111827;
+    background: #fff;
   }
 }
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Calculator as CalculatorIcon } from 'lucide-react';
+import { Calculator as CalculatorIcon, X } from 'lucide-react';
 
 type Operator = '+' | '−' | '×' | '÷';
 
@@ -162,7 +162,7 @@ export function QuickCalculator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, display, stored, operator, overwrite]);
 
-  const keyBase = 'h-10 rounded-md text-sm font-medium transition-colors active:scale-95';
+  const keyBase = 'h-11 rounded-md text-base font-medium transition-colors active:scale-95 sm:h-10 sm:text-sm';
 
   return (
     <div className="relative" ref={ref}>
@@ -177,11 +177,43 @@ export function QuickCalculator() {
       </button>
 
       {open && (
-        <div
-          className="absolute right-0 top-full z-30 mt-2 w-64 rounded-lg border p-3"
-          style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', boxShadow: 'var(--shadow-card)' }}
-        >
-          <div className="mb-3 rounded-md px-3 py-2.5" style={{ backgroundColor: 'var(--color-bg)' }}>
+        <>
+          {/* Phone-sized screens get a dismissible bottom sheet; the popover is
+              anchored to the topbar button from sm upwards. Neither is fixed to
+              a corner of the viewport where it could sit over page content. */}
+          <div
+            className="fixed inset-0 z-30 sm:hidden"
+            style={{ backgroundColor: 'rgba(16, 24, 40, 0.45)' }}
+            onClick={() => setOpen(false)}
+            aria-hidden="true"
+          />
+          <div
+            role="dialog"
+            aria-label="Quick calculator"
+            className="fixed inset-x-0 bottom-0 z-40 rounded-t-xl border p-3 sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-full sm:z-30 sm:mt-2 sm:w-64 sm:rounded-lg"
+            style={{
+              backgroundColor: 'var(--color-surface)',
+              borderColor: 'var(--color-border)',
+              boxShadow: 'var(--shadow-card)',
+              paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
+            }}
+          >
+            <div className="mb-2 flex items-center justify-between sm:hidden">
+              <span className="text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>
+                Calculator
+              </span>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Close calculator"
+                className="flex h-9 w-9 items-center justify-center rounded-md"
+                style={{ color: 'var(--color-ink-600)' }}
+              >
+                <X size={18} strokeWidth={2} />
+              </button>
+            </div>
+
+            <div className="mb-3 rounded-md px-3 py-2.5" style={{ backgroundColor: 'var(--color-bg)' }}>
             <div className="h-4 truncate text-right text-xs data-num" style={{ color: 'var(--color-ink-600)' }}>
               {topLine || '\u00A0'}
             </div>
@@ -259,8 +291,9 @@ export function QuickCalculator() {
             <button onClick={equals} className={keyBase} style={{ color: '#fff', backgroundColor: 'var(--color-accent)' }}>
               =
             </button>
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );

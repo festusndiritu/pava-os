@@ -1,19 +1,19 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
-import { Trash2, X } from 'lucide-react';
+import { Trash2, Truck, X } from 'lucide-react';
 import { Drawer } from '../ui/Drawer';
 import { ProductPicker } from '../products/ProductPicker';
 import { customersApi, type Customer } from '../../lib/customers-api';
-import { documentsApi, type TransportMode } from '../../lib/documents-api';
+import { documentsApi } from '../../lib/documents-api';
 import type { Product } from '../../lib/products-api';
 import { ApiError } from '../../lib/api';
+import { TransportDialog, type TransportSettings } from '../pos/TransportDialog';
 
 interface Line {
   product: Product;
   qty: string;
   unitPrice: string;
-  discount: string;
 }
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
@@ -28,8 +28,8 @@ export function QuoteFormDrawer({ open, onClose, onCreated }: { open: boolean; o
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
   const [lines, setLines] = useState<Line[]>([]);
-  const [transportAmount, setTransportAmount] = useState('');
-  const [transportMode, setTransportMode] = useState<TransportMode>('NONE');
+  const [transport, setTransport] = useState<TransportSettings | null>(null);
+  const [transportOpen, setTransportOpen] = useState(false);
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -40,8 +40,7 @@ export function QuoteFormDrawer({ open, onClose, onCreated }: { open: boolean; o
       setWalkinName('');
       setSelectedCustomer(null);
       setLines([]);
-      setTransportAmount('');
-      setTransportMode('NONE');
+      setTransport(null);
       setNotes('');
       setError(null);
     }
@@ -56,9 +55,10 @@ export function QuoteFormDrawer({ open, onClose, onCreated }: { open: boolean; o
     return () => clearTimeout(t);
   }, [customerQuery, customerMode]);
 
-  const subtotal = lines.reduce((s, l) => s + (Number(l.qty) || 0) * (Number(l.unitPrice) || 0) - (Number(l.discount) || 0), 0);
-  const transportAmt = Number(transportAmount) || 0;
-  const total = transportMode === 'ITEMIZED' ? subtotal + transportAmt : subtotal;
+  // Approximate for the footer — the server computes the precise, correctly-rounded total.
+  const subtotal = lines.reduce((s, l) => s + (Number(l.qty) || 0) * (Number(l.unitPrice) || 0), 0);
+  const transportAmt = transport?.amount || 0;
+  const total = subtotal + transportAmt;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -74,13 +74,14 @@ export function QuoteFormDrawer({ open, onClose, onCreated }: { open: boolean; o
         customerName: customerMode === 'walkin' ? walkinName || undefined : undefined,
         items: lines.map((l) => ({
           productId: l.product.id,
-          description: l.product.displayName ?? l.product.name,
           qty: Number(l.qty) || 0,
           unitPrice: Number(l.unitPrice) || 0,
-          discount: Number(l.discount) || 0,
         })),
-        transportMode,
-        transportAmount: transportAmt,
+        transportAmount: transport?.amount || undefined,
+        transportAllocation: transport?.allocation,
+        transportApplyTo: transport?.applyTo,
+        manualAllocations: transport?.allocation === 'MANUAL' ? Object.entries(transport.manualAllocations).map(([productId, amount]) => ({ productId, amount })) : undefined,
+        foldTransportIntoPrices: transport?.fold ?? true,
         notes: notes || undefined,
       });
       onCreated(doc.id);
@@ -165,7 +166,7 @@ export function QuoteFormDrawer({ open, onClose, onCreated }: { open: boolean; o
           <ProductPicker
             onSelect={(p) => {
               if (lines.some((l) => l.product.id === p.id)) return;
-              setLines((prev) => [...prev, { product: p, qty: '1', unitPrice: String(p.basePrice), discount: '' }]);
+              setLines((prev) => [...prev, { product: p, qty: '1', unitPrice: String(p.basePrice) }]);
             }}
           />
         </div>
@@ -177,8 +178,7 @@ export function QuoteFormDrawer({ open, onClose, onCreated }: { open: boolean; o
                 <tr className="border-b text-left" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)' }}>
                   <th className="px-3 py-2 font-medium" style={{ color: 'var(--color-ink-600)' }}>Product</th>
                   <th className="px-3 py-2 font-medium" style={{ color: 'var(--color-ink-600)' }}>Qty</th>
-                  <th className="px-3 py-2 font-medium" style={{ color: 'var(--color-ink-600)' }}>Price</th>
-                  <th className="px-3 py-2 font-medium" style={{ color: 'var(--color-ink-600)' }}>Discount</th>
+                  <th className="px-3 py-2 font-medium" style={{ color: 'var(--color-ink-600)' }}>Unit price</th>
                   <th className="px-3 py-2 text-right font-medium" style={{ color: 'var(--color-ink-600)' }}>Total</th>
                   <th className="w-8" />
                 </tr>
@@ -191,13 +191,19 @@ export function QuoteFormDrawer({ open, onClose, onCreated }: { open: boolean; o
                       <input type="number" step="0.01" min="0" value={line.qty} onChange={(e) => setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, qty: e.target.value } : l)))} className="w-16 rounded border px-2 py-1 text-sm data-num" style={inputStyle} />
                     </td>
                     <td className="px-3 py-2">
-                      <input type="number" step="0.01" min="0" value={line.unitPrice} onChange={(e) => setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, unitPrice: e.target.value } : l)))} className="w-24 rounded border px-2 py-1 text-sm data-num" style={inputStyle} />
-                    </td>
-                    <td className="px-3 py-2">
-                      <input type="number" step="0.01" min="0" value={line.discount} onChange={(e) => setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, discount: e.target.value } : l)))} placeholder="0" className="w-20 rounded border px-2 py-1 text-sm data-num" style={inputStyle} />
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={line.unitPrice}
+                        onChange={(e) => setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, unitPrice: e.target.value } : l)))}
+                        className="w-24 rounded border px-2 py-1 text-sm data-num"
+                        style={inputStyle}
+                        title="Edit directly to the price you negotiated — this is the final price, not a list price to discount from."
+                      />
                     </td>
                     <td className="px-3 py-2 text-right data-num" style={{ color: 'var(--color-ink-900)' }}>
-                      KSh {((Number(line.qty) || 0) * (Number(line.unitPrice) || 0) - (Number(line.discount) || 0)).toLocaleString()}
+                      KSh {((Number(line.qty) || 0) * (Number(line.unitPrice) || 0)).toLocaleString()}
                     </td>
                     <td className="px-3 py-2">
                       <button type="button" onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))} style={{ color: 'var(--color-status-bad)' }}>
@@ -211,25 +217,23 @@ export function QuoteFormDrawer({ open, onClose, onCreated }: { open: boolean; o
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={labelClass} style={labelStyle}>
-              Transport
-            </label>
-            <select value={transportMode} onChange={(e) => setTransportMode(e.target.value as TransportMode)} className="w-full rounded-md border px-3 py-2 text-sm" style={inputStyle}>
-              <option value="NONE">No transport</option>
-              <option value="ITEMIZED">Shown as separate charge</option>
-              <option value="DISTRIBUTED">Already folded into prices above</option>
-            </select>
-          </div>
-          {transportMode !== 'NONE' && (
-            <div>
-              <label className={labelClass} style={labelStyle}>
-                Transport amount (KSh)
-              </label>
-              <input type="number" min="0" value={transportAmount} onChange={(e) => setTransportAmount(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm data-num" style={inputStyle} />
-            </div>
-          )}
+        <div>
+          <label className={labelClass} style={labelStyle}>
+            Transport
+          </label>
+          <button
+            type="button"
+            onClick={() => setTransportOpen(true)}
+            disabled={lines.length === 0}
+            className="flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm disabled:opacity-50"
+            style={{ borderColor: 'var(--color-border)', color: transport ? 'var(--color-accent)' : 'var(--color-ink-600)' }}
+          >
+            <span className="flex items-center gap-1.5">
+              <Truck size={14} strokeWidth={2} />
+              {transport ? `KSh ${transport.amount.toLocaleString()}${transport.fold ? ' (folded into prices)' : ' (shown separately)'}` : 'No transport'}
+            </span>
+            <span>{transport ? 'Edit' : '+ Add'}</span>
+          </button>
         </div>
 
         <div>
@@ -239,6 +243,15 @@ export function QuoteFormDrawer({ open, onClose, onCreated }: { open: boolean; o
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="w-full rounded-md border px-3 py-2 text-sm" style={inputStyle} />
         </div>
       </form>
+
+      {transportOpen && (
+        <TransportDialog
+          lines={lines.map((l) => ({ product: l.product, qty: Number(l.qty) || 0, unitPrice: Number(l.unitPrice) || 0, discount: 0 }))}
+          initial={transport}
+          onClose={() => setTransportOpen(false)}
+          onApply={(t) => setTransport(t.amount > 0 ? t : null)}
+        />
+      )}
     </Drawer>
   );
 }

@@ -2,47 +2,32 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { AlertTriangle, ArrowRight, Package, ShoppingCart, TrendingUp, Users } from 'lucide-react';
+import {
+  AlertTriangle,
+  Boxes,
+  CalendarRange,
+  ExternalLink,
+  Package,
+  PackagePlus,
+  Receipt,
+  ShoppingCart,
+  TrendingUp,
+  Users,
+  Wallet,
+} from 'lucide-react';
 import { useAuth } from '../../../lib/auth-context';
 import { dashboardApi, type DashboardSummary } from '../../../lib/dashboard-api';
+import { OverviewHeader } from '../../../components/dashboard/OverviewHeader';
+import { PaymentMixChart, SalesTrendChart, TopProductsChart } from '../../../components/dashboard/DashboardCharts';
+import { Badge, IconAction, ListRow, SectionCard, SectionLink, StatCard } from '../../../components/dashboard/DashboardPrimitives';
+import { dayOverDay, fmtDate, money, plural, weekOverWeek } from '../../../components/dashboard/dashboard-derive';
 
-function money(n: number) {
-  return `KSh ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-}
-function fmtDate(iso: string) {
-  return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' }).format(new Date(iso));
-}
-
-function Card({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <div className="rounded-lg border p-5" style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>
-          {title}
-        </h2>
-        {action}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function KpiTile({ label, total, count }: { label: string; total: number; count: number }) {
-  return (
-    <div className="rounded-lg border p-4" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
-      <p className="text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
-        {label}
-      </p>
-      <p className="mt-1 text-xl font-semibold data-num" style={{ color: 'var(--color-ink-900)' }}>
-        {money(total)}
-      </p>
-      <p className="text-xs" style={{ color: 'var(--color-ink-600)' }}>
-        {count} sale{count === 1 ? '' : 's'}
-      </p>
-    </div>
-  );
-}
+const SALE_STATUS: Record<string, { label: string; tone: 'ok' | 'warn' | 'bad' | 'neutral' }> = {
+  PAID: { label: 'Paid', tone: 'ok' },
+  INVOICED: { label: 'Unpaid', tone: 'warn' },
+  CANCELLED: { label: 'Cancelled', tone: 'bad' },
+  DRAFT: { label: 'Draft', tone: 'neutral' },
+};
 
 export default function DashboardPage() {
   const { user, hasPermission } = useAuth();
@@ -56,152 +41,217 @@ export default function DashboardPage() {
 
   const nothingToShow = data && !data.sales && !data.lowStock && !data.outstandingCredit && !data.topProducts;
 
+  const today = dayOverDay(data?.chart);
+  const week = weekOverWeek(data?.chart);
+  const lowStockCount = data?.lowStock?.length ?? 0;
+
   return (
-    <div className="p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-semibold tracking-tight" style={{ color: 'var(--color-ink-900)' }}>
-            Dashboard
-          </h1>
-          <p className="mt-0.5 text-sm" style={{ color: 'var(--color-ink-600)' }}>
-            Welcome back, {user.name}.
-          </p>
+    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 p-4 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <OverviewHeader userName={user.name} data={data} hasPermission={hasPermission} />
         </div>
-        <div className="flex gap-2">
-          {hasPermission('POS') && (
-            <Link href="/pos" className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-white" style={{ backgroundColor: 'var(--color-accent)' }}>
-              <ShoppingCart size={14} strokeWidth={2} />
-              Go to POS
-            </Link>
-          )}
-          {hasPermission('INVENTORY') && (
-            <Link href="/inventory" className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
-              <Package size={14} strokeWidth={2} />
-              Receive stock
-            </Link>
-          )}
-        </div>
+        {hasPermission('INVENTORY') && (
+          <Link
+            href="/inventory"
+            className="flex min-h-9 items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium"
+            style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)', backgroundColor: 'var(--color-surface)' }}
+          >
+            <Package size={15} strokeWidth={2} />
+            Receive stock
+          </Link>
+        )}
       </div>
 
       {!data && (
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-24 animate-pulse rounded-lg" style={{ backgroundColor: 'var(--color-border)' }} />
+        <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 xl:grid-cols-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-28 animate-pulse rounded-lg" style={{ backgroundColor: 'var(--color-border)' }} />
           ))}
         </div>
       )}
 
       {nothingToShow && (
-        <div className="mt-6 rounded-lg border p-8 text-center" style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
+        <div className="rounded-lg border p-8 text-center" style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
           <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
             Nothing to show here yet for your role — ask an administrator if you think you should have access to more.
           </p>
         </div>
       )}
 
-      {data?.sales && (
-        <>
-          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <KpiTile label="Today" total={data.sales.today.total} count={data.sales.today.count} />
-            <KpiTile label="Last 7 days" total={data.sales.week.total} count={data.sales.week.count} />
-            <KpiTile label="Last 30 days" total={data.sales.month.total} count={data.sales.month.count} />
-          </div>
-
-          {data.chart && data.chart.length > 1 && (
-            <Card title="Sales trend (30 days)" action={<TrendingUp size={16} strokeWidth={2} style={{ color: 'var(--color-ink-600)' }} />}>
-              <div className="h-56">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={data.chart}>
-                    <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 11, fill: 'var(--color-ink-600)' }} axisLine={false} tickLine={false} />
-                    <YAxis tickFormatter={(v) => `${Math.round(v / 1000)}k`} tick={{ fontSize: 11, fill: 'var(--color-ink-600)' }} axisLine={false} tickLine={false} width={36} />
-                    <Tooltip formatter={(v: number) => money(v)} labelFormatter={fmtDate} contentStyle={{ fontSize: 12, borderRadius: 6 }} />
-                    <Line type="monotone" dataKey="total" stroke="var(--color-accent)" strokeWidth={2} dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
+      {/* Quick statistics */}
+      {data && (data.sales || data.outstandingCredit || data.lowStock) && (
+        <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 xl:grid-cols-4">
+          {data.sales && (
+            <>
+              <StatCard
+                label="Today"
+                value={money(data.sales.today.total)}
+                sub={`${data.sales.today.count} ${plural(data.sales.today.count, 'sale')}`}
+                icon={ShoppingCart}
+                tone="neutral"
+                trend={today?.trend}
+                trendComparison="vs yesterday"
+              />
+              <StatCard
+                label="Last 7 days"
+                value={money(data.sales.week.total)}
+                sub={`${data.sales.week.count} ${plural(data.sales.week.count, 'sale')}`}
+                icon={TrendingUp}
+                tone="ok"
+                trend={week?.trend}
+                trendComparison="vs previous 7 days"
+              />
+              <StatCard
+                label="Last 30 days"
+                value={money(data.sales.month.total)}
+                sub={`${data.sales.month.count} ${plural(data.sales.month.count, 'sale')}`}
+                icon={CalendarRange}
+                tone="neutral"
+              />
+            </>
           )}
-        </>
+          {data.outstandingCredit && (
+            <StatCard
+              label="Outstanding"
+              value={money(data.outstandingCredit.total)}
+              sub={`owed by ${data.outstandingCredit.customerCount} ${plural(data.outstandingCredit.customerCount, 'customer')}`}
+              icon={Wallet}
+              tone={data.outstandingCredit.total > 0 ? 'warn' : 'neutral'}
+            />
+          )}
+          {data.lowStock && (
+            <StatCard
+              label="Low stock"
+              value={String(lowStockCount)}
+              sub={`${plural(lowStockCount, 'item')} at or below threshold`}
+              icon={Boxes}
+              tone={lowStockCount > 0 ? 'bad' : 'ok'}
+            />
+          )}
+        </div>
       )}
 
-      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      {/* Analytics */}
+      {data?.chart && data.chart.length > 1 && <SalesTrendChart chart={data.chart} />}
+
+      {((data?.topProducts && data.topProducts.length > 0) || (data?.recentSales && data.recentSales.length > 0)) && (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {data?.topProducts && data.topProducts.length > 0 && <TopProductsChart topProducts={data.topProducts} />}
+          {data?.recentSales && data.recentSales.length > 0 && <PaymentMixChart recentSales={data.recentSales} />}
+        </div>
+      )}
+
+      {/* Operational lists */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {data?.lowStock && data.lowStock.length > 0 && (
-          <Card title="Low stock" action={<AlertTriangle size={16} strokeWidth={2} style={{ color: 'var(--color-status-warn)' }} />}>
-            <div className="flex flex-col gap-2">
+          <SectionCard
+            title="Low stock"
+            description="At or below the reorder threshold"
+            icon={AlertTriangle}
+            iconTone="warn"
+            action={<IconAction href="/inventory" label="View inventory" icon={ExternalLink} />}
+          >
+            <div className="flex flex-col">
               {data.lowStock.map((p) => (
-                <div key={p.id} className="flex items-center justify-between text-sm">
-                  <span style={{ color: 'var(--color-ink-900)' }}>{p.name}</span>
-                  <span className="data-num font-medium" style={{ color: 'var(--color-status-warn)' }}>
-                    {p.stockQuantity} {p.unit}
-                  </span>
-                </div>
+                <ListRow
+                  key={p.id}
+                  marker={<span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: 'var(--color-status-warn)' }} />}
+                  title={p.name}
+                  meta={p.kind === 'family' ? <Badge label="Family total" tone="neutral" /> : `Threshold ${p.threshold} ${p.unit}`}
+                  value={`${p.stockQuantity} ${p.unit}`}
+                  valueTone="var(--color-status-warn)"
+                  action={<IconAction href="/inventory" label="Open inventory to receive stock" icon={PackagePlus} />}
+                />
               ))}
             </div>
-            <Link href="/inventory" className="mt-3 flex items-center gap-1 text-xs font-medium" style={{ color: 'var(--color-accent)' }}>
-              Receive stock <ArrowRight size={12} strokeWidth={2} />
-            </Link>
-          </Card>
+          </SectionCard>
         )}
 
         {data?.outstandingCredit && data.outstandingCredit.topDebtors.length > 0 && (
-          <Card title="Outstanding credit" action={<Users size={16} strokeWidth={2} style={{ color: 'var(--color-ink-600)' }} />}>
-            <p className="mb-3 text-sm" style={{ color: 'var(--color-ink-600)' }}>
-              {money(data.outstandingCredit.total)} across {data.outstandingCredit.customerCount} customer{data.outstandingCredit.customerCount === 1 ? '' : 's'}
-            </p>
-            <div className="flex flex-col gap-2">
+          <SectionCard
+            title="Outstanding credit"
+            description={`${money(data.outstandingCredit.total)} across ${data.outstandingCredit.customerCount} ${plural(data.outstandingCredit.customerCount, 'customer')}`}
+            icon={Users}
+            iconTone="neutral"
+            action={<IconAction href="/customers" label="View customers" icon={ExternalLink} />}
+          >
+            <div className="flex flex-col">
               {data.outstandingCredit.topDebtors.map((c) => (
-                <div key={c.id} className="flex items-center justify-between text-sm">
-                  <span style={{ color: 'var(--color-ink-900)' }}>{c.name}</span>
-                  <span className="data-num font-medium" style={{ color: c.overLimit ? 'var(--color-status-bad)' : 'var(--color-ink-900)' }}>
-                    {money(c.balance)}
-                  </span>
-                </div>
+                <ListRow
+                  key={c.id}
+                  title={c.name}
+                  meta={c.overLimit ? <Badge label="Over limit" tone="bad" /> : undefined}
+                  value={money(c.balance)}
+                  valueTone={c.overLimit ? 'var(--color-status-bad)' : 'var(--color-ink-900)'}
+                />
               ))}
             </div>
-            <Link href="/customers" className="mt-3 flex items-center gap-1 text-xs font-medium" style={{ color: 'var(--color-accent)' }}>
-              View customers <ArrowRight size={12} strokeWidth={2} />
-            </Link>
-          </Card>
-        )}
-
-        {data?.recentSales && data.recentSales.length > 0 && (
-          <Card title="Recent sales">
-            <div className="flex flex-col gap-2">
-              {data.recentSales.map((s) => (
-                <div key={s.id} className="flex items-center justify-between text-sm">
-                  <div>
-                    <p style={{ color: 'var(--color-ink-900)' }}>{s.customerLabel}</p>
-                    <p className="text-xs" style={{ color: 'var(--color-ink-600)' }}>
-                      {fmtDate(s.createdAt)} {s.paymentMethod ? `· ${s.paymentMethod}` : ''}
-                    </p>
-                  </div>
-                  <span className="data-num font-medium" style={{ color: 'var(--color-ink-900)' }}>
-                    {money(s.total)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </Card>
+          </SectionCard>
         )}
 
         {data?.topProducts && data.topProducts.length > 0 && (
-          <Card title="Top products (30 days)">
-            <div className="flex flex-col gap-2">
+          <SectionCard
+            title="Top products"
+            description="By revenue, last 30 days"
+            icon={TrendingUp}
+            iconTone="ok"
+            action={hasPermission('PRODUCTS') ? <IconAction href="/products" label="View catalogue" icon={ExternalLink} /> : undefined}
+          >
+            <div className="flex flex-col">
               {data.topProducts.map((p, i) => (
-                <div key={p.id} className="flex items-center justify-between text-sm">
-                  <span style={{ color: 'var(--color-ink-900)' }}>
-                    {i + 1}. {p.name}
-                  </span>
-                  <span className="data-num" style={{ color: 'var(--color-ink-600)' }}>
-                    {p.unitsSold} sold · {money(p.revenue)}
-                  </span>
-                </div>
+                <ListRow
+                  key={p.id}
+                  marker={
+                    <span
+                      className="data-num flex h-6 w-6 shrink-0 items-center justify-center rounded text-xs font-semibold"
+                      style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-600)' }}
+                    >
+                      {i + 1}
+                    </span>
+                  }
+                  title={p.name}
+                  meta={`${p.unitsSold} sold`}
+                  value={money(p.revenue)}
+                  action={hasPermission('PRODUCTS') ? <IconAction href="/products" label="Open product catalogue" icon={ExternalLink} /> : undefined}
+                />
               ))}
             </div>
-            <Link href="/products" className="mt-3 flex items-center gap-1 text-xs font-medium" style={{ color: 'var(--color-accent)' }}>
-              View catalogue <ArrowRight size={12} strokeWidth={2} />
-            </Link>
-          </Card>
+          </SectionCard>
+        )}
+
+        {data?.recentSales && data.recentSales.length > 0 && (
+          <SectionCard
+            title="Recent sales"
+            description="Latest invoiced and paid documents"
+            icon={Receipt}
+            iconTone="neutral"
+            action={hasPermission('INVOICES') ? <IconAction href="/invoices" label="View invoices" icon={ExternalLink} /> : undefined}
+          >
+            <div className="flex flex-col">
+              {data.recentSales.map((s) => {
+                const status = SALE_STATUS[s.status];
+                return (
+                  <ListRow
+                    key={s.id}
+                    title={s.customerLabel}
+                    meta={
+                      <>
+                        {status && <Badge label={status.label} tone={status.tone} />}
+                        <span className="truncate">
+                          {fmtDate(s.createdAt)}
+                          {s.paymentMethod ? ` · ${s.paymentMethod}` : ''}
+                        </span>
+                      </>
+                    }
+                    value={money(s.total)}
+                    action={hasPermission('INVOICES') ? <IconAction href="/invoices" label="Open in invoices" icon={Receipt} /> : undefined}
+                  />
+                );
+              })}
+            </div>
+            {hasPermission('INVOICES') && <SectionLink href="/invoices" label="All invoices" />}
+          </SectionCard>
         )}
       </div>
     </div>

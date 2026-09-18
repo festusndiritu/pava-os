@@ -12,6 +12,8 @@ export interface AuthUser {
   email?: string | null;
   avatar?: string | null;
   permissions: ModuleKey[];
+  canViewCost: boolean;
+  canInvoiceWithoutStock: boolean;
 }
 
 interface LoginResponse {
@@ -30,6 +32,7 @@ interface AuthContextValue {
   logout: () => Promise<void>;
   refreshMe: () => Promise<void>;
   hasPermission: (module: ModuleKey) => boolean;
+  canViewCost: () => boolean;
   dismissIdleWarning: () => void;
 }
 
@@ -168,6 +171,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [user],
   );
 
+  const canViewCost = useCallback(() => {
+    if (!user) return false;
+    return user.role === 'ADMIN' || user.canViewCost;
+  }, [user]);
+
   return (
     <AuthContext.Provider
       value={{
@@ -179,6 +187,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logout,
         refreshMe,
         hasPermission,
+        canViewCost,
         dismissIdleWarning,
       }}
     >

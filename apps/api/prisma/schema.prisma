@@ -43,6 +43,7 @@ enum DocumentType {
   QUOTE
   INVOICE
   RECEIPT
+  DELIVERY_NOTE
 }
 
 enum DocumentStatus {
@@ -51,6 +52,10 @@ enum DocumentStatus {
   INVOICED
   PAID
   CANCELLED
+  // A POS order the operator parked to serve someone else. Carries no
+  // document number, consumes no stock, and is either resumed into a real
+  // sale or discarded — it never becomes a quote.
+  SUSPENDED
 }
 
 enum TransportMode {
@@ -59,6 +64,10 @@ enum TransportMode {
   DISTRIBUTED
 }
 
+// PAVA takes M-Pesa Paybill and cash at the till; CREDIT is an account sale
+// raised through the quote -> invoice flow, not a till payment method. CARD
+// is retained only so historical documents/expenses that already reference
+// it still read back — nothing writes it any more.
 enum PaymentMethod {
   CASH
   MPESA
@@ -118,6 +127,16 @@ model User {
   phone              String?
   permissions        Module[]  @default([])
   maxDiscountPercent Float     @default(0)
+  // Separate from module access on purpose (brief: cost/margin permission
+  // dimension) — a user can have PRODUCTS/INVENTORY access without seeing
+  // acquisition cost or margin figures. Admin always sees cost regardless
+  // of this flag (checked via role, never stored redundantly here).
+  canViewCost Boolean @default(false)
+  // A role, not a hardcoded account — lets whoever holds this flag convert
+  // a quote to an invoice (or ring up a POS sale) against stock the system
+  // doesn't have recorded, as an explicit backorder promise. Every use is
+  // audit-logged with the shortfall.
+  canInvoiceWithoutStock Boolean @default(false)
   active             Boolean   @default(true)
   createdById        String?
   createdBy          User?     @relation("StaffCreatedBy", fields: [createdById], references: [id])
@@ -141,6 +160,7 @@ model User {
   advancesCreated       EmployeeAdvance[]     @relation("AdvanceCreatedBy")
   payrollRuns           PayrollRun[]
   expenses              Expense[]
+  returns               Return[]
 
   @@index([role])
 }
@@ -237,6 +257,7 @@ model Product {
   aliases  ProductAlias[]
 
   items              DocumentItem[]
+  returnItems        ReturnItem[]
   priceHistory       ProductPriceHistory[]
   inventoryBatches   InventoryBatch[]
   inventoryMovements InventoryMovement[]
@@ -251,6 +272,15 @@ model Product {
 model ProductFamily {
   id       String    @id @default(cuid())
   name     String    @unique
+  // When true, the low-stock check sums stockQuantity across every product
+  // in the family and compares it to lowStockThreshold (falling back to
+  // BusinessSetting.lowStockThreshold when null) instead of checking each
+  // product individually — for families like welding rods or binding wire
+  // where variants substitute for each other and only the family total
+  // matters. Families left false (most steel gauges, where each size
+  // genuinely matters) keep the existing per-product check.
+  aggregateLowStock Boolean @default(false)
+  lowStockThreshold Float?
   products Product[]
 }
 
@@ -450,13 +480,21 @@ model Document {
   quoteNumber        String?        @unique
   invoiceNumber      String?        @unique
   receiptNumber      String?        @unique
+  deliveryNoteNumber String?        @unique
   notes              String?
   createdAt          DateTime       @default(now())
   invoicedAt         DateTime?
   paidAt             DateTime?
 
+  // For a DELIVERY_NOTE only — the invoice or quote it was generated from,
+  // so its items/customer/transport are copied (frozen), never live-linked.
+  sourceDocumentId String?
+  sourceDocument   Document?  @relation("DeliveryNoteSource", fields: [sourceDocumentId], references: [id])
+  deliveryNotes    Document[] @relation("DeliveryNoteSource")
+
   items         DocumentItem[]
   ledgerEntries CustomerLedgerEntry[]
+  returns       Return[]
 
   @@index([status])
   @@index([createdAt])
@@ -477,7 +515,50 @@ model DocumentItem {
   roundingAdjustment Float    @default(0)
   lineTotal          Float
 
+  returnItems ReturnItem[]
+
   @@index([documentId])
+}
+
+// A return never edits the sale it came from: the original Document stays
+// exactly as issued, and each return is its own record referencing the
+// document lines it gives back. Several returns can be raised against one
+// sale over time; returnable quantity is always (sold - already returned).
+model Return {
+  id           String         @id @default(cuid())
+  returnNumber String         @unique
+  documentId   String
+  document     Document       @relation(fields: [documentId], references: [id])
+  total        Float
+  // How the money went back. Null for an account sale, where the refund is
+  // posted to the customer's credit ledger instead of paid out at the till.
+  refundMethod PaymentMethod?
+  reason       String?
+  createdById  String
+  createdBy    User           @relation(fields: [createdById], references: [id])
+  createdAt    DateTime       @default(now())
+
+  items ReturnItem[]
+
+  @@index([documentId])
+  @@index([createdAt])
+}
+
+model ReturnItem {
+  id             String       @id @default(cuid())
+  returnId       String
+  return         Return       @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  documentItemId String
+  documentItem   DocumentItem @relation(fields: [documentItemId], references: [id])
+  productId      String?
+  product        Product?     @relation(fields: [productId], references: [id])
+  description    String
+  qty            Float
+  unitPrice      Float
+  lineTotal      Float
+
+  @@index([returnId])
+  @@index([documentItemId])
 }
 
 // HR profile (brief §36) — NOT linked to User/login on purpose.
@@ -605,11 +686,18 @@ model BusinessSetting {
   quotePrefix       String   @default("QT")
   invoicePrefix     String   @default("INV")
   receiptPrefix     String   @default("RCT")
+  deliveryNotePrefix String  @default("DN")
+  returnPrefix      String   @default("RTN")
   nextQuoteSeq      Int      @default(1)
   nextInvoiceSeq    Int      @default(1)
   nextReceiptSeq    Int      @default(1)
+  nextDeliveryNoteSeq Int    @default(1)
+  nextReturnSeq     Int      @default(1)
   roundingIncrement Float    @default(5)
   lowStockThreshold Float    @default(5)
   documentFooter    String?
+  // Bank/M-Pesa/till info shown on quotes and invoices so a customer knows
+  // how to pay — brief step 6.
+  paymentDetails    String?
   updatedAt         DateTime @updatedAt
 }

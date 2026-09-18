@@ -20,6 +20,8 @@ export interface ProductAlias {
 export interface ProductFamily {
   id: string;
   name: string;
+  aggregateLowStock: boolean;
+  lowStockThreshold: number | null;
 }
 
 export type StockStatus = 'IN_STOCK' | 'SUPPLIER_ONLY' | 'OUT_OF_STOCK';
@@ -118,6 +120,11 @@ export const productsApi = {
   categories: () => api.get<Category[]>('/categories'),
   createCategory: (name: string) => api.post<Category>('/categories', { name }),
   units: () => api.get<Unit[]>('/units'),
+  families: () => api.get<ProductFamily[]>('/products/families'),
+  createFamily: (data: { name: string; aggregateLowStock?: boolean; lowStockThreshold?: number }) =>
+    api.post<ProductFamily>('/products/families', data),
+  updateFamily: (id: string, data: { name?: string; aggregateLowStock?: boolean; lowStockThreshold?: number | null }) =>
+    api.patch<ProductFamily>(`/products/families/${id}`, data),
 };
 
 export const inventoryApi = {

@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Package, Plus, Search } from 'lucide-react';
+import { Package, Plus, Search, Layers } from 'lucide-react';
 import { productsApi, type Brand, type Category, type Product, type ProductFamily, type Unit } from '../../../lib/products-api';
 import { thicknessLabel } from '../../../lib/shape-config';
 import { ProductFormDrawer } from '../../../components/products/ProductFormDrawer';
 import { ProductDetailDrawer } from '../../../components/products/ProductDetailDrawer';
+import { FamilyManagerDrawer } from '../../../components/products/FamilyManagerDrawer';
+import { useAuth } from '../../../lib/auth-context';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)', color: 'var(--color-ink-900)' };
 
@@ -37,12 +39,15 @@ export default function ProductsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [familyManagerOpen, setFamilyManagerOpen] = useState(false);
+  const { user } = useAuth();
 
   async function loadLookups() {
-    const [b, c, u] = await Promise.all([productsApi.brands(), productsApi.categories(), productsApi.units()]);
+    const [b, c, u, f] = await Promise.all([productsApi.brands(), productsApi.categories(), productsApi.units(), productsApi.families()]);
     setBrands(b);
     setCategories(c);
     setUnits(u);
+    setFamilies(f);
   }
 
   async function loadProducts() {
@@ -84,6 +89,20 @@ export default function ProductsPage() {
           Add product
         </button>
       </div>
+
+      {user?.role === 'ADMIN' && (
+        <div className="mt-3 flex justify-end">
+          <button
+            type="button"
+            onClick={() => setFamilyManagerOpen(true)}
+            className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium"
+            style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}
+          >
+            <Layers size={13} strokeWidth={2} />
+            Manage families
+          </button>
+        </div>
+      )}
 
       <div className="mt-5 flex flex-wrap gap-2">
         <div className="relative min-w-[240px] flex-1">
@@ -277,6 +296,13 @@ export default function ProductsPage() {
           setFormOpen(true);
         }}
         onChanged={loadProducts}
+      />
+
+      <FamilyManagerDrawer
+        open={familyManagerOpen}
+        onClose={() => setFamilyManagerOpen(false)}
+        families={families}
+        onChanged={setFamilies}
       />
     </div>
   );

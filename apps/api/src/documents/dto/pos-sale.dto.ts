@@ -9,14 +9,15 @@ export class PosItemDto {
   @Min(0.001)
   qty!: number;
 
+  // The final, negotiated per-unit price the operator agreed with the
+  // customer — not a "list price" with a separate discount subtracted from
+  // it. If it's below the product's current base price, the backend derives
+  // the implied discount itself (against the authoritative product price)
+  // for permission-limit enforcement and reporting; the client cannot spoof
+  // a fake "before" price to dodge the discount-limit check.
   @IsNumber()
   @Min(0)
-  unitPrice!: number; // base price before transport/rounding — the price the operator agreed with the customer
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  discount?: number; // flat KSh amount for this line
+  unitPrice!: number;
 }
 
 export class ManualAllocationDto {

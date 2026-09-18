@@ -70,14 +70,7 @@ export class DashboardService {
     }
 
     if (canSeeStock) {
-      const { lowStockThreshold } = await this.settings.get();
-      const lowStock = await this.prisma.product.findMany({
-        where: { active: true, stockQuantity: { lte: lowStockThreshold } },
-        orderBy: { stockQuantity: 'asc' },
-        take: 10,
-        include: { unit: { select: { symbol: true } } },
-      });
-      result.lowStock = lowStock.map((p) => ({ id: p.id, name: p.displayName ?? p.name, stockQuantity: p.stockQuantity, unit: p.unit.symbol }));
+      result.lowStock = await this.lowStockItems(10);
     }
 
     if (canSeeCredit) {
@@ -113,5 +106,61 @@ export class DashboardService {
     }
 
     return result;
+  }
+
+  // Most products check their own stockQuantity against the global
+  // threshold. Families flagged `aggregateLowStock` (welding rods across
+  // brands, DPM polythene weights, binding wire weights — variants that
+  // substitute for each other) instead have their member products' stock
+  // summed and compared against the family's own threshold, and surface as
+  // one row rather than one per variant.
+  async lowStockItems(limit: number) {
+    const { lowStockThreshold: globalThreshold } = await this.settings.get();
+    const products = await this.prisma.product.findMany({
+      where: { active: true },
+      select: {
+        id: true,
+        name: true,
+        displayName: true,
+        stockQuantity: true,
+        unit: { select: { symbol: true } },
+        family: { select: { id: true, name: true, aggregateLowStock: true, lowStockThreshold: true } },
+      },
+    });
+
+    type Row = { id: string; name: string; stockQuantity: number; unit: string; threshold: number; kind: 'product' | 'family' };
+    const rows: Row[] = [];
+    const familyGroups = new Map<string, { name: string; threshold: number; unit: string; stockQuantity: number }>();
+
+    for (const p of products) {
+      if (p.family?.aggregateLowStock) {
+        const threshold = p.family.lowStockThreshold ?? globalThreshold;
+        const existing = familyGroups.get(p.family.id);
+        if (existing) {
+          existing.stockQuantity += p.stockQuantity;
+        } else {
+          familyGroups.set(p.family.id, { name: p.family.name, threshold, unit: p.unit.symbol, stockQuantity: p.stockQuantity });
+        }
+        continue;
+      }
+      if (p.stockQuantity <= globalThreshold) {
+        rows.push({
+          id: p.id,
+          name: p.displayName ?? p.name,
+          stockQuantity: p.stockQuantity,
+          unit: p.unit.symbol,
+          threshold: globalThreshold,
+          kind: 'product',
+        });
+      }
+    }
+
+    for (const [familyId, group] of familyGroups) {
+      if (group.stockQuantity <= group.threshold) {
+        rows.push({ id: familyId, name: group.name, stockQuantity: group.stockQuantity, unit: group.unit, threshold: group.threshold, kind: 'family' });
+      }
+    }
+
+    return rows.sort((a, b) => (b.threshold - b.stockQuantity) - (a.threshold - a.stockQuantity)).slice(0, limit);
   }
 }

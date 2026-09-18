@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 const SINGLETON_ID = 'singleton';
-type DocNumberType = 'QUOTE' | 'INVOICE' | 'RECEIPT';
+type DocNumberType = 'QUOTE' | 'INVOICE' | 'RECEIPT' | 'DELIVERY_NOTE';
 
 @Injectable()
 export class SettingsService {
@@ -24,9 +24,11 @@ export class SettingsService {
     quotePrefix: string;
     invoicePrefix: string;
     receiptPrefix: string;
+    deliveryNotePrefix: string;
     roundingIncrement: number;
     lowStockThreshold: number;
     documentFooter: string;
+    paymentDetails: string;
   }>) {
     await this.get(); // ensure the row exists before updating it
     return this.prisma.businessSetting.update({ where: { id: SINGLETON_ID }, data });
@@ -39,8 +41,8 @@ export class SettingsService {
   async nextNumber(type: DocNumberType, client?: any): Promise<string> {
     const db = client ?? this.prisma;
     await this.get(); // ensure the row exists
-    const field = type === 'QUOTE' ? 'nextQuoteSeq' : type === 'INVOICE' ? 'nextInvoiceSeq' : 'nextReceiptSeq';
-    const prefixField = type === 'QUOTE' ? 'quotePrefix' : type === 'INVOICE' ? 'invoicePrefix' : 'receiptPrefix';
+    const field = type === 'QUOTE' ? 'nextQuoteSeq' : type === 'INVOICE' ? 'nextInvoiceSeq' : type === 'RECEIPT' ? 'nextReceiptSeq' : 'nextDeliveryNoteSeq';
+    const prefixField = type === 'QUOTE' ? 'quotePrefix' : type === 'INVOICE' ? 'invoicePrefix' : type === 'RECEIPT' ? 'receiptPrefix' : 'deliveryNotePrefix';
 
     const updated = await db.businessSetting.update({
       where: { id: SINGLETON_ID },

@@ -42,4 +42,8 @@ export class UpdateSettingsDto {
   @IsOptional()
   @IsString()
   documentFooter?: string;
+
+  @IsOptional()
+  @IsString()
+  paymentDetails?: string;
 }

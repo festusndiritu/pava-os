@@ -8,7 +8,7 @@ export interface DashboardSummary {
   };
   chart?: { date: string; total: number }[];
   recentSales?: { id: string; customerLabel: string; total: number; status: string; paymentMethod: string | null; createdAt: string }[];
-  lowStock?: { id: string; name: string; stockQuantity: number; unit: string }[];
+  lowStock?: { id: string; name: string; stockQuantity: number; unit: string; threshold: number; kind: 'product' | 'family' }[];
   outstandingCredit?: {
     total: number;
     customerCount: number;

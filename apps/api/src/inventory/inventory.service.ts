@@ -245,40 +245,58 @@ export class InventoryService {
     });
   }
 
-  receipts() {
-    return this.prisma.inventoryReceipt.findMany({
+  // Cost visibility is a permission axis separate from module access (a
+  // user can have INVENTORY access — receive/adjust stock — without seeing
+  // what any of it cost). Batch/movement unitCost is stripped here rather
+  // than at the controller so every caller gets the same guarantee.
+  private redactBatchCost<T extends { unitCost: number }>(batch: T, canViewCost: boolean) {
+    if (canViewCost) return batch;
+    return { ...batch, unitCost: undefined as unknown as number };
+  }
+  private redactMovementCost<T extends { unitCost: number | null }>(movement: T, canViewCost: boolean) {
+    if (canViewCost) return movement;
+    return { ...movement, unitCost: undefined as unknown as number | null };
+  }
+
+  async receipts(canViewCost: boolean) {
+    const receipts = await this.prisma.inventoryReceipt.findMany({
       include: {
         receivedBy: { select: { name: true } },
         batches: { include: { product: { select: { id: true, name: true, displayName: true } } } },
       },
       orderBy: { receivedAt: 'desc' },
     });
+    return receipts.map((r) => ({ ...r, batches: r.batches.map((b) => this.redactBatchCost(b, canViewCost)) }));
   }
 
-  receiptDetail(id: string) {
-    return this.prisma.inventoryReceipt.findUnique({
+  async receiptDetail(id: string, canViewCost: boolean) {
+    const receipt = await this.prisma.inventoryReceipt.findUnique({
       where: { id },
       include: {
         receivedBy: { select: { name: true } },
         batches: { include: { product: { select: { id: true, name: true, displayName: true, unit: true } } } },
       },
     });
+    if (!receipt) return receipt;
+    return { ...receipt, batches: receipt.batches.map((b) => this.redactBatchCost(b, canViewCost)) };
   }
 
-  batchesForProduct(productId: string) {
-    return this.prisma.inventoryBatch.findMany({
+  async batchesForProduct(productId: string, canViewCost: boolean) {
+    const batches = await this.prisma.inventoryBatch.findMany({
       where: { productId },
       include: { receipt: { select: { supplier: true, reference: true, receivedAt: true } } },
       orderBy: { createdAt: 'asc' },
     });
+    return batches.map((b) => this.redactBatchCost(b, canViewCost));
   }
 
-  movementsForProduct(productId: string) {
-    return this.prisma.inventoryMovement.findMany({
+  async movementsForProduct(productId: string, canViewCost: boolean) {
+    const movements = await this.prisma.inventoryMovement.findMany({
       where: { productId },
       include: { createdBy: { select: { name: true } } },
       orderBy: { createdAt: 'desc' },
       take: 200,
     });
+    return movements.map((m) => this.redactMovementCost(m, canViewCost));
   }
 }

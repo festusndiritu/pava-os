@@ -20,7 +20,7 @@ import { ProductsService } from './products.service.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/roles.guard.js';
 import { Roles } from '../auth/roles.decorator.js';
-import { CreateProductDto, UpdateProductDto } from './dto/product.dto.js';
+import { CreateProductDto, UpdateProductDto, CreateProductFamilyDto, UpdateProductFamilyDto } from './dto/product.dto.js';
 
 @UseGuards(JwtAuthGuard)
 @Controller('products')
@@ -29,12 +29,14 @@ export class ProductsController {
 
   @Get()
   findAll(
+    @Req() req: any,
     @Query('search') search?: string,
     @Query('brandId') brandId?: string,
     @Query('categoryId') categoryId?: string,
     @Query('familyId') familyId?: string,
   ) {
-    return this.products.findAll({ search, brandId, categoryId, familyId });
+    const canViewCost = req.user.role === Role.ADMIN || !!req.user.canViewCost;
+    return this.products.findAll({ search, brandId, categoryId, familyId, canViewCost });
   }
 
   @Get('families')
@@ -42,16 +44,31 @@ export class ProductsController {
     return this.products.families();
   }
 
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  @Post('families')
+  createFamily(@Body() body: CreateProductFamilyDto) {
+    return this.products.createFamily(body);
+  }
+
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  @Patch('families/:id')
+  updateFamily(@Param('id') id: string, @Body() body: UpdateProductFamilyDto) {
+    return this.products.updateFamily(id, body);
+  }
+
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.products.findOne(id);
+  findOne(@Param('id') id: string, @Req() req: any) {
+    const canViewCost = req.user.role === Role.ADMIN || !!req.user.canViewCost;
+    return this.products.findOne(id, canViewCost);
   }
 
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN)
   @Post()
-  create(@Body() body: CreateProductDto) {
-    return this.products.create(body);
+  create(@Body() body: CreateProductDto, @Req() req: any) {
+    return this.products.create(body, req.user.sub);
   }
 
   @UseGuards(RolesGuard)
@@ -92,7 +109,7 @@ export class ProductsController {
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN)
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.products.remove(id);
+  remove(@Param('id') id: string, @Req() req: any) {
+    return this.products.remove(id, req.user.sub);
   }
 }

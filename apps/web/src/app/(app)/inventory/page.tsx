@@ -4,6 +4,7 @@ import { useEffect, useState, Fragment } from 'react';
 import { Boxes, Plus } from 'lucide-react';
 import { inventoryApi, type InventoryReceipt } from '../../../lib/products-api';
 import { ReceiveInventoryDrawer } from '../../../components/inventory/ReceiveInventoryDrawer';
+import { useAuth } from '../../../lib/auth-context';
 
 function fmtDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(iso));
@@ -13,6 +14,8 @@ export default function InventoryPage() {
   const [receipts, setReceipts] = useState<InventoryReceipt[] | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const { canViewCost } = useAuth();
+  const showCost = canViewCost();
 
   async function load() {
     setReceipts(await inventoryApi.receipts());
@@ -61,16 +64,18 @@ export default function InventoryPage() {
               <th className="px-4 py-2.5 font-medium" style={{ color: 'var(--color-ink-600)' }}>
                 Received by
               </th>
-              <th className="px-4 py-2.5 text-right font-medium" style={{ color: 'var(--color-ink-600)' }}>
-                Total value
-              </th>
+              {showCost && (
+                <th className="px-4 py-2.5 text-right font-medium" style={{ color: 'var(--color-ink-600)' }}>
+                  Total value
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
             {receipts === null &&
               [...Array(4)].map((_, i) => (
                 <tr key={i} className="border-b" style={{ borderColor: 'var(--color-border)' }}>
-                  <td className="px-4 py-3" colSpan={5}>
+                  <td className="px-4 py-3" colSpan={showCost ? 5 : 4}>
                     <div className="h-4 w-2/3 animate-pulse rounded" style={{ backgroundColor: 'var(--color-border)' }} />
                   </td>
                 </tr>
@@ -78,7 +83,7 @@ export default function InventoryPage() {
 
             {receipts?.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-12 text-center">
+                <td colSpan={showCost ? 5 : 4} className="px-4 py-12 text-center">
                   <Boxes size={28} strokeWidth={1.5} className="mx-auto mb-2" style={{ color: 'var(--color-ink-600)' }} />
                   <p className="text-sm font-medium" style={{ color: 'var(--color-ink-900)' }}>
                     No inventory receipts yet
@@ -112,19 +117,21 @@ export default function InventoryPage() {
                     <td className="px-4 py-3" style={{ color: 'var(--color-ink-600)' }}>
                       {r.receivedBy.name}
                     </td>
-                    <td className="px-4 py-3 text-right font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>
-                      KSh {total.toLocaleString()}
-                    </td>
+                    {showCost && (
+                      <td className="px-4 py-3 text-right font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>
+                        KSh {total.toLocaleString()}
+                      </td>
+                    )}
                   </tr>
                   {isOpen && (
                     <tr style={{ backgroundColor: 'var(--color-bg)' }}>
-                      <td colSpan={5} className="px-4 py-3">
+                      <td colSpan={showCost ? 5 : 4} className="px-4 py-3">
                         <div className="flex flex-col gap-1.5">
                           {r.batches.map((b) => (
                             <div key={b.id} className="flex items-center justify-between text-xs">
                               <span style={{ color: 'var(--color-ink-900)' }}>{b.product.displayName ?? b.product.name}</span>
                               <span className="data-num" style={{ color: 'var(--color-ink-600)' }}>
-                                {b.quantityReceived} × KSh {b.unitCost.toLocaleString()}
+                                {showCost ? `${b.quantityReceived} × KSh ${b.unitCost.toLocaleString()}` : `${b.quantityReceived} received`}
                               </span>
                             </div>
                           ))}
@@ -169,9 +176,11 @@ export default function InventoryPage() {
                     <p className="font-medium" style={{ color: 'var(--color-ink-900)' }}>
                       {r.supplier}
                     </p>
-                    <p className="shrink-0 font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>
-                      KSh {total.toLocaleString()}
-                    </p>
+                    {showCost && (
+                      <p className="shrink-0 font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>
+                        KSh {total.toLocaleString()}
+                      </p>
+                    )}
                   </div>
                   <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
                     {fmtDate(r.receivedAt)} {r.reference ? `· ${r.reference}` : ''} · {r.receivedBy.name}
@@ -183,7 +192,7 @@ export default function InventoryPage() {
                       <div key={b.id} className="flex items-center justify-between text-xs pt-2">
                         <span style={{ color: 'var(--color-ink-900)' }}>{b.product.displayName ?? b.product.name}</span>
                         <span className="data-num" style={{ color: 'var(--color-ink-600)' }}>
-                          {b.quantityReceived} × KSh {b.unitCost.toLocaleString()}
+                          {showCost ? `${b.quantityReceived} × KSh ${b.unitCost.toLocaleString()}` : `${b.quantityReceived} received`}
                         </span>
                       </div>
                     ))}

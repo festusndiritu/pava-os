@@ -19,13 +19,13 @@ export class InventoryController {
   }
 
   @Get('receipts')
-  receipts() {
-    return this.inventory.receipts();
+  receipts(@Req() req: any) {
+    return this.inventory.receipts(req.user.role === 'ADMIN' || !!req.user.canViewCost);
   }
 
   @Get('receipts/:id')
-  receiptDetail(@Param('id') id: string) {
-    return this.inventory.receiptDetail(id);
+  receiptDetail(@Param('id') id: string, @Req() req: any) {
+    return this.inventory.receiptDetail(id, req.user.role === 'ADMIN' || !!req.user.canViewCost);
   }
 
   @UseGuards(PermissionsGuard)
@@ -43,12 +43,12 @@ export class InventoryController {
   }
 
   @Get('batches')
-  batches(@Query('productId') productId: string) {
-    return this.inventory.batchesForProduct(productId);
+  batches(@Query('productId') productId: string, @Req() req: any) {
+    return this.inventory.batchesForProduct(productId, req.user.role === 'ADMIN' || !!req.user.canViewCost);
   }
 
   @Get('movements')
-  movements(@Query('productId') productId: string) {
-    return this.inventory.movementsForProduct(productId);
+  movements(@Query('productId') productId: string, @Req() req: any) {
+    return this.inventory.movementsForProduct(productId, req.user.role === 'ADMIN' || !!req.user.canViewCost);
   }
 }

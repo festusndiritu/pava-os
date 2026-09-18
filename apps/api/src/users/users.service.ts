@@ -15,6 +15,9 @@ const LIST_SELECT = {
   avatar: true,
   phone: true,
   permissions: true,
+  maxDiscountPercent: true,
+  canViewCost: true,
+  canInvoiceWithoutStock: true,
   active: true,
   lastLoginAt: true,
   createdAt: true,
@@ -49,6 +52,9 @@ export class UsersService {
         phone: dto.phone,
         pinHash,
         permissions: dto.permissions,
+        maxDiscountPercent: dto.maxDiscountPercent ?? 0,
+        canViewCost: dto.canViewCost ?? false,
+        canInvoiceWithoutStock: dto.canInvoiceWithoutStock ?? false,
         createdById,
       },
       select: LIST_SELECT,
@@ -79,7 +85,13 @@ export class UsersService {
       throw new BadRequestException('You cannot deactivate your own account');
     }
 
-    const before = { permissions: target.permissions, active: target.active };
+    const before = {
+      permissions: target.permissions,
+      active: target.active,
+      maxDiscountPercent: target.maxDiscountPercent,
+      canViewCost: target.canViewCost,
+      canInvoiceWithoutStock: target.canInvoiceWithoutStock,
+    };
 
     const user = await this.prisma.user.update({
       where: { id },
@@ -88,6 +100,9 @@ export class UsersService {
         ...(dto.avatar !== undefined ? { avatar: dto.avatar } : {}),
         ...(dto.phone !== undefined ? { phone: dto.phone } : {}),
         ...(dto.permissions !== undefined ? { permissions: dto.permissions } : {}),
+        ...(dto.maxDiscountPercent !== undefined ? { maxDiscountPercent: dto.maxDiscountPercent } : {}),
+        ...(dto.canViewCost !== undefined ? { canViewCost: dto.canViewCost } : {}),
+        ...(dto.canInvoiceWithoutStock !== undefined ? { canInvoiceWithoutStock: dto.canInvoiceWithoutStock } : {}),
         ...(dto.active !== undefined ? { active: dto.active } : {}),
       },
       select: LIST_SELECT,
@@ -100,6 +115,33 @@ export class UsersService {
         entityType: 'User',
         entityId: id,
         metadata: { before: before.permissions, after: dto.permissions },
+      });
+    }
+    if (dto.maxDiscountPercent !== undefined && dto.maxDiscountPercent !== before.maxDiscountPercent) {
+      await this.audit.log({
+        actorId,
+        action: 'user.discount_limit_changed',
+        entityType: 'User',
+        entityId: id,
+        metadata: { before: before.maxDiscountPercent, after: dto.maxDiscountPercent },
+      });
+    }
+    if (dto.canViewCost !== undefined && dto.canViewCost !== before.canViewCost) {
+      await this.audit.log({
+        actorId,
+        action: 'user.cost_visibility_changed',
+        entityType: 'User',
+        entityId: id,
+        metadata: { before: before.canViewCost, after: dto.canViewCost },
+      });
+    }
+    if (dto.canInvoiceWithoutStock !== undefined && dto.canInvoiceWithoutStock !== before.canInvoiceWithoutStock) {
+      await this.audit.log({
+        actorId,
+        action: 'user.stock_override_permission_changed',
+        entityType: 'User',
+        entityId: id,
+        metadata: { before: before.canInvoiceWithoutStock, after: dto.canInvoiceWithoutStock },
       });
     }
     if (dto.active !== undefined && dto.active !== before.active) {

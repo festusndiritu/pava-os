@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { AuditService } from '../audit/audit.service.js';
 import { normalizeSearchTerm, parseSearchHints } from './search-normalize.js';
 
 const INCLUDE = {
@@ -32,7 +33,20 @@ interface ProductInput {
 
 @Injectable()
 export class ProductsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private audit: AuditService,
+  ) {}
+
+  // Cost/margin visibility is a permission axis separate from module access
+  // (brief: a user can have PRODUCTS access without seeing acquisition
+  // cost). Strip it here rather than at the controller so no future caller
+  // of this service can forget to. `undefined`, not `null`, so it's simply
+  // absent from the JSON rather than a visible "hidden" signal.
+  private redactCost<T extends { lastCost?: number | null }>(product: T, canViewCost: boolean): T {
+    if (canViewCost) return product;
+    return { ...product, lastCost: undefined };
+  }
 
   private async setAliases(productId: string, aliases: string[] | undefined) {
     if (aliases === undefined) return;
@@ -45,8 +59,8 @@ export class ProductsService {
     }
   }
 
-  async findAll(params: { search?: string; brandId?: string; categoryId?: string; familyId?: string }) {
-    const { search, brandId, categoryId, familyId } = params;
+  async findAll(params: { search?: string; brandId?: string; categoryId?: string; familyId?: string; canViewCost: boolean }) {
+    const { search, brandId, categoryId, familyId, canViewCost } = params;
 
     const baseWhere = {
       active: true,
@@ -56,7 +70,8 @@ export class ProductsService {
     };
 
     if (!search) {
-      return this.prisma.product.findMany({ where: baseWhere, include: INCLUDE, orderBy: { name: 'asc' } });
+      const all = await this.prisma.product.findMany({ where: baseWhere, include: INCLUDE, orderBy: { name: 'asc' } });
+      return all.map((p) => this.redactCost(p, canViewCost));
     }
 
     const normalized = normalizeSearchTerm(search);
@@ -98,19 +113,28 @@ export class ProductsService {
       return 4;
     }
 
-    return candidates.sort((a, b) => score(a) - score(b) || a.name.localeCompare(b.name));
+    return candidates
+      .sort((a, b) => score(a) - score(b) || a.name.localeCompare(b.name))
+      .map((p) => this.redactCost(p, canViewCost));
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, canViewCost = true) {
     const product = await this.prisma.product.findUnique({ where: { id }, include: INCLUDE });
     if (!product) throw new NotFoundException('Product not found');
-    return product;
+    return this.redactCost(product, canViewCost);
   }
 
-  async create(data: ProductInput) {
+  async create(data: ProductInput, actorId: string) {
     const { aliases, ...rest } = data;
     const product = await this.prisma.product.create({ data: rest });
     await this.setAliases(product.id, aliases);
+    await this.audit.log({
+      actorId,
+      action: 'product.created',
+      entityType: 'Product',
+      entityId: product.id,
+      metadata: { name: product.name, basePrice: product.basePrice },
+    });
     return this.findOne(product.id);
   }
 
@@ -132,6 +156,18 @@ export class ProductsService {
           changedById,
         },
       });
+      // Price changes already have their own dedicated audit surface
+      // (ProductPriceHistory) — no need to double-log here.
+    }
+    const changedFields = Object.keys(rest);
+    if (changedFields.length > 0) {
+      await this.audit.log({
+        actorId: changedById,
+        action: 'product.updated',
+        entityType: 'Product',
+        entityId: id,
+        metadata: { fields: changedFields },
+      });
     }
     return this.findOne(id);
   }
@@ -152,8 +188,26 @@ export class ProductsService {
     return this.prisma.productFamily.findMany({ orderBy: { name: 'asc' } });
   }
 
+  createFamily(data: { name: string; aggregateLowStock?: boolean; lowStockThreshold?: number }) {
+    return this.prisma.productFamily.create({ data });
+  }
+
+  async updateFamily(id: string, data: { name?: string; aggregateLowStock?: boolean; lowStockThreshold?: number | null }) {
+    const family = await this.prisma.productFamily.findUnique({ where: { id } });
+    if (!family) throw new NotFoundException('Product family not found');
+    return this.prisma.productFamily.update({ where: { id }, data });
+  }
+
   // Soft delete — keeps history on any past document_items (and price history) intact.
-  remove(id: string) {
-    return this.prisma.product.update({ where: { id }, data: { active: false } });
+  async remove(id: string, actorId: string) {
+    const product = await this.prisma.product.update({ where: { id }, data: { active: false } });
+    await this.audit.log({
+      actorId,
+      action: 'product.archived',
+      entityType: 'Product',
+      entityId: id,
+      metadata: { name: product.name },
+    });
+    return product;
   }
 }

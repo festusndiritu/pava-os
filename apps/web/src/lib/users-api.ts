@@ -9,6 +9,9 @@ export interface StaffUser {
   avatar: string | null;
   phone: string | null;
   permissions: ModuleKey[];
+  maxDiscountPercent: number;
+  canViewCost: boolean;
+  canInvoiceWithoutStock: boolean;
   active: boolean;
   lastLoginAt: string | null;
   createdAt: string;
@@ -22,6 +25,9 @@ export interface CreateStaffInput {
   avatar?: string;
   phone?: string;
   permissions: ModuleKey[];
+  maxDiscountPercent?: number;
+  canViewCost?: boolean;
+  canInvoiceWithoutStock?: boolean;
 }
 
 export interface UpdateStaffInput {
@@ -29,6 +35,9 @@ export interface UpdateStaffInput {
   avatar?: string;
   phone?: string;
   permissions?: ModuleKey[];
+  maxDiscountPercent?: number;
+  canViewCost?: boolean;
+  canInvoiceWithoutStock?: boolean;
   active?: boolean;
 }
 

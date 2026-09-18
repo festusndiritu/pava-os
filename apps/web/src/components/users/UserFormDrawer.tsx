@@ -29,6 +29,9 @@ export function UserFormDrawer({
   const [phone, setPhone] = useState('');
   const [pin, setPin] = useState('');
   const [permissions, setPermissions] = useState<ModuleKey[]>([]);
+  const [maxDiscountPercent, setMaxDiscountPercent] = useState(0);
+  const [canViewCost, setCanViewCost] = useState(false);
+  const [canInvoiceWithoutStock, setCanInvoiceWithoutStock] = useState(false);
   const [active, setActive] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +43,9 @@ export function UserFormDrawer({
     setPhone(user?.phone ?? '');
     setPin('');
     setPermissions(user?.permissions ?? []);
+    setMaxDiscountPercent(user?.maxDiscountPercent ?? 0);
+    setCanViewCost(user?.canViewCost ?? false);
+    setCanInvoiceWithoutStock(user?.canInvoiceWithoutStock ?? false);
     setActive(user?.active ?? true);
     setError(null);
   }, [open, user]);
@@ -50,14 +56,14 @@ export function UserFormDrawer({
     setError(null);
     try {
       if (isEdit && user) {
-        await usersApi.update(user.id, { name, avatar, phone: phone || undefined, permissions, active });
+        await usersApi.update(user.id, { name, avatar, phone: phone || undefined, permissions, maxDiscountPercent, canViewCost, canInvoiceWithoutStock, active });
       } else {
         if (!/^\d{4}$/.test(pin)) {
           setError('PIN must be exactly 4 digits');
           setSaving(false);
           return;
         }
-        await usersApi.create({ name, avatar, phone: phone || undefined, pin, permissions });
+        await usersApi.create({ name, avatar, phone: phone || undefined, pin, permissions, maxDiscountPercent, canViewCost, canInvoiceWithoutStock });
       }
       onSaved();
       onClose();
@@ -161,6 +167,53 @@ export function UserFormDrawer({
             Module access
           </p>
           <PermissionEditor value={permissions} onChange={setPermissions} />
+        </div>
+
+        <div className="border-t pt-5" style={{ borderColor: 'var(--color-border)' }}>
+          <p className="mb-3 text-xs font-semibold uppercase" style={{ color: 'var(--color-ink-900)', letterSpacing: '0.04em' }}>
+            Sensitive permissions
+          </p>
+          <div className="flex flex-col gap-3.5">
+            <div>
+              <label className={labelClass} style={labelStyle}>
+                Maximum discount they can apply
+              </label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.5}
+                  value={maxDiscountPercent}
+                  onChange={(e) => setMaxDiscountPercent(Math.max(0, Math.min(100, Number(e.target.value))))}
+                  className="w-24 rounded-md border px-3 py-2 text-sm data-num outline-none focus:border-[var(--color-accent)]"
+                  style={inputStyle}
+                />
+                <span className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
+                  %
+                </span>
+              </div>
+              <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>
+                Enforced server-side on every POS sale line, regardless of what the till shows.
+              </p>
+            </div>
+
+            <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-ink-900)' }}>
+              <input type="checkbox" checked={canViewCost} onChange={(e) => setCanViewCost(e.target.checked)} />
+              Can view acquisition cost &amp; margin
+            </label>
+            <p className="-mt-2.5 ml-6 text-xs" style={{ color: 'var(--color-ink-600)' }}>
+              Independent of Products/Inventory access above — someone can receive stock without seeing what it cost.
+            </p>
+
+            <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-ink-900)' }}>
+              <input type="checkbox" checked={canInvoiceWithoutStock} onChange={(e) => setCanInvoiceWithoutStock(e.target.checked)} />
+              Can invoice against stock we don't have recorded
+            </label>
+            <p className="-mt-2.5 ml-6 text-xs" style={{ color: 'var(--color-ink-600)' }}>
+              A backorder override for POS and quote-to-invoice conversion. Every use is logged to the audit trail.
+            </p>
+          </div>
         </div>
       </form>
     </Drawer>

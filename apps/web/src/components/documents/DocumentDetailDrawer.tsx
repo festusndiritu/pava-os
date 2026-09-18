@@ -1,10 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Printer } from 'lucide-react';
+import { Printer, Share2, Truck } from 'lucide-react';
 import { Drawer } from '../ui/Drawer';
 import { documentsApi, type SaleDocument } from '../../lib/documents-api';
+import { DocumentLetterhead } from './DocumentLetterhead';
 import { ApiError } from '../../lib/api';
+import { useAuth } from '../../lib/auth-context';
+import { shareElementAsPdf } from '../../lib/pdf';
+
+function docTypeLabel(type: string) {
+  return type === 'QUOTE' ? 'Quote' : type === 'INVOICE' ? 'Invoice' : type === 'DELIVERY_NOTE' ? 'Delivery note' : 'Receipt';
+}
 
 function fmtDate(iso: string | null) {
   if (!iso) return '—';
@@ -22,11 +29,26 @@ const STATUS_LABEL: Record<string, { label: string; bg: string; fg: string }> = 
   CANCELLED: { label: 'Cancelled', bg: 'var(--color-status-badSoft)', fg: 'var(--color-status-bad)' },
 };
 
-export function DocumentDetailDrawer({ documentId, onClose, onChanged }: { documentId: string | null; onClose: () => void; onChanged: () => void }) {
+export function DocumentDetailDrawer({
+  documentId,
+  onClose,
+  onChanged,
+  onNavigate,
+}: {
+  documentId: string | null;
+  onClose: () => void;
+  onChanged: () => void;
+  onNavigate?: (id: string) => void;
+}) {
   const [doc, setDoc] = useState<SaleDocument | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [stockShortfall, setStockShortfall] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const { user } = useAuth();
+  const canOverrideStock = user?.role === 'ADMIN' || !!user?.canInvoiceWithoutStock;
 
   async function load() {
     if (!documentId) return;
@@ -37,34 +59,74 @@ export function DocumentDetailDrawer({ documentId, onClose, onChanged }: { docum
 
   useEffect(() => {
     load();
+    setStockShortfall(false);
+    setNotice(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documentId]);
 
   if (!documentId) return null;
 
-  async function runAction(fn: () => Promise<SaleDocument>) {
+  async function runAction(fn: () => Promise<SaleDocument>, opts?: { detectStockShortfall?: boolean }) {
     setBusy(true);
     setError(null);
     try {
       await fn();
+      setStockShortfall(false);
       await load();
       onChanged();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not complete that action.');
+      const message = err instanceof ApiError ? err.message : 'Could not complete that action.';
+      setError(message);
+      if (opts?.detectStockShortfall && message.toLowerCase().startsWith('insufficient stock')) {
+        setStockShortfall(true);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleShare() {
+    if (!doc) return;
+    setSharing(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const number = doc.invoiceNumber ?? doc.quoteNumber ?? doc.receiptNumber ?? doc.id.slice(0, 8);
+      const result = await shareElementAsPdf('print-area', `${number}.pdf`, `${docTypeLabel(doc.type)} ${number}`);
+      setNotice(result === 'shared' ? 'Shared.' : 'Downloaded — attach it in WhatsApp or wherever you need it.');
+    } catch (err) {
+      setError('Could not generate the PDF.');
+    } finally {
+      setSharing(false);
+    }
+  }
+
+  async function handleCreateDeliveryNote() {
+    if (!doc) return;
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const note = await documentsApi.createDeliveryNote(doc.id);
+      onChanged();
+      setNotice('Delivery note created.');
+      onNavigate?.(note.id);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not create a delivery note.');
     } finally {
       setBusy(false);
     }
   }
 
   const status = doc ? STATUS_LABEL[doc.status] : null;
-  const docNumber = doc?.receiptNumber ?? doc?.invoiceNumber ?? doc?.quoteNumber;
+  const docNumber = doc?.receiptNumber ?? doc?.invoiceNumber ?? doc?.quoteNumber ?? doc?.deliveryNoteNumber;
 
   return (
     <Drawer
       open
       onClose={onClose}
       title={doc?.customer?.businessName || doc?.customer?.name || doc?.customerName || 'Walk-in customer'}
-      subtitle={doc ? `${docNumber ? `${docNumber} · ` : ''}${doc.type === 'QUOTE' ? 'Quote' : doc.type === 'INVOICE' ? 'Invoice' : 'Receipt'} · ${fmtDate(doc.createdAt)}` : undefined}
+      subtitle={doc ? `${docNumber ? `${docNumber} · ` : ''}${docTypeLabel(doc.type)} · ${fmtDate(doc.createdAt)}` : undefined}
       footer={
         doc && (
           <div className="flex flex-col gap-2">
@@ -73,13 +135,29 @@ export function DocumentDetailDrawer({ documentId, onClose, onChanged }: { docum
                 {error}
               </p>
             )}
+            {notice && !error && (
+              <p className="rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'var(--color-status-okSoft)', color: 'var(--color-status-ok)' }}>
+                {notice}
+              </p>
+            )}
+            {stockShortfall && canOverrideStock && doc.status === 'QUOTED' && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => runAction(() => documentsApi.convertToInvoice(doc.id, true))}
+                className="rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-60"
+                style={{ borderColor: 'var(--color-status-warn)', color: 'var(--color-status-warn)' }}
+              >
+                Proceed anyway — invoice as a backorder (logged to audit trail)
+              </button>
+            )}
             <div className="flex gap-2">
               {doc.status === 'QUOTED' && (
                 <>
                   <button type="button" disabled={busy} onClick={() => runAction(() => documentsApi.cancel(doc.id))} className="flex-1 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-status-bad)' }}>
                     Cancel quote
                   </button>
-                  <button type="button" disabled={busy} onClick={() => runAction(() => documentsApi.convertToInvoice(doc.id))} className="flex-1 rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
+                  <button type="button" disabled={busy} onClick={() => runAction(() => documentsApi.convertToInvoice(doc.id), { detectStockShortfall: true })} className="flex-1 rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
                     Convert to invoice
                   </button>
                 </>
@@ -94,17 +172,29 @@ export function DocumentDetailDrawer({ documentId, onClose, onChanged }: { docum
                   </button>
                 </>
               )}
-              {(doc.status === 'PAID' || doc.status === 'CANCELLED') && (
-                <button type="button" onClick={() => window.print()} className="flex-1 flex items-center justify-center gap-1.5 rounded-md border px-4 py-2 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
-                  <Printer size={14} strokeWidth={2} />
-                  Print
+            </div>
+            <div className="flex gap-2">
+              {doc.type !== 'DELIVERY_NOTE' && (doc.status === 'QUOTED' || doc.status === 'INVOICED' || doc.status === 'PAID') && (
+                <button type="button" disabled={busy} onClick={handleCreateDeliveryNote} className="flex flex-1 items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
+                  <Truck size={14} strokeWidth={2} />
+                  Delivery note
                 </button>
               )}
+              <button type="button" onClick={() => window.print()} className="flex flex-1 items-center justify-center gap-1.5 rounded-md border px-4 py-2 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
+                <Printer size={14} strokeWidth={2} />
+                Print
+              </button>
+              <button type="button" disabled={sharing} onClick={handleShare} className="flex flex-1 items-center justify-center gap-1.5 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
+                <Share2 size={14} strokeWidth={2} />
+                {sharing ? 'Preparing…' : 'Share PDF'}
+              </button>
             </div>
           </div>
         )
       }
     >
+      {doc && <DocumentLetterhead doc={doc} />}
+
       {loading && (
         <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
           Loading…
@@ -114,10 +204,16 @@ export function DocumentDetailDrawer({ documentId, onClose, onChanged }: { docum
       {doc && !loading && (
         <div className="flex flex-col gap-5">
           <div className="flex items-center justify-between">
-            {status && (
-              <span className="rounded-full px-2.5 py-1 text-xs font-medium" style={{ backgroundColor: status.bg, color: status.fg }}>
-                {status.label}
+            {doc.type === 'DELIVERY_NOTE' ? (
+              <span className="rounded-full px-2.5 py-1 text-xs font-medium" style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-600)' }}>
+                Delivery note
               </span>
+            ) : (
+              status && (
+                <span className="rounded-full px-2.5 py-1 text-xs font-medium" style={{ backgroundColor: status.bg, color: status.fg }}>
+                  {status.label}
+                </span>
+              )
             )}
             <p className="text-xs" style={{ color: 'var(--color-ink-600)' }}>
               By {doc.createdBy.name}
@@ -138,11 +234,6 @@ export function DocumentDetailDrawer({ documentId, onClose, onChanged }: { docum
                   <tr key={item.id} className="border-b last:border-0" style={{ borderColor: 'var(--color-border)' }}>
                     <td className="px-3 py-2" style={{ color: 'var(--color-ink-900)' }}>
                       {item.description}
-                      {item.discount > 0 && (
-                        <span className="ml-1.5 text-xs" style={{ color: 'var(--color-status-bad)' }}>
-                          -{money(item.discount)}
-                        </span>
-                      )}
                     </td>
                     <td className="px-3 py-2 text-right data-num" style={{ color: 'var(--color-ink-600)' }}>
                       {item.qty} × {money(item.unitPrice)}

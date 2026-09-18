@@ -123,7 +123,7 @@ export default function QuotesPage() {
       </div>
 
       <QuoteFormDrawer open={formOpen} onClose={() => setFormOpen(false)} onCreated={(id) => { load(); setDetailId(id); }} />
-      <DocumentDetailDrawer documentId={detailId} onClose={() => setDetailId(null)} onChanged={load} />
+      <DocumentDetailDrawer documentId={detailId} onClose={() => setDetailId(null)} onChanged={load} onNavigate={setDetailId} />
     </div>
   );
 }

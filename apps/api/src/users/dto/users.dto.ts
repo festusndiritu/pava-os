@@ -1,4 +1,4 @@
-import { ArrayUnique, IsArray, IsBoolean, IsEnum, IsOptional, IsString, Length, Matches } from 'class-validator';
+import { ArrayUnique, IsArray, IsBoolean, IsEnum, IsNumber, IsOptional, IsString, Length, Matches, Max, Min } from 'class-validator';
 import { Module } from '../../../generated/prisma/client.js';
 
 export class CreateStaffDto {
@@ -21,6 +21,21 @@ export class CreateStaffDto {
   @ArrayUnique()
   @IsEnum(Module, { each: true })
   permissions!: Module[];
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  maxDiscountPercent?: number;
+
+  // Separate axis from `permissions` — see schema comment on User.canViewCost.
+  @IsOptional()
+  @IsBoolean()
+  canViewCost?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  canInvoiceWithoutStock?: boolean;
 }
 
 export class UpdateStaffDto {
@@ -42,6 +57,20 @@ export class UpdateStaffDto {
   @ArrayUnique()
   @IsEnum(Module, { each: true })
   permissions?: Module[];
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  maxDiscountPercent?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  canViewCost?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  canInvoiceWithoutStock?: boolean;
 
   @IsOptional()
   @IsBoolean()

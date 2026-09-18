@@ -15,13 +15,14 @@ export interface BusinessSettings {
   roundingIncrement: number;
   lowStockThreshold: number;
   documentFooter: string | null;
+  paymentDetails: string | null;
   updatedAt: string;
 }
 
 export type UpdateBusinessSettings = Partial<
   Pick<
     BusinessSettings,
-    'businessName' | 'address' | 'phone' | 'email' | 'quotePrefix' | 'invoicePrefix' | 'receiptPrefix' | 'roundingIncrement' | 'lowStockThreshold' | 'documentFooter'
+    'businessName' | 'address' | 'phone' | 'email' | 'quotePrefix' | 'invoicePrefix' | 'receiptPrefix' | 'roundingIncrement' | 'lowStockThreshold' | 'documentFooter' | 'paymentDetails'
   >
 >;
 

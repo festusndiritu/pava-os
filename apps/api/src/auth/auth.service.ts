@@ -12,6 +12,8 @@ interface AuthedUser {
   name: string;
   role: Role;
   permissions: string[];
+  canViewCost: boolean;
+  canInvoiceWithoutStock: boolean;
 }
 
 export interface RequestMeta {
@@ -50,6 +52,8 @@ export class AuthService {
       name: user.name,
       role: user.role,
       permissions: user.permissions,
+      canViewCost: user.canViewCost,
+      canInvoiceWithoutStock: user.canInvoiceWithoutStock,
       sid: sessionId,
     };
     return this.jwtService.signAsync(payload, {
@@ -84,6 +88,8 @@ export class AuthService {
         name: user.name,
         role: user.role,
         permissions: user.permissions,
+        canViewCost: user.canViewCost,
+        canInvoiceWithoutStock: user.canInvoiceWithoutStock,
       },
     };
   }
@@ -93,8 +99,17 @@ export class AuthService {
     name: string;
     role: Role;
     permissions: string[];
+    canViewCost: boolean;
+    canInvoiceWithoutStock: boolean;
   }): AuthedUser {
-    return { id: u.id, name: u.name, role: u.role, permissions: u.permissions };
+    return {
+      id: u.id,
+      name: u.name,
+      role: u.role,
+      permissions: u.permissions,
+      canViewCost: u.canViewCost,
+      canInvoiceWithoutStock: u.canInvoiceWithoutStock,
+    };
   }
 
   // Admin login: email + password
@@ -180,6 +195,8 @@ export class AuthService {
         name: session.user.name,
         role: session.user.role,
         permissions: session.user.permissions,
+        canViewCost: session.user.canViewCost,
+        canInvoiceWithoutStock: session.user.canInvoiceWithoutStock,
       },
     };
   }
@@ -203,6 +220,9 @@ export class AuthService {
         avatar: true,
         phone: true,
         permissions: true,
+        canViewCost: true,
+        canInvoiceWithoutStock: true,
+        maxDiscountPercent: true,
         active: true,
         lastLoginAt: true,
         createdAt: true,

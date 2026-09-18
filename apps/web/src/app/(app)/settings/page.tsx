@@ -67,6 +67,7 @@ export default function SettingsPage() {
         roundingIncrement: form.roundingIncrement,
         lowStockThreshold: form.lowStockThreshold,
         documentFooter: form.documentFooter ?? undefined,
+        paymentDetails: form.paymentDetails ?? undefined,
       });
       setSettings(updated);
       setForm(updated);
@@ -153,6 +154,17 @@ export default function SettingsPage() {
               <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>Products at or below this quantity show on the dashboard's low-stock list.</p>
             </div>
           </div>
+        </Section>
+
+        <Section title="Payment details" description="Bank / M-Pesa / till info — shown on quotes and invoices so a customer knows how to pay.">
+          <textarea
+            value={form.paymentDetails ?? ''}
+            onChange={(e) => setForm((f) => ({ ...f, paymentDetails: e.target.value }))}
+            rows={3}
+            placeholder={'e.g.\nM-Pesa Till: 123456\nBank: Equity, Acc. 0123456789'}
+            className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]"
+            style={inputStyle}
+          />
         </Section>
 
         <Section title="Document footer" description="Printed at the bottom of quotes, invoices, and receipts.">

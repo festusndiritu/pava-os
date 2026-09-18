@@ -8,7 +8,6 @@ export interface PosCartItemInput {
   productId: string;
   qty: number;
   unitPrice: number;
-  discount?: number;
 }
 
 export interface PosSaleInput {

@@ -5,6 +5,7 @@ import { Drawer } from '../ui/Drawer';
 import { inventoryApi, productsApi, type InventoryBatch, type InventoryMovement, type Product, type ProductPriceHistoryEntry } from '../../lib/products-api';
 import { thicknessLabel } from '../../lib/shape-config';
 import { ApiError } from '../../lib/api';
+import { useAuth } from '../../lib/auth-context';
 
 function fmtDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(iso));
@@ -44,6 +45,8 @@ export function ProductDetailDrawer({
   const [movements, setMovements] = useState<InventoryMovement[]>([]);
   const [loading, setLoading] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
+  const { canViewCost } = useAuth();
+  const showCost = canViewCost();
 
   useEffect(() => {
     if (!productId) return;
@@ -102,7 +105,7 @@ export function ProductDetailDrawer({
 
         {product && !loading && (
           <div className="flex flex-col gap-5">
-            <div className="grid grid-cols-3 gap-3">
+            <div className={`grid gap-3 ${showCost ? 'grid-cols-3' : 'grid-cols-2'}`}>
               <div className="rounded-md border p-3" style={{ borderColor: 'var(--color-border)' }}>
                 <p className="text-[11px] uppercase" style={{ color: 'var(--color-ink-600)' }}>
                   Stock
@@ -119,14 +122,16 @@ export function ProductDetailDrawer({
                   {money(product.basePrice)}
                 </p>
               </div>
-              <div className="rounded-md border p-3" style={{ borderColor: 'var(--color-border)' }}>
-                <p className="text-[11px] uppercase" style={{ color: 'var(--color-ink-600)' }}>
-                  Inventory value
-                </p>
-                <p className="mt-0.5 text-lg font-semibold data-num" style={{ color: 'var(--color-ink-900)' }}>
-                  {money(inventoryValue)}
-                </p>
-              </div>
+              {showCost && (
+                <div className="rounded-md border p-3" style={{ borderColor: 'var(--color-border)' }}>
+                  <p className="text-[11px] uppercase" style={{ color: 'var(--color-ink-600)' }}>
+                    Inventory value
+                  </p>
+                  <p className="mt-0.5 text-lg font-semibold data-num" style={{ color: 'var(--color-ink-900)' }}>
+                    {money(inventoryValue)}
+                  </p>
+                </div>
+              )}
             </div>
 
             {(gauge || product.nominalSize) && (
@@ -167,7 +172,8 @@ export function ProductDetailDrawer({
                         {b.receipt.reference ? ` · ${b.receipt.reference}` : ''}
                       </p>
                       <p className="text-xs" style={{ color: 'var(--color-ink-600)' }}>
-                        Received {fmtDate(b.createdAt)} · {money(b.unitCost)}/unit
+                        Received {fmtDate(b.createdAt)}
+                        {showCost ? ` · ${money(b.unitCost)}/unit` : ''}
                       </p>
                     </div>
                     <p className="text-sm font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>

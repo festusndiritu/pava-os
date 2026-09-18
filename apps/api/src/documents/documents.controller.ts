@@ -1,12 +1,12 @@
 import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { DocumentStatus } from '../../generated/prisma/client.js';
+import { DocumentStatus, DocumentType } from '../../generated/prisma/client.js';
 import { DocumentsService } from './documents.service.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { PermissionsGuard } from '../auth/permissions.guard.js';
 import { Permissions } from '../auth/permissions.decorator.js';
 import { Module } from '../../generated/prisma/client.js';
 import { CreatePosSaleDto } from './dto/pos-sale.dto.js';
-import { CreateDocumentDto } from './dto/document.dto.js';
+import { CreateDocumentDto, ConvertToInvoiceDto } from './dto/document.dto.js';
 
 @UseGuards(JwtAuthGuard)
 @Controller('documents')
@@ -16,10 +16,11 @@ export class DocumentsController {
   @Get()
   findAll(
     @Query('status') status?: DocumentStatus,
+    @Query('type') type?: DocumentType,
     @Query('from') from?: string,
     @Query('to') to?: string,
   ) {
-    return this.documents.findAll({ status, from, to });
+    return this.documents.findAll({ status, type, from, to });
   }
 
   @Get('reports/sales-summary')
@@ -36,7 +37,7 @@ export class DocumentsController {
   @Permissions(Module.QUOTES, Module.INVOICES)
   @Post()
   create(@Req() req: any, @Body() body: CreateDocumentDto) {
-    return this.documents.create(req.user.sub, body);
+    return this.documents.create(req.user.sub, req.user.role, body);
   }
 
   @UseGuards(PermissionsGuard)
@@ -49,8 +50,8 @@ export class DocumentsController {
   @UseGuards(PermissionsGuard)
   @Permissions(Module.QUOTES, Module.INVOICES)
   @Post(':id/convert-to-invoice')
-  convertToInvoice(@Param('id') id: string, @Req() req: any) {
-    return this.documents.convertToInvoice(id, req.user.sub);
+  convertToInvoice(@Param('id') id: string, @Req() req: any, @Body() body: ConvertToInvoiceDto) {
+    return this.documents.convertToInvoice(id, req.user.sub, body?.allowNegativeStock);
   }
 
   @UseGuards(PermissionsGuard)
@@ -63,7 +64,14 @@ export class DocumentsController {
   @UseGuards(PermissionsGuard)
   @Permissions(Module.QUOTES, Module.INVOICES)
   @Post(':id/cancel')
-  cancel(@Param('id') id: string) {
-    return this.documents.cancel(id);
+  cancel(@Param('id') id: string, @Req() req: any) {
+    return this.documents.cancel(id, req.user.sub);
+  }
+
+  @UseGuards(PermissionsGuard)
+  @Permissions(Module.QUOTES, Module.INVOICES)
+  @Post(':id/delivery-note')
+  createDeliveryNote(@Param('id') id: string, @Req() req: any) {
+    return this.documents.createDeliveryNote(id, req.user.sub);
   }
 }

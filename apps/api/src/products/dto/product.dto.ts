@@ -1,5 +1,36 @@
 import { IsArray, IsBoolean, IsIn, IsNumber, IsOptional, IsString, Length, Min } from 'class-validator';
 
+export class CreateProductFamilyDto {
+  @IsString()
+  @Length(1, 120)
+  name!: string;
+
+  @IsOptional()
+  @IsBoolean()
+  aggregateLowStock?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  lowStockThreshold?: number;
+}
+
+export class UpdateProductFamilyDto {
+  @IsOptional()
+  @IsString()
+  @Length(1, 120)
+  name?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  aggregateLowStock?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  lowStockThreshold?: number;
+}
+
 const STOCK_STATUSES = ['IN_STOCK', 'SUPPLIER_ONLY', 'OUT_OF_STOCK'] as const;
 
 export class CreateProductDto {

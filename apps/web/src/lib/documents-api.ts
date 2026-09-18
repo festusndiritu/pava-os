@@ -2,7 +2,7 @@ import { api } from './api';
 import type { Product } from './products-api';
 import type { Customer } from './customers-api';
 
-export type DocumentType = 'QUOTE' | 'INVOICE' | 'RECEIPT';
+export type DocumentType = 'QUOTE' | 'INVOICE' | 'RECEIPT' | 'DELIVERY_NOTE';
 export type DocumentStatus = 'DRAFT' | 'QUOTED' | 'INVOICED' | 'PAID' | 'CANCELLED';
 export type TransportMode = 'NONE' | 'ITEMIZED' | 'DISTRIBUTED';
 
@@ -27,6 +27,7 @@ export interface SaleDocument {
   quoteNumber: string | null;
   invoiceNumber: string | null;
   receiptNumber: string | null;
+  deliveryNoteNumber: string | null;
   customerId: string | null;
   customerName: string | null;
   customer: Customer | null;
@@ -47,20 +48,28 @@ export interface SaleDocument {
 export interface CreateDocumentInput {
   customerId?: string;
   customerName?: string;
-  items: { productId?: string; description: string; qty: number; unitPrice: number; discount?: number }[];
-  transportMode?: TransportMode;
+  items: { productId?: string; description?: string; qty: number; unitPrice: number }[];
   transportAmount?: number;
+  transportAllocation?: 'QUANTITY' | 'VALUE' | 'MANUAL';
+  transportApplyTo?: string[];
+  manualAllocations?: { productId: string; amount: number }[];
+  foldTransportIntoPrices?: boolean;
+  roundingIncrement?: number;
   notes?: string;
 }
 
 export const documentsApi = {
-  list: (params: { status?: DocumentStatus } = {}) => {
-    const qs = params.status ? `?status=${params.status}` : '';
-    return api.get<SaleDocument[]>(`/documents${qs}`);
+  list: (params: { status?: DocumentStatus; type?: DocumentType } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.status) qs.set('status', params.status);
+    if (params.type) qs.set('type', params.type);
+    const s = qs.toString();
+    return api.get<SaleDocument[]>(`/documents${s ? `?${s}` : ''}`);
   },
   get: (id: string) => api.get<SaleDocument>(`/documents/${id}`),
   create: (data: CreateDocumentInput) => api.post<SaleDocument>('/documents', data),
-  convertToInvoice: (id: string) => api.post<SaleDocument>(`/documents/${id}/convert-to-invoice`),
+  convertToInvoice: (id: string, allowNegativeStock?: boolean) => api.post<SaleDocument>(`/documents/${id}/convert-to-invoice`, { allowNegativeStock }),
   markPaid: (id: string) => api.post<SaleDocument>(`/documents/${id}/mark-paid`),
   cancel: (id: string) => api.post<SaleDocument>(`/documents/${id}/cancel`),
+  createDeliveryNote: (id: string) => api.post<SaleDocument>(`/documents/${id}/delivery-note`),
 };

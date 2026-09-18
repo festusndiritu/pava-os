@@ -10,6 +10,7 @@ import { resolveImageUrl } from '../../../lib/api';
 import { TransportDialog, type TransportSettings } from '../../../components/pos/TransportDialog';
 import { ReceiptDialog } from '../../../components/pos/ReceiptDialog';
 import { ApiError } from '../../../lib/api';
+import { useAuth } from '../../../lib/auth-context';
 
 interface CartLine {
   product: Product;
@@ -47,7 +48,6 @@ export default function PosPage() {
   const [browseProducts, setBrowseProducts] = useState<Product[]>([]);
 
   const [cart, setCart] = useState<CartLine[]>([]);
-  const [discount, setDiscount] = useState('');
   const [transport, setTransport] = useState<TransportSettings | null>(null);
   const [transportOpen, setTransportOpen] = useState(false);
 
@@ -59,9 +59,12 @@ export default function PosPage() {
 
   const [paymentMethod, setPaymentMethod] = useState<PosPaymentMethod>('CASH');
   const [error, setError] = useState<string | null>(null);
+  const [stockShortfall, setStockShortfall] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [receipt, setReceipt] = useState<PosSaleResult | null>(null);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
+  const { user } = useAuth();
+  const canOverrideStock = user?.role === 'ADMIN' || !!user?.canInvoiceWithoutStock;
 
   // Quick-access rail: categories to browse by tap, no typing required.
   useEffect(() => {
@@ -141,53 +144,39 @@ export default function PosPage() {
     setTransport((t) => (t ? { ...t, applyTo: t.applyTo.filter((id) => id !== productId) } : t));
   }
 
-  const subtotalBeforeDiscount = cart.reduce((s, l) => s + l.qty * l.unitPrice, 0);
-  const discountValue = Math.min(Number(discount) || 0, subtotalBeforeDiscount);
+  const subtotal = cart.reduce((s, l) => s + l.qty * l.unitPrice, 0);
   const transportAmount = transport?.amount || 0;
   // Approximate — the server computes the precise, correctly-rounded total; this is just for the cart view.
-  const estimatedTotal = subtotalBeforeDiscount - discountValue + transportAmount;
+  const estimatedTotal = subtotal + transportAmount;
 
-  function distributedDiscounts(): Record<string, number> {
-    if (discountValue <= 0 || cart.length === 0) return {};
-    const bases = cart.map((l) => l.qty * l.unitPrice);
-    const totalBase = bases.reduce((a, b) => a + b, 0) || 1;
-    const result: Record<string, number> = {};
-    let assigned = 0;
-    cart.forEach((l, i) => {
-      const isLast = i === cart.length - 1;
-      const share = isLast ? discountValue - assigned : Math.round(discountValue * (bases[i] / totalBase) * 100) / 100;
-      result[l.product.id] = share;
-      assigned += share;
-    });
-    return result;
-  }
-
-  async function checkout() {
+  async function checkout(opts?: { allowNegativeStock?: boolean }) {
     if (cart.length === 0) return;
     setSubmitting(true);
     setError(null);
     try {
-      const discounts = distributedDiscounts();
       const sale = await posApi.checkout({
         customerId: customerMode === 'existing' ? selectedCustomer?.id : undefined,
         customerName: customerMode === 'walkin' ? walkinName || undefined : undefined,
-        items: cart.map((l) => ({ productId: l.product.id, qty: l.qty, unitPrice: l.unitPrice, discount: discounts[l.product.id] || 0 })),
+        items: cart.map((l) => ({ productId: l.product.id, qty: l.qty, unitPrice: l.unitPrice })),
         transportAmount: transport?.amount || undefined,
         transportAllocation: transport?.allocation,
         transportApplyTo: transport?.applyTo,
         manualAllocations: transport?.allocation === 'MANUAL' ? Object.entries(transport.manualAllocations).map(([productId, amount]) => ({ productId, amount })) : undefined,
         foldTransportIntoPrices: transport?.fold ?? true,
         paymentMethod,
+        allowNegativeStock: opts?.allowNegativeStock,
       });
       setReceipt(sale);
       setCart([]);
-      setDiscount('');
       setTransport(null);
       setSelectedCustomer(null);
       setWalkinName('');
       setMobileCartOpen(false);
+      setStockShortfall(false);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not complete this sale.');
+      const message = err instanceof ApiError ? err.message : 'Could not complete this sale.';
+      setError(message);
+      setStockShortfall(message.toLowerCase().startsWith('insufficient stock'));
     } finally {
       setSubmitting(false);
     }
@@ -328,19 +317,6 @@ export default function PosPage() {
           <span className="data-num">{transport ? money(transport.amount) : '+ Add'}</span>
         </button>
 
-        <div className="flex items-center justify-between text-sm">
-          <span style={{ color: 'var(--color-ink-600)' }}>Discount</span>
-          <input
-            type="number"
-            min="0"
-            value={discount}
-            onChange={(e) => setDiscount(e.target.value)}
-            placeholder="0"
-            className="w-24 rounded-md border px-2 py-1 text-right text-sm data-num"
-            style={inputStyle}
-          />
-        </div>
-
         <div className="flex items-center justify-between text-lg font-semibold" style={{ color: 'var(--color-ink-900)' }}>
           <span>Estimated total</span>
           <span className="data-num">{money(Math.max(0, estimatedTotal))}</span>
@@ -367,9 +343,21 @@ export default function PosPage() {
           </p>
         )}
 
+        {stockShortfall && canOverrideStock && (
+          <button
+            type="button"
+            disabled={submitting}
+            onClick={() => checkout({ allowNegativeStock: true })}
+            className="rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-60"
+            style={{ borderColor: 'var(--color-status-warn)', color: 'var(--color-status-warn)' }}
+          >
+            Proceed anyway — sell as a backorder (logged to audit trail)
+          </button>
+        )}
+
         <button
           type="button"
-          onClick={checkout}
+          onClick={() => checkout()}
           disabled={cart.length === 0 || submitting}
           className="rounded-md px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
           style={{ backgroundColor: 'var(--color-accent)' }}
