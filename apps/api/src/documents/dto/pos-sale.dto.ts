@@ -30,7 +30,10 @@ export class ManualAllocationDto {
 }
 
 const TRANSPORT_ALLOCATIONS = ['QUANTITY', 'VALUE', 'MANUAL'] as const;
-const PAYMENT_METHODS = ['CASH', 'MPESA', 'CARD', 'CREDIT'] as const;
+// The till takes M-Pesa Paybill (the norm) and cash. Account sales are
+// raised through the quote -> invoice flow, which posts to the customer's
+// credit ledger; they are not a POS payment method.
+const PAYMENT_METHODS = ['CASH', 'MPESA'] as const;
 
 export class CreatePosSaleDto {
   @IsOptional()
@@ -78,14 +81,60 @@ export class CreatePosSaleDto {
   @Min(1)
   roundingIncrement?: number;
 
+  // Optional only because a settle-later sale has not been paid yet.
+  @IsOptional()
   @IsIn(PAYMENT_METHODS)
-  paymentMethod!: (typeof PAYMENT_METHODS)[number];
+  paymentMethod?: (typeof PAYMENT_METHODS)[number];
 
   @IsOptional()
   @IsBoolean()
   allowNegativeStock?: boolean;
 
+  // Goods handed over now, settled later the same day (PAVA's only form of
+  // credit). The sale is raised as an unpaid invoice: stock leaves, no
+  // payment method is recorded yet, and it is closed off with Mark paid.
+  @IsOptional()
+  @IsBoolean()
+  settleLater?: boolean;
+
+  // Set when the cart was resumed from a suspended order — that held order
+  // is deleted in the same transaction that commits this sale.
+  @IsOptional()
+  @IsString()
+  suspendedFromId?: string;
+
   @IsOptional()
   @IsString()
   notes?: string;
+}
+
+export class SuspendOrderDto {
+  @IsOptional()
+  @IsString()
+  customerId?: string;
+
+  @IsOptional()
+  @IsString()
+  customerName?: string;
+
+  // Short operator-supplied handle ("blue pickup", "Mwangi site") so a held
+  // order can be picked out of the list at a glance.
+  @IsOptional()
+  @IsString()
+  label?: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => PosItemDto)
+  items!: PosItemDto[];
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  transportAmount?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  foldTransportIntoPrices?: boolean;
 }

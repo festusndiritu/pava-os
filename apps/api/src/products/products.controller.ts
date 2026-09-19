@@ -34,9 +34,10 @@ export class ProductsController {
     @Query('brandId') brandId?: string,
     @Query('categoryId') categoryId?: string,
     @Query('familyId') familyId?: string,
+    @Query('status') status?: 'active' | 'archived' | 'all',
   ) {
     const canViewCost = req.user.role === Role.ADMIN || !!req.user.canViewCost;
-    return this.products.findAll({ search, brandId, categoryId, familyId, canViewCost });
+    return this.products.findAll({ search, brandId, categoryId, familyId, canViewCost, status });
   }
 
   @Get('families')
@@ -111,5 +112,12 @@ export class ProductsController {
   @Delete(':id')
   remove(@Param('id') id: string, @Req() req: any) {
     return this.products.remove(id, req.user.sub);
+  }
+
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  @Post(':id/restore')
+  restore(@Param('id') id: string, @Req() req: any) {
+    return this.products.restore(id, req.user.sub);
   }
 }

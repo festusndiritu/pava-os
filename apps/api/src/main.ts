@@ -42,12 +42,12 @@ async function bootstrap() {
 
   SwaggerModule.setup('docs', app, swaggerDocument);
 
-  const port = process.env.PORT ? parseInt(process.env.PORT) : 4000;
+const port = process.env.PORT ? parseInt(process.env.PORT) : 4000;
 
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
 
-  console.log(`API listening on http://localhost:${port}`);
-  console.log(`Swagger docs: http://localhost:${port}/docs`);
+  console.log(`API listening on http://0.0.0.0:${port}`);
+  console.log(`Swagger docs: http://0.0.0.0:${port}/docs`);
 }
 
 bootstrap();

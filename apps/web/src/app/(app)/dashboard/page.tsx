@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import type { LucideIcon } from 'lucide-react';
 import {
   AlertTriangle,
   Boxes,
@@ -12,7 +13,6 @@ import {
   Receipt,
   ShoppingCart,
   TrendingUp,
-  Users,
   Wallet,
 } from 'lucide-react';
 import { useAuth } from '../../../lib/auth-context';
@@ -21,6 +21,17 @@ import { OverviewHeader } from '../../../components/dashboard/OverviewHeader';
 import { PaymentMixChart, SalesTrendChart, TopProductsChart } from '../../../components/dashboard/DashboardCharts';
 import { Badge, IconAction, ListRow, SectionCard, SectionLink, StatCard } from '../../../components/dashboard/DashboardPrimitives';
 import { dayOverDay, fmtDate, money, plural, weekOverWeek } from '../../../components/dashboard/dashboard-derive';
+
+function EmptyState({ icon: Icon, line }: { icon: LucideIcon; line: string }) {
+  return (
+    <div className="flex flex-col items-center gap-1.5 py-8 text-center">
+      <Icon size={20} strokeWidth={1.5} style={{ color: 'var(--color-ink-400)' }} />
+      <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
+        {line}
+      </p>
+    </div>
+  );
+}
 
 const SALE_STATUS: Record<string, { label: string; tone: 'ok' | 'warn' | 'bad' | 'neutral' }> = {
   PAID: { label: 'Paid', tone: 'ok' },
@@ -39,11 +50,15 @@ export default function DashboardPage() {
 
   if (!user) return null;
 
-  const nothingToShow = data && !data.sales && !data.lowStock && !data.outstandingCredit && !data.topProducts;
+  const nothingToShow = data && !data.sales && !data.lowStock && !data.recentSales && !data.topProducts;
 
   const today = dayOverDay(data?.chart);
   const week = weekOverWeek(data?.chart);
   const lowStockCount = data?.lowStock?.length ?? 0;
+  // PAVA's only credit is same-day: goods go out, the invoice is settled
+  // before close. What matters on the dashboard is how many are still open,
+  // not a running debtor balance.
+  const unsettled = data?.recentSales?.filter((s) => s.status === 'INVOICED').length ?? 0;
 
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 p-4 sm:p-6">
@@ -80,7 +95,7 @@ export default function DashboardPage() {
       )}
 
       {/* Quick statistics */}
-      {data && (data.sales || data.outstandingCredit || data.lowStock) && (
+      {data && (data.sales || data.recentSales || data.lowStock) && (
         <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 xl:grid-cols-4">
           {data.sales && (
             <>
@@ -111,15 +126,6 @@ export default function DashboardPage() {
               />
             </>
           )}
-          {data.outstandingCredit && (
-            <StatCard
-              label="Outstanding"
-              value={money(data.outstandingCredit.total)}
-              sub={`owed by ${data.outstandingCredit.customerCount} ${plural(data.outstandingCredit.customerCount, 'customer')}`}
-              icon={Wallet}
-              tone={data.outstandingCredit.total > 0 ? 'warn' : 'neutral'}
-            />
-          )}
           {data.lowStock && (
             <StatCard
               label="Low stock"
@@ -133,18 +139,32 @@ export default function DashboardPage() {
       )}
 
       {/* Analytics */}
-      {data?.chart && data.chart.length > 1 && <SalesTrendChart chart={data.chart} />}
+      {data?.chart &&
+        (data.chart.length > 1 ? (
+          <SalesTrendChart chart={data.chart} />
+        ) : (
+          <SectionCard title="Sales trend" description="Paid sales per day, last 30 days" icon={TrendingUp}>
+            <EmptyState icon={TrendingUp} line="Not enough days with sales yet to draw a trend." />
+          </SectionCard>
+        ))}
 
-      {((data?.topProducts && data.topProducts.length > 0) || (data?.recentSales && data.recentSales.length > 0)) && (
+      {(data?.topProducts || data?.recentSales) && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {data?.topProducts && data.topProducts.length > 0 && <TopProductsChart topProducts={data.topProducts} />}
-          {data?.recentSales && data.recentSales.length > 0 && <PaymentMixChart recentSales={data.recentSales} />}
+          {data?.topProducts &&
+            (data.topProducts.length > 0 ? (
+              <TopProductsChart topProducts={data.topProducts} />
+            ) : (
+              <SectionCard title="Revenue by product" description="Top sellers, last 30 days" icon={TrendingUp}>
+                <EmptyState icon={TrendingUp} line="Nothing sold in the last 30 days." />
+              </SectionCard>
+            ))}
+          {data?.recentSales && <PaymentMixChart recentSales={data.recentSales} />}
         </div>
       )}
 
       {/* Operational lists */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {data?.lowStock && data.lowStock.length > 0 && (
+        {data?.lowStock && (
           <SectionCard
             title="Low stock"
             description="At or below the reorder threshold"
@@ -153,6 +173,7 @@ export default function DashboardPage() {
             action={<IconAction href="/inventory" label="View inventory" icon={ExternalLink} />}
           >
             <div className="flex flex-col">
+              {data.lowStock.length === 0 && <EmptyState icon={Boxes} line="Every product is above its reorder threshold." />}
               {data.lowStock.map((p) => (
                 <ListRow
                   key={p.id}
@@ -168,29 +189,7 @@ export default function DashboardPage() {
           </SectionCard>
         )}
 
-        {data?.outstandingCredit && data.outstandingCredit.topDebtors.length > 0 && (
-          <SectionCard
-            title="Outstanding credit"
-            description={`${money(data.outstandingCredit.total)} across ${data.outstandingCredit.customerCount} ${plural(data.outstandingCredit.customerCount, 'customer')}`}
-            icon={Users}
-            iconTone="neutral"
-            action={<IconAction href="/customers" label="View customers" icon={ExternalLink} />}
-          >
-            <div className="flex flex-col">
-              {data.outstandingCredit.topDebtors.map((c) => (
-                <ListRow
-                  key={c.id}
-                  title={c.name}
-                  meta={c.overLimit ? <Badge label="Over limit" tone="bad" /> : undefined}
-                  value={money(c.balance)}
-                  valueTone={c.overLimit ? 'var(--color-status-bad)' : 'var(--color-ink-900)'}
-                />
-              ))}
-            </div>
-          </SectionCard>
-        )}
-
-        {data?.topProducts && data.topProducts.length > 0 && (
+        {data?.topProducts && (
           <SectionCard
             title="Top products"
             description="By revenue, last 30 days"
@@ -199,6 +198,7 @@ export default function DashboardPage() {
             action={hasPermission('PRODUCTS') ? <IconAction href="/products" label="View catalogue" icon={ExternalLink} /> : undefined}
           >
             <div className="flex flex-col">
+              {data.topProducts.length === 0 && <EmptyState icon={TrendingUp} line="No sales in the last 30 days yet." />}
               {data.topProducts.map((p, i) => (
                 <ListRow
                   key={p.id}
@@ -220,7 +220,7 @@ export default function DashboardPage() {
           </SectionCard>
         )}
 
-        {data?.recentSales && data.recentSales.length > 0 && (
+        {data?.recentSales && (
           <SectionCard
             title="Recent sales"
             description="Latest invoiced and paid documents"
@@ -229,6 +229,7 @@ export default function DashboardPage() {
             action={hasPermission('INVOICES') ? <IconAction href="/invoices" label="View invoices" icon={ExternalLink} /> : undefined}
           >
             <div className="flex flex-col">
+              {data.recentSales.length === 0 && <EmptyState icon={Receipt} line="Sales will appear here as they are rung up." />}
               {data.recentSales.map((s) => {
                 const status = SALE_STATUS[s.status];
                 return (

@@ -77,18 +77,25 @@ export function TopProductsChart({ topProducts }: { topProducts: NonNullable<Das
  */
 export function PaymentMixChart({ recentSales }: { recentSales: NonNullable<DashboardSummary['recentSales']> }) {
   const slices = paymentMix(recentSales);
-  if (slices.length === 0) return null;
   const counted = slices.reduce((sum, s) => sum + s.count, 0);
   const total = slices.reduce((sum, s) => sum + s.total, 0);
 
   return (
     <SectionCard
       title="Payment mix"
-      description={`Latest ${counted} recorded ${plural(counted, 'sale')}`}
+      description={counted > 0 ? `Latest ${counted} recorded ${plural(counted, 'sale')}` : 'How recent sales were paid'}
       icon={PieChartIcon}
       iconTone="neutral"
     >
-      <div className="flex flex-col items-center gap-4 sm:flex-row">
+      {slices.length === 0 && (
+        <div className="flex flex-col items-center gap-1.5 py-8 text-center">
+          <PieChartIcon size={20} strokeWidth={1.5} style={{ color: 'var(--color-ink-400)' }} />
+          <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
+            No settled sales to split yet.
+          </p>
+        </div>
+      )}
+      <div className="flex flex-col items-center gap-4 sm:flex-row" style={{ display: slices.length === 0 ? 'none' : undefined }}>
         <div className="h-40 w-full max-w-[180px] shrink-0">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>

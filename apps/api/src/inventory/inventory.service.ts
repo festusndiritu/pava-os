@@ -119,7 +119,7 @@ export class InventoryService {
   async consumeFifo(
     productId: string,
     quantity: number,
-    type: 'SALE' | 'DAMAGE' | 'LOSS',
+    type: 'SALE' | 'DAMAGE' | 'LOSS' | 'ADJUSTMENT' | 'CORRECTION',
     createdById: string,
     note?: string,
     allowNegative = false,
@@ -169,57 +169,148 @@ export class InventoryService {
             `Insufficient stock: short by ${remaining} unit(s). Use an authorized adjustment to proceed anyway.`,
           );
         }
-        // Authorized shortfall — record it with no batch/cost basis rather than fake one.
+        // Authorized shortfall: record what could not be fulfilled from
+        // stock as its own movement (for the audit trail and for whoever
+        // fulfils the backorder later), but recorded stock is never pushed
+        // below zero for it — only the part actually taken off the shelf
+        // above is deducted from the product's stockQuantity below.
         await tx.inventoryMovement.create({
-          data: { productId, type: type as MovementType, quantity: -remaining, createdById, note: note ?? 'Authorized shortfall beyond recorded stock' },
+          data: { productId, type: type as MovementType, quantity: -remaining, createdById, note: note ?? 'Backorder — sold beyond recorded stock' },
         });
       }
 
+      // Only what was actually consumed from batches comes off stockQuantity
+      // — never the full requested amount — so stock floors at zero instead
+      // of reading negative when a sale outruns what's on the shelf.
+      const consumedQuantity = quantity - remaining;
       await tx.product.update({
         where: { id: productId },
-        data: { stockQuantity: { decrement: quantity } },
+        data: { stockQuantity: { decrement: consumedQuantity } },
       });
 
-      return { totalCost, averageCost: totalCost / (quantity - Math.max(remaining, 0) || 1), consumed, shortfall: Math.max(remaining, 0) };
+      return { totalCost, averageCost: totalCost / (consumedQuantity || 1), consumed, shortfall: Math.max(remaining, 0) };
+    };
+
+    return client ? run(client) : this.prisma.$transaction(run);
+  }
+
+  // Puts stock back on the shelf. Used by the returns flow, which has to run
+  // inside the same transaction as the Return record it belongs to, so this
+  // takes an optional Prisma transaction client exactly like consumeFifo.
+  //
+  // This used to just bump stockQuantity with no batch behind it — which
+  // looked right everywhere the number is displayed, but left the returned
+  // units permanently unsellable, since a sale can only ever draw from a
+  // real InventoryBatch. It now opens one, the same lightweight way a
+  // manual stock addition does (see adjust() below), costed at the
+  // product's last known cost. That isn't necessarily the exact lot the
+  // returned unit first left on, but it's a real, current figure rather
+  // than a fictional one, and it's what keeps the item sellable.
+  async restock(
+    productId: string,
+    quantity: number,
+    createdById: string,
+    note: string | undefined,
+    client?: any,
+  ) {
+    if (quantity <= 0) throw new BadRequestException('Quantity must be positive');
+
+    const run = async (tx: any) => {
+      const product = await tx.product.findUnique({ where: { id: productId } });
+      if (!product) throw new NotFoundException('Product not found');
+      const cost = product.lastCost ?? 0;
+
+      const receipt = await tx.inventoryReceipt.create({
+        data: { supplier: 'Customer return', notes: note, receivedById: createdById },
+      });
+      const batch = await tx.inventoryBatch.create({
+        data: { productId, receiptId: receipt.id, quantityReceived: quantity, remainingQuantity: quantity, unitCost: cost },
+      });
+      const movement = await tx.inventoryMovement.create({
+        data: { productId, batchId: batch.id, type: MovementType.RETURN, quantity, unitCost: cost, note, createdById },
+      });
+      await tx.product.update({ where: { id: productId }, data: { stockQuantity: { increment: quantity } } });
+      return movement;
     };
 
     return client ? run(client) : this.prisma.$transaction(run);
   }
 
   async adjust(input: AdjustInput, createdById: string) {
+    if (!input.quantity) throw new BadRequestException('Quantity must not be zero');
+
     const product = await this.prisma.product.findUnique({ where: { id: input.productId } });
     if (!product) throw new NotFoundException('Product not found');
 
-    const resultingStock = product.stockQuantity + input.quantity;
-    if (resultingStock < 0 && !input.allowNegative) {
-      throw new BadRequestException('This would take stock negative. Confirm to proceed anyway.');
+    if (input.quantity > 0) {
+      // Adding stock outside a formal goods-received flow (a stocktake
+      // correction, a manually-logged return). FIFO can only ever sell from
+      // a real InventoryBatch, so this opens one the same way restock() and
+      // openingBalance() do — costed at the last known price since no new
+      // cost was actually paid here.
+      const cost = product.lastCost ?? 0;
+      const movement = await this.prisma.$transaction(async (tx) => {
+        const receipt = await tx.inventoryReceipt.create({
+          data: { supplier: 'Stock adjustment', notes: input.note, receivedById: createdById },
+        });
+        const batch = await tx.inventoryBatch.create({
+          data: { productId: input.productId, receiptId: receipt.id, quantityReceived: input.quantity, remainingQuantity: input.quantity, unitCost: cost },
+        });
+        const created = await tx.inventoryMovement.create({
+          data: { productId: input.productId, batchId: batch.id, type: input.type as MovementType, quantity: input.quantity, unitCost: cost, note: input.note, createdById },
+        });
+        await tx.product.update({ where: { id: input.productId }, data: { stockQuantity: { increment: input.quantity } } });
+        return created;
+      });
+
+      await this.audit.log({
+        actorId: createdById,
+        action: 'inventory.adjusted',
+        entityType: 'Product',
+        entityId: input.productId,
+        metadata: { type: input.type, quantity: input.quantity, note: input.note },
+      });
+      return movement;
     }
 
-    const [movement] = await this.prisma.$transaction([
-      this.prisma.inventoryMovement.create({
-        data: {
-          productId: input.productId,
-          type: input.type as MovementType,
-          quantity: input.quantity,
-          note: input.note,
-          createdById,
-        },
-      }),
-      this.prisma.product.update({
-        where: { id: input.productId },
-        data: { stockQuantity: { increment: input.quantity } },
-      }),
-    ]);
+    // Reducing stock — draw down real batches oldest-first, exactly like a
+    // sale, so batches and the product's stockQuantity never drift apart.
+    // Same floor-at-zero rule as a sale: an authorized shortfall never
+    // pushes recorded stock below zero, it just can't remove more than is
+    // really there.
+    const decrease = Math.abs(input.quantity);
+    const resultingStock = product.stockQuantity - decrease;
+    if (resultingStock < 0 && !input.allowNegative) {
+      // Same shape as documents' INSUFFICIENT_STOCK refusal — one dialog
+      // component on the frontend renders both instead of parsing text.
+      throw new BadRequestException({
+        statusCode: 400,
+        code: 'NEGATIVE_STOCK',
+        message: `This would take ${product.displayName ?? product.name} to ${resultingStock}, below zero.`,
+        current: product.stockQuantity,
+        change: input.quantity,
+        resulting: resultingStock,
+      });
+    }
+
+    const { shortfall } = await this.consumeFifo(
+      input.productId,
+      decrease,
+      input.type as 'ADJUSTMENT' | 'CORRECTION',
+      createdById,
+      input.note,
+      input.allowNegative,
+    );
 
     await this.audit.log({
       actorId: createdById,
       action: 'inventory.adjusted',
       entityType: 'Product',
       entityId: input.productId,
-      metadata: { type: input.type, quantity: input.quantity, note: input.note },
+      metadata: { type: input.type, quantity: input.quantity, note: input.note, shortfall },
     });
 
-    return movement;
+    return { ok: true, shortfall };
   }
 
   // Seeds a starting stock position for a product that already has physical

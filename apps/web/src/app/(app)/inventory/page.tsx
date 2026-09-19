@@ -1,9 +1,12 @@
 'use client';
 
 import { useEffect, useState, Fragment } from 'react';
-import { Boxes, Plus } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Boxes, ClipboardList, Eye, Plus } from 'lucide-react';
 import { inventoryApi, type InventoryReceipt } from '../../../lib/products-api';
 import { ReceiveInventoryDrawer } from '../../../components/inventory/ReceiveInventoryDrawer';
+import { StockLevelsTable } from '../../../components/inventory/StockLevelsTable';
+import { ProductDetailDrawer } from '../../../components/products/ProductDetailDrawer';
 import { useAuth } from '../../../lib/auth-context';
 
 function fmtDate(iso: string) {
@@ -11,11 +14,15 @@ function fmtDate(iso: string) {
 }
 
 export default function InventoryPage() {
+  const [tab, setTab] = useState<'levels' | 'receipts'>('levels');
   const [receipts, setReceipts] = useState<InventoryReceipt[] | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [levelsKey, setLevelsKey] = useState(0);
   const { canViewCost } = useAuth();
   const showCost = canViewCost();
+  const router = useRouter();
 
   async function load() {
     setReceipts(await inventoryApi.receipts());
@@ -47,7 +54,43 @@ export default function InventoryPage() {
         </button>
       </div>
 
-      <div className="mt-5 overflow-hidden rounded-lg border" style={{ borderColor: 'var(--color-border)' }}>
+      <div className="mt-4 flex gap-1.5">
+        <button
+          type="button"
+          onClick={() => setTab('levels')}
+          className="flex min-h-9 items-center gap-1.5 rounded-md border px-3 text-sm font-medium"
+          style={{
+            borderColor: tab === 'levels' ? 'var(--color-accent)' : 'var(--color-border)',
+            backgroundColor: tab === 'levels' ? 'var(--color-accent-soft)' : 'transparent',
+            color: tab === 'levels' ? 'var(--color-accent)' : 'var(--color-ink-600)',
+          }}
+        >
+          <Boxes size={14} strokeWidth={2} />
+          Stock levels
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('receipts')}
+          className="flex min-h-9 items-center gap-1.5 rounded-md border px-3 text-sm font-medium"
+          style={{
+            borderColor: tab === 'receipts' ? 'var(--color-accent)' : 'var(--color-border)',
+            backgroundColor: tab === 'receipts' ? 'var(--color-accent-soft)' : 'transparent',
+            color: tab === 'receipts' ? 'var(--color-accent)' : 'var(--color-ink-600)',
+          }}
+        >
+          <ClipboardList size={14} strokeWidth={2} />
+          Receipts
+        </button>
+      </div>
+
+      {tab === 'levels' && (
+        <div className="mt-4">
+          <StockLevelsTable key={levelsKey} onOpenProduct={setDetailId} />
+        </div>
+      )}
+
+      {tab === 'receipts' && (
+      <div className="mt-4 overflow-hidden rounded-lg border" style={{ borderColor: 'var(--color-border)' }}>
         {/* Desktop/tablet table */}
         <table className="hidden w-full text-sm md:table">
           <thead>
@@ -203,6 +246,7 @@ export default function InventoryPage() {
           })}
         </div>
       </div>
+      )}
 
       <ReceiveInventoryDrawer
         open={drawerOpen}
@@ -211,6 +255,13 @@ export default function InventoryPage() {
           setDrawerOpen(false);
           load();
         }}
+      />
+
+      <ProductDetailDrawer
+        productId={detailId}
+        onClose={() => setDetailId(null)}
+        onEdit={() => router.push('/products')}
+        onChanged={() => setLevelsKey((k) => k + 1)}
       />
     </div>
   );

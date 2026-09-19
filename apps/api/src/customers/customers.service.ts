@@ -22,17 +22,21 @@ export class CustomersService {
     private audit: AuditService,
   ) {}
 
-  findAll(search?: string) {
+  findAll(params: { search?: string; status?: 'active' | 'archived' | 'all' } = {}) {
+    const { search, status = 'active' } = params;
     return this.prisma.customer.findMany({
-      where: search
-        ? {
-            OR: [
-              { name: { contains: search, mode: 'insensitive' } },
-              { businessName: { contains: search, mode: 'insensitive' } },
-              { phone: { contains: search } },
-            ],
-          }
-        : undefined,
+      where: {
+        ...(status === 'all' ? {} : { active: status === 'archived' ? false : true }),
+        ...(search
+          ? {
+              OR: [
+                { name: { contains: search, mode: 'insensitive' as const } },
+                { businessName: { contains: search, mode: 'insensitive' as const } },
+                { phone: { contains: search } },
+              ],
+            }
+          : {}),
+      },
       orderBy: { name: 'asc' },
     });
   }
@@ -52,6 +56,29 @@ export class CustomersService {
   // so it's always explainable (brief §26).
   update(id: string, data: Partial<CustomerInput>) {
     return this.prisma.customer.update({ where: { id }, data });
+  }
+
+  // Soft delete — a customer's documents and ledger entries reference them
+  // by id, so removing the row would either cascade-destroy real sales
+  // history or fail the foreign key. Archiving hides them from the active
+  // list without touching anything they're linked to.
+  async archive(id: string, actorId: string) {
+    const customer = await this.findOne(id);
+    const updated = await this.prisma.customer.update({ where: { id }, data: { active: false } });
+    await this.audit.log({
+      actorId,
+      action: 'customer.archived',
+      entityType: 'Customer',
+      entityId: id,
+      metadata: { name: customer.businessName || customer.name, hadBalance: customer.creditBalance },
+    });
+    return updated;
+  }
+
+  async restore(id: string, actorId: string) {
+    const updated = await this.prisma.customer.update({ where: { id }, data: { active: true } });
+    await this.audit.log({ actorId, action: 'customer.restored', entityType: 'Customer', entityId: id, metadata: {} });
+    return updated;
   }
 
   ledger(customerId: string) {

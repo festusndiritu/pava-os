@@ -32,9 +32,15 @@ export function clearTokens() {
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  // The parsed error body, when the server sent one. Lets a caller react to a
+  // structured refusal (e.g. an INSUFFICIENT_STOCK payload listing exactly
+  // which products are short) instead of pattern-matching the message text.
+  details: Record<string, unknown> | null;
+
+  constructor(status: number, message: string, details: Record<string, unknown> | null = null) {
     super(message);
     this.status = status;
+    this.details = details;
   }
 }
 
@@ -109,13 +115,15 @@ export async function apiFetch<T = unknown>(path: string, options: ApiOptions = 
 
   if (!res.ok) {
     let message = `Request failed (${res.status})`;
+    let details: Record<string, unknown> | null = null;
     try {
       const body = await res.json();
       message = body?.message || message;
+      if (body && typeof body === 'object') details = body as Record<string, unknown>;
     } catch {
       // non-JSON error body — keep the generic message
     }
-    throw new ApiError(res.status, Array.isArray(message) ? message.join(', ') : message);
+    throw new ApiError(res.status, Array.isArray(message) ? message.join(', ') : message, details);
   }
 
   if (res.status === 204) return undefined as T;

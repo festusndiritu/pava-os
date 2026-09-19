@@ -109,30 +109,6 @@ export function attentionItems(data: DashboardSummary | null): AttentionItem[] {
     });
   }
 
-  const credit = data.outstandingCredit;
-  if (credit) {
-    const overLimit = credit.topDebtors.filter((c) => c.overLimit).length;
-    if (overLimit > 0) {
-      items.push({
-        id: 'over-limit',
-        icon: 'credit',
-        label: `${overLimit} ${plural(overLimit, 'customer')} over credit limit`,
-        tone: 'bad',
-        href: '/customers',
-        module: 'CUSTOMERS',
-      });
-    } else if (credit.total > 0) {
-      items.push({
-        id: 'credit-outstanding',
-        icon: 'credit',
-        label: `${money(credit.total)} owed by ${credit.customerCount} ${plural(credit.customerCount, 'customer')}`,
-        tone: 'warn',
-        href: '/customers',
-        module: 'CUSTOMERS',
-      });
-    }
-  }
-
   const recent = data.recentSales;
   if (recent && recent.length > 0) {
     const unpaid = recent.filter((s) => s.status === 'INVOICED').length;
@@ -140,7 +116,7 @@ export function attentionItems(data: DashboardSummary | null): AttentionItem[] {
       items.push({
         id: 'unpaid',
         icon: 'invoice',
-        label: `${unpaid} unpaid ${plural(unpaid, 'invoice')} in the latest ${recent.length} sales`,
+        label: `${unpaid} sale${unpaid === 1 ? '' : 's'} still to be settled today`,
         tone: 'warn',
         href: '/invoices',
         module: 'INVOICES',

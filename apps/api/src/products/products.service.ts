@@ -59,11 +59,18 @@ export class ProductsService {
     }
   }
 
-  async findAll(params: { search?: string; brandId?: string; categoryId?: string; familyId?: string; canViewCost: boolean }) {
-    const { search, brandId, categoryId, familyId, canViewCost } = params;
+  async findAll(params: {
+    search?: string;
+    brandId?: string;
+    categoryId?: string;
+    familyId?: string;
+    canViewCost: boolean;
+    status?: 'active' | 'archived' | 'all';
+  }) {
+    const { search, brandId, categoryId, familyId, canViewCost, status = 'active' } = params;
 
     const baseWhere = {
-      active: true,
+      ...(status === 'all' ? {} : { active: status === 'archived' ? false : true }),
       ...(brandId ? { brandId } : {}),
       ...(categoryId ? { categoryId } : {}),
       ...(familyId ? { familyId } : {}),
@@ -208,6 +215,12 @@ export class ProductsService {
       entityId: id,
       metadata: { name: product.name },
     });
+    return product;
+  }
+
+  async restore(id: string, actorId: string) {
+    const product = await this.prisma.product.update({ where: { id }, data: { active: true } });
+    await this.audit.log({ actorId, action: 'product.restored', entityType: 'Product', entityId: id, metadata: { name: product.name } });
     return product;
   }
 }

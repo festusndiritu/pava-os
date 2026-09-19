@@ -393,12 +393,17 @@ model Customer {
   isCredit      Boolean  @default(false)
   creditLimit   Float?
   creditBalance Float    @default(0)
+  // Soft delete, same convention as Product.active — a customer's documents
+  // and ledger history must survive them being archived.
+  active        Boolean  @default(true)
   updatedAt     DateTime @updatedAt
   createdAt     DateTime @default(now())
 
   documents          Document[]
   ledgerEntries      CustomerLedgerEntry[]
   convertedFromLeads Lead[]
+
+  @@index([active])
 }
 
 model CustomerLedgerEntry {

@@ -5,13 +5,18 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { PermissionsGuard } from '../auth/permissions.guard.js';
 import { Permissions } from '../auth/permissions.decorator.js';
 import { Module } from '../../generated/prisma/client.js';
-import { CreatePosSaleDto } from './dto/pos-sale.dto.js';
-import { CreateDocumentDto, ConvertToInvoiceDto } from './dto/document.dto.js';
+import { CreatePosSaleDto, SuspendOrderDto } from './dto/pos-sale.dto.js';
+import { CreateDocumentDto, ConvertToInvoiceDto, MarkPaidDto } from './dto/document.dto.js';
+import { CreateReturnDto } from './dto/return.dto.js';
+import { ReturnsService } from './returns.service.js';
 
 @UseGuards(JwtAuthGuard)
 @Controller('documents')
 export class DocumentsController {
-  constructor(private documents: DocumentsService) {}
+  constructor(
+    private documents: DocumentsService,
+    private returns: ReturnsService,
+  ) {}
 
   @Get()
   findAll(
@@ -19,8 +24,9 @@ export class DocumentsController {
     @Query('type') type?: DocumentType,
     @Query('from') from?: string,
     @Query('to') to?: string,
+    @Query('search') search?: string,
   ) {
-    return this.documents.findAll({ status, type, from, to });
+    return this.documents.findAll({ status, type, from, to, search });
   }
 
   @Get('reports/sales-summary')
@@ -28,9 +34,52 @@ export class DocumentsController {
     return this.documents.salesSummary(days ? parseInt(days) : 30);
   }
 
+  // Registered before :id so "suspended" isn't swallowed as a document id.
+  @UseGuards(PermissionsGuard)
+  @Permissions(Module.POS)
+  @Get('suspended')
+  listSuspended() {
+    return this.documents.listSuspended();
+  }
+
+  @UseGuards(PermissionsGuard)
+  @Permissions(Module.POS)
+  @Get('returns/recent')
+  listReturns(@Query('limit') limit?: string) {
+    return this.returns.list(limit ? parseInt(limit) : 50);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.documents.findOne(id);
+  }
+
+  @UseGuards(PermissionsGuard)
+  @Permissions(Module.POS)
+  @Get(':id/returnable')
+  returnable(@Param('id') id: string) {
+    return this.returns.returnable(id);
+  }
+
+  @UseGuards(PermissionsGuard)
+  @Permissions(Module.POS)
+  @Post(':id/returns')
+  createReturn(@Param('id') id: string, @Req() req: any, @Body() body: CreateReturnDto) {
+    return this.returns.create(id, req.user.sub, body);
+  }
+
+  @UseGuards(PermissionsGuard)
+  @Permissions(Module.POS)
+  @Post('suspend')
+  suspend(@Req() req: any, @Body() body: SuspendOrderDto) {
+    return this.documents.suspendOrder(req.user.sub, body);
+  }
+
+  @UseGuards(PermissionsGuard)
+  @Permissions(Module.POS)
+  @Post('suspended/:id/discard')
+  discardSuspended(@Param('id') id: string, @Req() req: any) {
+    return this.documents.discardSuspended(id, req.user.sub);
   }
 
   @UseGuards(PermissionsGuard)
@@ -57,8 +106,8 @@ export class DocumentsController {
   @UseGuards(PermissionsGuard)
   @Permissions(Module.INVOICES)
   @Post(':id/mark-paid')
-  markPaid(@Param('id') id: string, @Req() req: any) {
-    return this.documents.markPaid(id, req.user.sub);
+  markPaid(@Param('id') id: string, @Req() req: any, @Body() body: MarkPaidDto) {
+    return this.documents.markPaid(id, req.user.sub, body?.paymentMethod);
   }
 
   @UseGuards(PermissionsGuard)
@@ -69,7 +118,9 @@ export class DocumentsController {
   }
 
   @UseGuards(PermissionsGuard)
-  @Permissions(Module.QUOTES, Module.INVOICES)
+  // POS is included: a cash sale at the till often needs a delivery note,
+  // and the till operator may not hold QUOTES/INVOICES access.
+  @Permissions(Module.QUOTES, Module.INVOICES, Module.POS)
   @Post(':id/delivery-note')
   createDeliveryNote(@Param('id') id: string, @Req() req: any) {
     return this.documents.createDeliveryNote(id, req.user.sub);

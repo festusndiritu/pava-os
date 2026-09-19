@@ -9,18 +9,18 @@ const adapter = new PrismaPg({
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  const adminPassword = 'ChangeMe123!';
+  const adminPassword = '@Paul2026#';
   const adminPin = '1010';
   const marketingPin = '2020';
   const posPin = '3030';
 
   const admin = await prisma.user.upsert({
-    where: { email: 'bro@broshardware.local' },
+    where: { email: 'paulkiragu@gmail.com' },
     update: {},
     create: {
-      name: 'Bro (Admin)',
+      name: 'Paul K.',
       role: Role.ADMIN,
-      email: 'bro@broshardware.local',
+      email: 'paulkiragu@gmail.com',
       avatar: 'slate-01',
       passwordHash: await bcrypt.hash(adminPassword, 12),
       pinHash: await bcrypt.hash(adminPin, 10),
@@ -31,7 +31,7 @@ async function main() {
     where: { email: 'marketing@broshardware.local' },
     update: {},
     create: {
-      name: 'Marketing Guy',
+      name: 'John M.',
       role: Role.STAFF,
       email: 'marketing@broshardware.local',
       avatar: 'amber-02',
@@ -42,12 +42,12 @@ async function main() {
   });
 
   await prisma.user.upsert({
-    where: { email: 'cashier@broshardware.local' },
+    where: { email: 'hello@mizzenmast.dev' },
     update: {},
     create: {
-      name: 'Counter / Cashier',
+      name: 'Festus K.',
       role: Role.STAFF,
-      email: 'cashier@broshardware.local',
+      email: 'hello@mizzenmast.dev',
       avatar: 'teal-03',
       pinHash: await bcrypt.hash(posPin, 10),
       permissions: [Module.DASHBOARD, Module.POS, Module.PRODUCTS, Module.CUSTOMERS, Module.QUOTES, Module.INVOICES],
@@ -160,8 +160,8 @@ async function main() {
   });
 
   console.log('Seed complete.');
-  console.log('Admin login -> email: bro@broshardware.local  password:', adminPassword);
-  console.log('Admin PIN:', adminPin, '| Marketing PIN:', marketingPin, '| POS PIN:', posPin);
+  console.log('Admin login -> email: paulkiragu@gmail.com  password:', adminPassword);
+  console.log('Marketing PIN:', marketingPin, '| POS PIN:', posPin);
 }
 
 main()

@@ -1,0 +1,113 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { settingsApi, type BusinessSettings } from '../../lib/settings-api';
+import type { SaleDocument } from '../../lib/documents-api';
+
+function fmtDate(iso: string) {
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(iso));
+}
+function qty(n: number) {
+  return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+const INK = '#111827';
+const MUTED = '#4b5563';
+const LABEL = '#6b7280';
+
+/**
+ * A delivery note is a dispatch document: what left the yard, for whom, and
+ * where it is going. It carries NO pricing of any kind — no unit price, line
+ * total, subtotal, discount, tax or grand total — so it can be handed to a
+ * driver or signed for on site without exposing commercial terms.
+ *
+ * The backend also zeroes the financial fields when it creates the note, so
+ * this is a second line of defence rather than the only one.
+ *
+ * Colours are hardcoded, never theme variables: this is printed and captured
+ * to PDF, and must stay black on white while the app is in dark mode.
+ */
+export function DeliveryNoteDocument({ doc }: { doc: SaleDocument }) {
+  const [settings, setSettings] = useState<BusinessSettings | null>(null);
+
+  useEffect(() => {
+    settingsApi.get().then(setSettings).catch(() => {});
+  }, []);
+
+  const number = doc.deliveryNoteNumber ?? doc.id.slice(0, 8).toUpperCase();
+  const customerName = doc.customer?.businessName || doc.customer?.name || doc.customerName || 'Walk-in customer';
+  const deliverTo = doc.customer?.address || doc.customer?.location || null;
+  const sourceRef = doc.sourceDocument?.receiptNumber ?? doc.sourceDocument?.invoiceNumber ?? doc.sourceDocument?.quoteNumber ?? null;
+
+  return (
+    <div id="print-area" className="print-a4 printable-doc pdf-capture-offscreen" style={{ backgroundColor: '#ffffff', color: INK }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: `2px solid ${INK}`, paddingBottom: '10mm' }}>
+        <div>
+          <p style={{ fontSize: '18px', fontWeight: 700 }}>{settings?.businessName ?? 'Pava Steel Hardware'}</p>
+          {settings?.address && <p style={{ color: MUTED }}>{settings.address}</p>}
+          <p style={{ color: MUTED }}>{[settings?.phone, settings?.email].filter(Boolean).join(' · ')}</p>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <p style={{ fontSize: '16px', fontWeight: 700 }}>Delivery Note</p>
+          <p style={{ color: MUTED }}>{number}</p>
+          <p style={{ color: MUTED }}>{fmtDate(doc.createdAt)}</p>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: '10mm', marginTop: '8mm' }}>
+        <div style={{ flex: 1 }}>
+          <p style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', color: LABEL }}>Deliver to</p>
+          <p style={{ fontWeight: 600 }}>{customerName}</p>
+          {deliverTo && <p style={{ color: MUTED }}>{deliverTo}</p>}
+          {doc.customer?.phone && <p style={{ color: MUTED }}>{doc.customer.phone}</p>}
+        </div>
+        <div style={{ flex: 1 }}>
+          <p style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', color: LABEL }}>Reference</p>
+          {sourceRef ? <p style={{ color: MUTED }}>Order {sourceRef}</p> : null}
+          <p style={{ color: MUTED }}>Issued by {doc.createdBy?.name ?? '—'}</p>
+        </div>
+      </div>
+
+      <table style={{ width: '100%', marginTop: '8mm', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr style={{ borderBottom: `1px solid ${INK}`, textAlign: 'left' }}>
+            <th style={{ padding: '2mm 0', fontSize: '11px', textTransform: 'uppercase', color: LABEL, width: '12mm' }}>#</th>
+            <th style={{ padding: '2mm 0', fontSize: '11px', textTransform: 'uppercase', color: LABEL }}>Item</th>
+            <th style={{ padding: '2mm 0', fontSize: '11px', textTransform: 'uppercase', color: LABEL, textAlign: 'right', width: '30mm' }}>Quantity</th>
+            <th style={{ padding: '2mm 0', fontSize: '11px', textTransform: 'uppercase', color: LABEL, width: '22mm' }}>Unit</th>
+          </tr>
+        </thead>
+        <tbody>
+          {doc.items.map((item, i) => (
+            <tr key={item.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
+              <td style={{ padding: '2mm 0', color: MUTED }}>{i + 1}</td>
+              <td style={{ padding: '2mm 0' }}>{item.description}</td>
+              <td style={{ padding: '2mm 0', textAlign: 'right', fontWeight: 600 }}>{qty(item.qty)}</td>
+              <td style={{ padding: '2mm 0', color: MUTED }}>{item.product?.unit?.symbol ?? ''}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {doc.notes && (
+        <div style={{ marginTop: '8mm' }}>
+          <p style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', color: LABEL }}>Delivery notes</p>
+          <p>{doc.notes}</p>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: '10mm', marginTop: '16mm' }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ borderTop: `1px solid ${INK}`, paddingTop: '2mm', fontSize: '11px', color: LABEL }}>Dispatched by (name & signature)</div>
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ borderTop: `1px solid ${INK}`, paddingTop: '2mm', fontSize: '11px', color: LABEL }}>Received by (name, signature & date)</div>
+        </div>
+      </div>
+
+      <p style={{ marginTop: '10mm', textAlign: 'center', fontSize: '10px', color: LABEL }}>
+        This is a delivery document. It is not an invoice and shows no prices.
+      </p>
+    </div>
+  );
+}

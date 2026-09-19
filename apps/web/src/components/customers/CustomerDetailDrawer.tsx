@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Drawer } from '../ui/Drawer';
 import { customersApi, type Customer, type CustomerLedgerEntry } from '../../lib/customers-api';
 import { ApiError } from '../../lib/api';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 
 function fmtDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(iso));
@@ -36,6 +37,9 @@ export function CustomerDetailDrawer({
   const [ledger, setLedger] = useState<CustomerLedgerEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [action, setAction] = useState<'payment' | 'adjustment' | null>(null);
+  const [confirmArchive, setConfirmArchive] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function load() {
     if (!customerId) return;
@@ -51,6 +55,38 @@ export function CustomerDetailDrawer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerId]);
 
+  async function archive() {
+    if (!customer) return;
+    setArchiving(true);
+    setError(null);
+    try {
+      await customersApi.archive(customer.id);
+      setConfirmArchive(false);
+      onChanged();
+      onClose();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not archive this customer.');
+      setConfirmArchive(false);
+    } finally {
+      setArchiving(false);
+    }
+  }
+
+  async function restore() {
+    if (!customer) return;
+    setArchiving(true);
+    setError(null);
+    try {
+      const updated = await customersApi.restore(customer.id);
+      setCustomer(updated);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not restore this customer.');
+    } finally {
+      setArchiving(false);
+    }
+  }
+
   if (!customerId) return null;
 
   const overLimit = customer?.isCredit && customer.creditLimit != null && customer.creditBalance > customer.creditLimit;
@@ -64,20 +100,36 @@ export function CustomerDetailDrawer({
         subtitle={customer?.businessName ? customer.name : customer?.phone ?? undefined}
         footer={
           customer && (
-            <div className="flex gap-2">
-              <button type="button" onClick={() => onEdit(customer)} className="flex-1 rounded-md border px-4 py-2 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
-                Edit
-              </button>
-              {customer.isCredit && (
-                <>
-                  <button type="button" onClick={() => setAction('payment')} className="flex-1 rounded-md px-4 py-2 text-sm font-medium text-white" style={{ backgroundColor: 'var(--color-accent)' }}>
-                    Record payment
-                  </button>
-                  <button type="button" onClick={() => setAction('adjustment')} className="flex-1 rounded-md border px-4 py-2 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
-                    Adjust
-                  </button>
-                </>
+            <div className="flex flex-col gap-2">
+              {error && (
+                <p className="rounded-md px-3 py-2 text-left text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
+                  {error}
+                </p>
               )}
+              <div className="flex gap-2">
+                <button type="button" onClick={() => onEdit(customer)} className="flex-1 rounded-md border px-4 py-2 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
+                  Edit
+                </button>
+                {customer.isCredit && customer.active && (
+                  <>
+                    <button type="button" onClick={() => setAction('payment')} className="flex-1 rounded-md px-4 py-2 text-sm font-medium text-white" style={{ backgroundColor: 'var(--color-accent)' }}>
+                      Record payment
+                    </button>
+                    <button type="button" onClick={() => setAction('adjustment')} className="flex-1 rounded-md border px-4 py-2 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
+                      Adjust
+                    </button>
+                  </>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => (customer.active ? setConfirmArchive(true) : restore())}
+                disabled={archiving}
+                className="rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-60"
+                style={{ borderColor: 'var(--color-border)', color: customer.active ? 'var(--color-status-bad)' : 'var(--color-accent)' }}
+              >
+                {archiving ? 'Working…' : customer.active ? 'Archive customer' : 'Restore customer'}
+              </button>
             </div>
           )
         }
@@ -162,6 +214,19 @@ export function CustomerDetailDrawer({
             load();
             onChanged();
           }}
+        />
+      )}
+
+      {confirmArchive && customer && (
+        <ConfirmDialog
+          title="Archive this customer?"
+          description={`${customer.businessName || customer.name} will drop off the customer list and the POS. Their documents and ledger history are unaffected, and they can be restored any time.${
+            customer.isCredit && customer.creditBalance > 0 ? ` They currently owe KSh ${customer.creditBalance.toLocaleString()}.` : ''
+          }`}
+          confirmLabel="Archive"
+          busy={archiving}
+          onCancel={() => setConfirmArchive(false)}
+          onConfirm={archive}
         />
       )}
     </>

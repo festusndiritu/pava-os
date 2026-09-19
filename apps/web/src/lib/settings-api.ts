@@ -9,9 +9,13 @@ export interface BusinessSettings {
   quotePrefix: string;
   invoicePrefix: string;
   receiptPrefix: string;
+  deliveryNotePrefix: string;
+  returnPrefix: string;
   nextQuoteSeq: number;
   nextInvoiceSeq: number;
   nextReceiptSeq: number;
+  nextDeliveryNoteSeq: number;
+  nextReturnSeq: number;
   roundingIncrement: number;
   lowStockThreshold: number;
   documentFooter: string | null;

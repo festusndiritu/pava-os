@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { CustomersService } from './customers.service.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { PermissionsGuard } from '../auth/permissions.guard.js';
@@ -12,8 +12,8 @@ export class CustomersController {
   constructor(private customers: CustomersService) {}
 
   @Get()
-  findAll(@Query('search') search?: string) {
-    return this.customers.findAll(search);
+  findAll(@Query('search') search?: string, @Query('status') status?: 'active' | 'archived' | 'all') {
+    return this.customers.findAll({ search, status });
   }
 
   @Get(':id')
@@ -52,5 +52,19 @@ export class CustomersController {
   @Post(':id/adjustments')
   adjustBalance(@Param('id') id: string, @Body() body: AdjustBalanceDto, @Req() req: any) {
     return this.customers.adjustBalance(id, body.amount, body.type, body.note, req.user.sub);
+  }
+
+  @UseGuards(PermissionsGuard)
+  @Permissions(Module.CUSTOMERS)
+  @Delete(':id')
+  archive(@Param('id') id: string, @Req() req: any) {
+    return this.customers.archive(id, req.user.sub);
+  }
+
+  @UseGuards(PermissionsGuard)
+  @Permissions(Module.CUSTOMERS)
+  @Post(':id/restore')
+  restore(@Param('id') id: string, @Req() req: any) {
+    return this.customers.restore(id, req.user.sub);
   }
 }

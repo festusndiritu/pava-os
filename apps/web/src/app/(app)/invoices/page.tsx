@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Receipt } from 'lucide-react';
 import { documentsApi, type SaleDocument } from '../../../lib/documents-api';
 import { DocumentDetailDrawer } from '../../../components/documents/DocumentDetailDrawer';
+import { DocumentRowActions } from '../../../components/documents/DocumentRowActions';
 
 function fmtDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(iso));
@@ -20,6 +21,7 @@ export default function InvoicesPage() {
   const [tab, setTab] = useState<'invoices' | 'delivery-notes'>('invoices');
   const [docs, setDocs] = useState<SaleDocument[] | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function load() {
     setDocs(null);
@@ -59,6 +61,12 @@ export default function InvoicesPage() {
         </button>
       </div>
 
+      {error && (
+        <button type="button" onClick={() => setError(null)} className="mt-4 w-full rounded-md px-3 py-2 text-left text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
+          {error}
+        </button>
+      )}
+
       <div className="mt-5 overflow-hidden rounded-lg border" style={{ borderColor: 'var(--color-border)' }}>
         <table className="hidden w-full text-sm md:table">
           <thead>
@@ -67,21 +75,22 @@ export default function InvoicesPage() {
               <th className="px-4 py-2.5 font-medium" style={{ color: 'var(--color-ink-600)' }}>Customer</th>
               <th className="px-4 py-2.5 font-medium" style={{ color: 'var(--color-ink-600)' }}>{tab === 'delivery-notes' ? 'Created' : 'Invoiced'}</th>
               <th className="px-4 py-2.5 font-medium" style={{ color: 'var(--color-ink-600)' }}>Status</th>
-              <th className="px-4 py-2.5 text-right font-medium" style={{ color: 'var(--color-ink-600)' }}>Total</th>
+              <th className="px-4 py-2.5 text-right font-medium" style={{ color: 'var(--color-ink-600)' }}>{tab === 'delivery-notes' ? 'Items' : 'Total'}</th>
+              <th className="px-4 py-2.5 text-right font-medium" style={{ color: 'var(--color-ink-600)' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {docs === null &&
               [...Array(4)].map((_, i) => (
                 <tr key={i} className="border-b" style={{ borderColor: 'var(--color-border)' }}>
-                  <td className="px-4 py-3" colSpan={5}>
+                  <td className="px-4 py-3" colSpan={6}>
                     <div className="h-4 w-2/3 animate-pulse rounded" style={{ backgroundColor: 'var(--color-border)' }} />
                   </td>
                 </tr>
               ))}
             {docs?.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-12 text-center">
+                <td colSpan={6} className="px-4 py-12 text-center">
                   <Receipt size={28} strokeWidth={1.5} className="mx-auto mb-2" style={{ color: 'var(--color-ink-600)' }} />
                   <p className="text-sm font-medium" style={{ color: 'var(--color-ink-900)' }}>{tab === 'delivery-notes' ? 'No delivery notes yet' : 'No invoices yet'}</p>
                   <p className="mt-1 text-sm" style={{ color: 'var(--color-ink-600)' }}>{tab === 'delivery-notes' ? "Create one from a quote or invoice's detail view." : 'Convert a quote to an invoice to see it here.'}</p>
@@ -98,7 +107,13 @@ export default function InvoicesPage() {
                   <td className="px-4 py-3">
                     <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: badge.bg, color: badge.fg }}>{badge.label}</span>
                   </td>
-                  <td className="px-4 py-3 text-right font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>KSh {d.total.toLocaleString()}</td>
+                  {/* A delivery note carries no pricing anywhere, list views included. */}
+                  <td className="px-4 py-3 text-right font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>
+                    {d.type === 'DELIVERY_NOTE' ? <span style={{ color: 'var(--color-ink-600)' }}>{d.items.length} item{d.items.length === 1 ? '' : 's'}</span> : `KSh ${d.total.toLocaleString()}`}
+                  </td>
+                  <td className="px-2 py-2">
+                    <DocumentRowActions doc={d} onOpen={setDetailId} onChanged={load} onError={setError} />
+                  </td>
                 </tr>
               );
             })}
@@ -121,16 +136,21 @@ export default function InvoicesPage() {
           {docs?.map((d) => {
             const badge = STATUS_BADGE[d.status] ?? STATUS_BADGE.DRAFT;
             return (
-              <button key={d.id} type="button" onClick={() => setDetailId(d.id)} className="flex w-full flex-col gap-1 p-4 text-left active:bg-[var(--color-bg)]">
+              <div key={d.id} onClick={() => setDetailId(d.id)} className="flex w-full flex-col gap-1 p-4 text-left active:bg-[var(--color-bg)]">
                 <div className="flex items-start justify-between gap-3">
                   <p className="font-medium" style={{ color: 'var(--color-ink-900)' }}>{d.customer?.businessName || d.customer?.name || d.customerName || 'Walk-in'}</p>
-                  <p className="shrink-0 font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>KSh {d.total.toLocaleString()}</p>
+                  <p className="shrink-0 font-medium data-num" style={{ color: d.type === 'DELIVERY_NOTE' ? 'var(--color-ink-600)' : 'var(--color-ink-900)' }}>
+                    {d.type === 'DELIVERY_NOTE' ? `${d.items.length} item${d.items.length === 1 ? '' : 's'}` : `KSh ${d.total.toLocaleString()}`}
+                  </p>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span style={{ color: 'var(--color-ink-600)' }}>{d.deliveryNoteNumber ?? d.receiptNumber ?? d.invoiceNumber ?? fmtDate(d.invoicedAt ?? d.createdAt)}</span>
                   <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: badge.bg, color: badge.fg }}>{badge.label}</span>
                 </div>
-              </button>
+                <div className="mt-1.5">
+                  <DocumentRowActions doc={d} onOpen={setDetailId} onChanged={load} onError={setError} />
+                </div>
+              </div>
             );
           })}
         </div>

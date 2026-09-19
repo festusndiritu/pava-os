@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 const SINGLETON_ID = 'singleton';
-type DocNumberType = 'QUOTE' | 'INVOICE' | 'RECEIPT' | 'DELIVERY_NOTE';
+type DocNumberType = 'QUOTE' | 'INVOICE' | 'RECEIPT' | 'DELIVERY_NOTE' | 'RETURN';
 
 @Injectable()
 export class SettingsService {
@@ -25,6 +25,7 @@ export class SettingsService {
     invoicePrefix: string;
     receiptPrefix: string;
     deliveryNotePrefix: string;
+    returnPrefix: string;
     roundingIncrement: number;
     lowStockThreshold: number;
     documentFooter: string;
@@ -41,8 +42,22 @@ export class SettingsService {
   async nextNumber(type: DocNumberType, client?: any): Promise<string> {
     const db = client ?? this.prisma;
     await this.get(); // ensure the row exists
-    const field = type === 'QUOTE' ? 'nextQuoteSeq' : type === 'INVOICE' ? 'nextInvoiceSeq' : type === 'RECEIPT' ? 'nextReceiptSeq' : 'nextDeliveryNoteSeq';
-    const prefixField = type === 'QUOTE' ? 'quotePrefix' : type === 'INVOICE' ? 'invoicePrefix' : type === 'RECEIPT' ? 'receiptPrefix' : 'deliveryNotePrefix';
+    const SEQ_FIELDS: Record<DocNumberType, string> = {
+      QUOTE: 'nextQuoteSeq',
+      INVOICE: 'nextInvoiceSeq',
+      RECEIPT: 'nextReceiptSeq',
+      DELIVERY_NOTE: 'nextDeliveryNoteSeq',
+      RETURN: 'nextReturnSeq',
+    };
+    const PREFIX_FIELDS: Record<DocNumberType, string> = {
+      QUOTE: 'quotePrefix',
+      INVOICE: 'invoicePrefix',
+      RECEIPT: 'receiptPrefix',
+      DELIVERY_NOTE: 'deliveryNotePrefix',
+      RETURN: 'returnPrefix',
+    };
+    const field = SEQ_FIELDS[type];
+    const prefixField = PREFIX_FIELDS[type];
 
     const updated = await db.businessSetting.update({
       where: { id: SINGLETON_ID },

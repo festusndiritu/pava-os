@@ -31,8 +31,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen" style={{ backgroundColor: 'var(--color-bg)' }}>
       {/* Desktop sidebar */}
       {!isPos && (
+        // Pinned to the viewport with its own scroll: the navigation stays put
+        // while the page body scrolls, and a long nav scrolls independently.
         <aside
-          className="hidden w-60 shrink-0 border-r lg:block"
+          className="sticky top-0 hidden h-screen w-60 shrink-0 overflow-y-auto border-r lg:block"
           style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
         >
           <Sidebar />

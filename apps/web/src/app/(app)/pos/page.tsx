@@ -1,14 +1,40 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { Minus, Package, Plus, Search, ShoppingCart, Trash2, Truck, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
+import {
+  ArrowLeft,
+  Maximize2,
+  Minimize2,
+  Minus,
+  PauseCircle,
+  Plus,
+  RotateCcw,
+  Search,
+  ShoppingCart,
+  Trash2,
+  Truck,
+  X,
+} from 'lucide-react';
 import { productsApi, type Category, type Product } from '../../../lib/products-api';
 import { customersApi, type Customer } from '../../../lib/customers-api';
-import { posApi, type PosPaymentMethod, type PosSaleResult } from '../../../lib/pos-api';
+import {
+  POS_PAYMENT_METHODS,
+  posApi,
+  readStockShortfalls,
+  type PosPaymentMethod,
+  type PosSaleResult,
+  type StockShortfall,
+  type SuspendedOrder,
+} from '../../../lib/pos-api';
+import { documentsApi } from '../../../lib/documents-api';
 import { thicknessLabel } from '../../../lib/shape-config';
-import { resolveImageUrl } from '../../../lib/api';
 import { TransportDialog, type TransportSettings } from '../../../components/pos/TransportDialog';
 import { ReceiptDialog } from '../../../components/pos/ReceiptDialog';
+import { ProductIcon } from '../../../components/pos/ProductIcon';
+import { SuspendOrderDialog, SuspendedOrdersDialog } from '../../../components/pos/SuspendedOrders';
+import { ReturnDialog } from '../../../components/pos/ReturnDialog';
+import { StockShortfallDialog } from '../../../components/documents/StockShortfallDialog';
 import { ApiError } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth-context';
 
@@ -24,19 +50,6 @@ function money(n: number) {
   return `KSh ${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 }
 
-function ProductThumb({ product, size = 44 }: { product: Product; size?: number }) {
-  const src = resolveImageUrl(product.imageUrl);
-  if (src) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={src} alt="" width={size} height={size} className="rounded-md object-cover" style={{ width: size, height: size }} />;
-  }
-  return (
-    <div className="flex shrink-0 items-center justify-center rounded-md" style={{ width: size, height: size, backgroundColor: 'var(--color-bg)' }}>
-      <Package size={size * 0.45} strokeWidth={1.5} style={{ color: 'var(--color-ink-600)' }} />
-    </div>
-  );
-}
-
 export default function PosPage() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Product[]>([]);
@@ -50,6 +63,8 @@ export default function PosPage() {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [transport, setTransport] = useState<TransportSettings | null>(null);
   const [transportOpen, setTransportOpen] = useState(false);
+  // Set when the cart came from a held order, so completing the sale clears it.
+  const [resumedFromId, setResumedFromId] = useState<string | null>(null);
 
   const [customerMode, setCustomerMode] = useState<'walkin' | 'existing'>('walkin');
   const [walkinName, setWalkinName] = useState('');
@@ -57,25 +72,56 @@ export default function PosPage() {
   const [customerResults, setCustomerResults] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
-  const [paymentMethod, setPaymentMethod] = useState<PosPaymentMethod>('CASH');
+  // M-Pesa Paybill is how most of the counter pays, so it leads.
+  const [paymentMethod, setPaymentMethod] = useState<PosPaymentMethod>('MPESA');
+  // PAVA's only credit: the customer takes the goods and settles the same day.
+  // The sale goes out as an unpaid invoice and is closed off from Invoices.
+  const [settleLater, setSettleLater] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [stockShortfall, setStockShortfall] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [shortfalls, setShortfalls] = useState<StockShortfall[] | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [receipt, setReceipt] = useState<PosSaleResult | null>(null);
+  const [deliveryNoteBusy, setDeliveryNoteBusy] = useState(false);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
+
+  const [focusMode, setFocusMode] = useState(false);
+  const [suspendOpen, setSuspendOpen] = useState(false);
+  const [heldOpen, setHeldOpen] = useState(false);
+  const [returnOpen, setReturnOpen] = useState(false);
+  const [heldCount, setHeldCount] = useState(0);
+
   const { user } = useAuth();
   const canOverrideStock = user?.role === 'ADMIN' || !!user?.canInvoiceWithoutStock;
 
-  // Quick-access rail: categories to browse by tap, no typing required.
+  // Focus mode hides the app topbar so the till owns the screen. The attribute
+  // lives on <html> and is always cleaned up, so leaving POS can never strand
+  // the rest of the app without its navigation.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (focusMode) root.dataset.posFocus = 'on';
+    else delete root.dataset.posFocus;
+    return () => {
+      delete root.dataset.posFocus;
+    };
+  }, [focusMode]);
+
+  const refreshHeldCount = useCallback(() => {
+    posApi
+      .suspended()
+      .then((list) => setHeldCount(list.length))
+      .catch(() => setHeldCount(0));
+  }, []);
+
   useEffect(() => {
     productsApi.categories().then(setCategories);
-  }, []);
+    refreshHeldCount();
+  }, [refreshHeldCount]);
 
   useEffect(() => {
     productsApi.list({ categoryId: activeCategory || undefined }).then((r) => setBrowseProducts(r.slice(0, 60)));
   }, [activeCategory]);
 
-  // Live search overrides the category browse view while the user is typing.
   useEffect(() => {
     if (query.trim().length < 1) {
       setResults([]);
@@ -84,7 +130,7 @@ export default function PosPage() {
     }
     const t = setTimeout(() => {
       productsApi.list({ search: query }).then((r) => {
-        setResults(r.slice(0, 20));
+        setResults(r.slice(0, 24));
         setHighlighted(0);
       });
     }, 250);
@@ -102,9 +148,22 @@ export default function PosPage() {
     return () => clearTimeout(t);
   }, [customerQuery, customerMode]);
 
+  // "/" jumps back to the search box from anywhere on the till — the fastest
+  // path back to adding the next item without reaching for the mouse.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== '/' || e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      e.preventDefault();
+      searchRef.current?.focus();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const visibleProducts = query.trim().length > 0 ? results : browseProducts;
 
   function addToCart(p: Product) {
+    setError(null);
     setCart((prev) => {
       const existing = prev.find((l) => l.product.id === p.id);
       if (existing) return prev.map((l) => (l.product.id === p.id ? { ...l, qty: l.qty + 1 } : l));
@@ -112,8 +171,6 @@ export default function PosPage() {
     });
   }
 
-  // Arrow keys move a highlight through the visible grid, Enter adds it and
-  // clears the search so the next scan/type starts fresh — no mouse needed.
   function handleSearchKeyDown(e: React.KeyboardEvent) {
     if (visibleProducts.length === 0) return;
     if (e.key === 'ArrowDown') {
@@ -144,15 +201,29 @@ export default function PosPage() {
     setTransport((t) => (t ? { ...t, applyTo: t.applyTo.filter((id) => id !== productId) } : t));
   }
 
+  function clearCounter() {
+    setCart([]);
+    setTransport(null);
+    setSelectedCustomer(null);
+    setWalkinName('');
+    setCustomerMode('walkin');
+    setResumedFromId(null);
+    setMobileCartOpen(false);
+    setShortfalls(null);
+    setSettleLater(false);
+  }
+
   const subtotal = cart.reduce((s, l) => s + l.qty * l.unitPrice, 0);
   const transportAmount = transport?.amount || 0;
-  // Approximate — the server computes the precise, correctly-rounded total; this is just for the cart view.
+  // Approximate — the server computes the precise, correctly-rounded total.
   const estimatedTotal = subtotal + transportAmount;
+  const shortLines = useMemo(() => cart.filter((l) => l.product.stockQuantity < l.qty), [cart]);
 
   async function checkout(opts?: { allowNegativeStock?: boolean }) {
     if (cart.length === 0) return;
     setSubmitting(true);
     setError(null);
+    setNotice(null);
     try {
       const sale = await posApi.checkout({
         customerId: customerMode === 'existing' ? selectedCustomer?.id : undefined,
@@ -161,97 +232,220 @@ export default function PosPage() {
         transportAmount: transport?.amount || undefined,
         transportAllocation: transport?.allocation,
         transportApplyTo: transport?.applyTo,
-        manualAllocations: transport?.allocation === 'MANUAL' ? Object.entries(transport.manualAllocations).map(([productId, amount]) => ({ productId, amount })) : undefined,
+        manualAllocations:
+          transport?.allocation === 'MANUAL'
+            ? Object.entries(transport.manualAllocations).map(([productId, amount]) => ({ productId, amount }))
+            : undefined,
         foldTransportIntoPrices: transport?.fold ?? true,
-        paymentMethod,
+        paymentMethod: settleLater ? undefined : paymentMethod,
+        settleLater: settleLater || undefined,
         allowNegativeStock: opts?.allowNegativeStock,
+        suspendedFromId: resumedFromId ?? undefined,
       });
       setReceipt(sale);
-      setCart([]);
-      setTransport(null);
-      setSelectedCustomer(null);
-      setWalkinName('');
-      setMobileCartOpen(false);
-      setStockShortfall(false);
+      clearCounter();
+      refreshHeldCount();
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : 'Could not complete this sale.';
-      setError(message);
-      setStockShortfall(message.toLowerCase().startsWith('insufficient stock'));
+      // Short stock is a decision, not an error banner: the dialog states the
+      // numbers and lets an authorized operator continue as a backorder.
+      const detected = err instanceof ApiError ? readStockShortfalls(err.details) : null;
+      if (detected) setShortfalls(detected);
+      else setError(err instanceof ApiError ? err.message : 'Could not complete this sale.');
     } finally {
       setSubmitting(false);
     }
   }
 
+  async function suspendCurrent(label: string) {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await posApi.suspend({
+        customerId: customerMode === 'existing' ? selectedCustomer?.id : undefined,
+        customerName: customerMode === 'walkin' ? walkinName || undefined : undefined,
+        label: label || undefined,
+        items: cart.map((l) => ({ productId: l.product.id, qty: l.qty, unitPrice: l.unitPrice })),
+        transportAmount: transport?.amount || undefined,
+        foldTransportIntoPrices: transport?.fold ?? true,
+      });
+      // A resumed order that is suspended again is re-parked as a new hold.
+      if (resumedFromId) await posApi.discardSuspended(resumedFromId).catch(() => {});
+      clearCounter();
+      setSuspendOpen(false);
+      setNotice('Order suspended.');
+      refreshHeldCount();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not suspend this order.');
+      setSuspendOpen(false);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function resumeOrder(order: SuspendedOrder) {
+    setCart(
+      order.items
+        .filter((i) => i.product)
+        .map((i) => ({ product: i.product as Product, qty: i.qty, unitPrice: i.unitPrice })),
+    );
+    setTransport(
+      order.transportAmount > 0
+        ? {
+            amount: order.transportAmount,
+            allocation: 'QUANTITY',
+            applyTo: order.items.map((i) => i.productId).filter((id): id is string => !!id),
+            manualAllocations: {},
+            fold: order.transportMode !== 'ITEMIZED',
+          }
+        : null,
+    );
+    if (order.customer) {
+      setCustomerMode('existing');
+      // The held order carries only the identifying fields of the customer;
+      // that is all the checkout needs (it posts the id).
+      setSelectedCustomer(order.customer as unknown as Customer);
+    } else {
+      setCustomerMode('walkin');
+      setWalkinName(order.customerName ?? '');
+    }
+    setResumedFromId(order.id);
+    setHeldOpen(false);
+    setNotice('Order resumed.');
+    refreshHeldCount();
+  }
+
+  async function createDeliveryNote() {
+    if (!receipt) return;
+    setDeliveryNoteBusy(true);
+    try {
+      const note = await documentsApi.createDeliveryNote(receipt.id);
+      setReceipt(null);
+      setNotice(`Delivery note ${note.deliveryNoteNumber ?? ''} created — open it under Invoices › Delivery notes to print.`);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not create a delivery note.');
+    } finally {
+      setDeliveryNoteBusy(false);
+    }
+  }
+
   const cartContent = (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: 'var(--color-border)' }}>
-        <p className="text-base font-semibold" style={{ color: 'var(--color-ink-900)' }}>
-          Cart
-        </p>
-        <button type="button" onClick={() => setMobileCartOpen(false)} className="lg:hidden" style={{ color: 'var(--color-ink-600)' }}>
-          <X size={18} strokeWidth={2} />
-        </button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-5 py-3">
-        {cart.length === 0 && (
-          <p className="py-10 text-center text-sm" style={{ color: 'var(--color-ink-600)' }}>
-            Search or tap a product to add it.
+      <div className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: 'var(--color-border)' }}>
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>
+            Current sale
           </p>
-        )}
-        <div className="flex flex-col gap-4">
-          {cart.map((l) => (
-            <div key={l.product.id} className="flex gap-3 border-b pb-4" style={{ borderColor: 'var(--color-border)' }}>
-              <ProductThumb product={l.product} size={48} />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="truncate text-sm font-medium" style={{ color: 'var(--color-ink-900)' }}>
-                    {l.product.displayName ?? l.product.name}
-                  </p>
-                  <button type="button" onClick={() => removeLine(l.product.id)} style={{ color: 'var(--color-status-bad)' }}>
-                    <Trash2 size={14} strokeWidth={2} />
-                  </button>
-                </div>
-                <div className="mt-2 flex items-center gap-2">
-                  <div className="flex items-center rounded-md border" style={{ borderColor: 'var(--color-border)' }}>
-                    <button type="button" onClick={() => updateLine(l.product.id, { qty: Math.max(1, l.qty - 1) })} className="flex h-8 w-8 items-center justify-center" style={{ color: 'var(--color-ink-600)' }}>
-                      <Minus size={13} strokeWidth={2} />
-                    </button>
-                    <input
-                      type="number"
-                      value={l.qty}
-                      onChange={(e) => updateLine(l.product.id, { qty: Math.max(0.01, Number(e.target.value) || 0) })}
-                      className="w-12 border-0 bg-transparent text-center text-sm data-num outline-none"
-                      style={{ color: 'var(--color-ink-900)' }}
-                    />
-                    <button type="button" onClick={() => updateLine(l.product.id, { qty: l.qty + 1 })} className="flex h-8 w-8 items-center justify-center" style={{ color: 'var(--color-ink-600)' }}>
-                      <Plus size={13} strokeWidth={2} />
-                    </button>
-                  </div>
-                  <input
-                    type="number"
-                    value={l.unitPrice}
-                    onChange={(e) => updateLine(l.product.id, { unitPrice: Number(e.target.value) || 0 })}
-                    className="w-24 rounded-md border px-2 py-1.5 text-sm data-num"
-                    style={inputStyle}
-                  />
-                  <p className="ml-auto text-sm font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>
-                    {money(l.qty * l.unitPrice)}
-                  </p>
-                </div>
-              </div>
-            </div>
-          ))}
+          {cart.length > 0 && (
+            <span className="data-num rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: 'var(--color-accent-soft)', color: 'var(--color-accent)' }}>
+              {cart.length}
+            </span>
+          )}
+          {resumedFromId && (
+            <span className="rounded px-1.5 py-0.5 text-[11px] font-medium" style={{ backgroundColor: 'var(--color-status-warnSoft)', color: 'var(--color-status-warn)' }}>
+              Resumed
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          {cart.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setSuspendOpen(true)}
+              title="Suspend this order"
+              aria-label="Suspend this order"
+              className="flex h-9 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium"
+              style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}
+            >
+              <PauseCircle size={14} strokeWidth={2} />
+              Hold
+            </button>
+          )}
+          <button type="button" onClick={() => setMobileCartOpen(false)} aria-label="Close cart" className="flex h-9 w-9 items-center justify-center rounded-md lg:hidden" style={{ color: 'var(--color-ink-600)' }}>
+            <X size={17} strokeWidth={2} />
+          </button>
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 border-t px-5 py-4" style={{ borderColor: 'var(--color-border)' }}>
+      <div className="flex-1 overflow-y-auto px-4 py-2">
+        {cart.length === 0 && (
+          <div className="py-12 text-center">
+            <ShoppingCart size={26} strokeWidth={1.5} className="mx-auto mb-2" style={{ color: 'var(--color-ink-600)' }} />
+            <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
+              Search or tap a product to add it.
+            </p>
+          </div>
+        )}
+        <div className="flex flex-col">
+          {cart.map((l) => {
+            const short = l.product.stockQuantity < l.qty;
+            return (
+              <div key={l.product.id} className="flex gap-3 border-b py-3 last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
+                <ProductIcon product={l.product} size={40} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium" style={{ color: 'var(--color-ink-900)' }}>
+                        {l.product.displayName ?? l.product.name}
+                      </p>
+                      <p className="truncate text-xs" style={{ color: short ? 'var(--color-status-warn)' : 'var(--color-ink-600)' }}>
+                        {short ? `Only ${l.product.stockQuantity} ${l.product.unit.symbol} in stock` : `${l.product.stockQuantity} ${l.product.unit.symbol} in stock`}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeLine(l.product.id)}
+                      aria-label="Remove line"
+                      title="Remove line"
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md"
+                      style={{ color: 'var(--color-status-bad)' }}
+                    >
+                      <Trash2 size={15} strokeWidth={2} />
+                    </button>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <div className="flex items-center rounded-md border" style={{ borderColor: 'var(--color-border)' }}>
+                      <button type="button" aria-label="Less" onClick={() => updateLine(l.product.id, { qty: Math.max(1, l.qty - 1) })} className="flex h-10 w-10 items-center justify-center" style={{ color: 'var(--color-ink-600)' }}>
+                        <Minus size={14} strokeWidth={2} />
+                      </button>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        value={l.qty}
+                        onChange={(e) => updateLine(l.product.id, { qty: Math.max(0.01, Number(e.target.value) || 0) })}
+                        className="data-num w-12 border-0 bg-transparent text-center text-sm outline-none"
+                        style={{ color: 'var(--color-ink-900)' }}
+                      />
+                      <button type="button" aria-label="More" onClick={() => updateLine(l.product.id, { qty: l.qty + 1 })} className="flex h-10 w-10 items-center justify-center" style={{ color: 'var(--color-ink-600)' }}>
+                        <Plus size={14} strokeWidth={2} />
+                      </button>
+                    </div>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      aria-label="Unit price"
+                      value={l.unitPrice}
+                      onChange={(e) => updateLine(l.product.id, { unitPrice: Number(e.target.value) || 0 })}
+                      className="data-num min-h-10 w-24 rounded-md border px-2 text-sm"
+                      style={inputStyle}
+                    />
+                    <p className="data-num ml-auto text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>
+                      {money(l.qty * l.unitPrice)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3 border-t px-4 py-3" style={{ borderColor: 'var(--color-border)', paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
         <div>
           <div className="flex gap-1.5">
             <button
               type="button"
               onClick={() => setCustomerMode('walkin')}
-              className="flex-1 rounded-md border px-2 py-1.5 text-xs font-medium"
+              className="min-h-10 flex-1 rounded-md border px-2 text-xs font-medium"
               style={{ borderColor: customerMode === 'walkin' ? 'var(--color-accent)' : 'var(--color-border)', color: customerMode === 'walkin' ? 'var(--color-accent)' : 'var(--color-ink-600)' }}
             >
               Walk-in
@@ -259,28 +453,28 @@ export default function PosPage() {
             <button
               type="button"
               onClick={() => setCustomerMode('existing')}
-              className="flex-1 rounded-md border px-2 py-1.5 text-xs font-medium"
+              className="min-h-10 flex-1 rounded-md border px-2 text-xs font-medium"
               style={{ borderColor: customerMode === 'existing' ? 'var(--color-accent)' : 'var(--color-border)', color: customerMode === 'existing' ? 'var(--color-accent)' : 'var(--color-ink-600)' }}
             >
               Existing customer
             </button>
           </div>
           {customerMode === 'walkin' ? (
-            <input value={walkinName} onChange={(e) => setWalkinName(e.target.value)} placeholder="Customer name (optional)" className="mt-2 w-full rounded-md border px-3 py-2 text-sm" style={inputStyle} />
+            <input value={walkinName} onChange={(e) => setWalkinName(e.target.value)} placeholder="Customer name (optional)" className="mt-2 min-h-10 w-full rounded-md border px-3 text-sm" style={inputStyle} />
           ) : (
             <div className="relative mt-2">
               {selectedCustomer ? (
-                <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm" style={inputStyle}>
-                  <span>{selectedCustomer.businessName || selectedCustomer.name}</span>
-                  <button type="button" onClick={() => setSelectedCustomer(null)} style={{ color: 'var(--color-ink-600)' }}>
+                <div className="flex min-h-10 items-center justify-between rounded-md border px-3 text-sm" style={inputStyle}>
+                  <span className="truncate">{selectedCustomer.businessName || selectedCustomer.name}</span>
+                  <button type="button" onClick={() => setSelectedCustomer(null)} aria-label="Clear customer" style={{ color: 'var(--color-ink-600)' }}>
                     <X size={14} strokeWidth={2} />
                   </button>
                 </div>
               ) : (
                 <>
-                  <input value={customerQuery} onChange={(e) => setCustomerQuery(e.target.value)} placeholder="Search customers…" className="w-full rounded-md border px-3 py-2 text-sm" style={inputStyle} />
+                  <input value={customerQuery} onChange={(e) => setCustomerQuery(e.target.value)} placeholder="Search customers…" className="min-h-10 w-full rounded-md border px-3 text-sm" style={inputStyle} />
                   {customerResults.length > 0 && (
-                    <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-40 overflow-y-auto rounded-md border" style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
+                    <div className="absolute left-0 right-0 bottom-full z-10 mb-1 max-h-44 overflow-y-auto rounded-md border" style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
                       {customerResults.map((c) => (
                         <button
                           key={c.id}
@@ -290,10 +484,10 @@ export default function PosPage() {
                             setCustomerQuery('');
                             setCustomerResults([]);
                           }}
-                          className="block w-full px-3 py-2 text-left text-sm hover:bg-[var(--color-bg)]"
+                          className="block w-full px-3 py-2.5 text-left text-sm hover:bg-[var(--color-bg)]"
                           style={{ color: 'var(--color-ink-900)' }}
                         >
-                          {c.businessName || c.name} {c.isCredit ? '· Credit' : ''}
+                          {c.businessName || c.name}
                         </button>
                       ))}
                     </div>
@@ -307,7 +501,7 @@ export default function PosPage() {
         <button
           type="button"
           onClick={() => setTransportOpen(true)}
-          className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
+          className="flex min-h-10 items-center justify-between rounded-md border px-3 text-sm"
           style={{ borderColor: 'var(--color-border)', color: transport ? 'var(--color-accent)' : 'var(--color-ink-600)' }}
         >
           <span className="flex items-center gap-1.5">
@@ -317,25 +511,50 @@ export default function PosPage() {
           <span className="data-num">{transport ? money(transport.amount) : '+ Add'}</span>
         </button>
 
-        <div className="flex items-center justify-between text-lg font-semibold" style={{ color: 'var(--color-ink-900)' }}>
-          <span>Estimated total</span>
-          <span className="data-num">{money(Math.max(0, estimatedTotal))}</span>
+        <div className="grid grid-cols-2 gap-2">
+          {POS_PAYMENT_METHODS.map((m) => {
+            const active = !settleLater && paymentMethod === m.value;
+            return (
+              <button
+                key={m.value}
+                type="button"
+                onClick={() => {
+                  setPaymentMethod(m.value);
+                  setSettleLater(false);
+                }}
+                className="min-h-11 rounded-md border px-2 text-sm font-medium"
+                style={{
+                  borderColor: active ? 'var(--color-accent)' : 'var(--color-border)',
+                  backgroundColor: active ? 'var(--color-accent-soft)' : 'transparent',
+                  color: active ? 'var(--color-accent)' : 'var(--color-ink-600)',
+                }}
+              >
+                {m.label}
+                <span className="ml-1 text-[11px] font-normal opacity-70">{m.hint}</span>
+              </button>
+            );
+          })}
         </div>
 
-        <div className="grid grid-cols-4 gap-1.5">
-          {(['CASH', 'MPESA', 'CARD', 'CREDIT'] as PosPaymentMethod[]).map((m) => (
-            <button
-              key={m}
-              type="button"
-              disabled={m === 'CREDIT' && !(customerMode === 'existing' && selectedCustomer?.isCredit)}
-              onClick={() => setPaymentMethod(m)}
-              className="rounded-md border py-1.5 text-xs font-medium disabled:opacity-40"
-              style={{ borderColor: paymentMethod === m ? 'var(--color-accent)' : 'var(--color-border)', color: paymentMethod === m ? 'var(--color-accent)' : 'var(--color-ink-600)' }}
-            >
-              {m}
-            </button>
-          ))}
-        </div>
+        <button
+          type="button"
+          onClick={() => setSettleLater((v) => !v)}
+          className="min-h-11 rounded-md border px-3 text-sm font-medium"
+          style={{
+            borderColor: settleLater ? 'var(--color-status-warn)' : 'var(--color-border)',
+            backgroundColor: settleLater ? 'var(--color-status-warnSoft)' : 'transparent',
+            color: settleLater ? 'var(--color-status-warn)' : 'var(--color-ink-600)',
+          }}
+        >
+          Pay later today
+          <span className="ml-1 text-[11px] font-normal opacity-70">goods out, settle before close</span>
+        </button>
+
+        {shortLines.length > 0 && (
+          <p className="rounded-md px-3 py-2 text-xs" style={{ backgroundColor: 'var(--color-status-warnSoft)', color: 'var(--color-status-warn)' }}>
+            {shortLines.length} line{shortLines.length === 1 ? '' : 's'} above recorded stock.
+          </p>
+        )}
 
         {error && (
           <p className="rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
@@ -343,122 +562,214 @@ export default function PosPage() {
           </p>
         )}
 
-        {stockShortfall && canOverrideStock && (
-          <button
-            type="button"
-            disabled={submitting}
-            onClick={() => checkout({ allowNegativeStock: true })}
-            className="rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-60"
-            style={{ borderColor: 'var(--color-status-warn)', color: 'var(--color-status-warn)' }}
-          >
-            Proceed anyway — sell as a backorder (logged to audit trail)
-          </button>
-        )}
+        <div className="flex items-baseline justify-between">
+          <span className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
+            Estimated total
+          </span>
+          <span className="data-num text-xl font-semibold" style={{ color: 'var(--color-ink-900)' }}>
+            {money(Math.max(0, estimatedTotal))}
+          </span>
+        </div>
 
         <button
           type="button"
           onClick={() => checkout()}
           disabled={cart.length === 0 || submitting}
-          className="rounded-md px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+          className="min-h-12 rounded-md px-4 text-sm font-semibold text-white disabled:opacity-50"
           style={{ backgroundColor: 'var(--color-accent)' }}
         >
-          {submitting ? 'Completing sale…' : `Complete sale · ${money(Math.max(0, estimatedTotal))}`}
+          {submitting ? 'Completing sale…' : `${settleLater ? 'Release goods' : 'Complete sale'} · ${money(Math.max(0, estimatedTotal))}`}
         </button>
       </div>
     </div>
   );
 
   return (
-    <div className="flex h-[calc(100vh-56px)]">
-      {/* Quick-access category rail */}
-      <div className="hidden w-40 shrink-0 flex-col gap-0.5 overflow-y-auto border-r p-2 xl:flex" style={{ borderColor: 'var(--color-border)' }}>
-        <button
-          type="button"
-          onClick={() => setActiveCategory(null)}
-          className="rounded-md px-2.5 py-2 text-left text-sm font-medium"
-          style={{ backgroundColor: activeCategory === null ? 'var(--color-accent-soft)' : 'transparent', color: activeCategory === null ? 'var(--color-accent)' : 'var(--color-ink-600)' }}
+    <div className={`flex flex-col ${focusMode ? 'h-[100dvh]' : 'h-[calc(100dvh-56px)]'}`}>
+      {/* POS mode bar — the way out of the till is always on screen. */}
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+        <Link
+          href="/dashboard"
+          className="flex min-h-10 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium"
+          style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}
         >
-          All products
-        </button>
-        {categories.map((c) => (
+          <ArrowLeft size={15} strokeWidth={2} />
+          <span className="hidden sm:inline">Exit POS</span>
+        </Link>
+
+        <div className="flex items-center gap-1.5">
           <button
-            key={c.id}
             type="button"
-            onClick={() => setActiveCategory(c.id)}
-            className="rounded-md px-2.5 py-2 text-left text-sm font-medium"
-            style={{ backgroundColor: activeCategory === c.id ? 'var(--color-accent-soft)' : 'transparent', color: activeCategory === c.id ? 'var(--color-accent)' : 'var(--color-ink-600)' }}
+            onClick={() => setReturnOpen(true)}
+            title="Return items from a previous sale"
+            className="flex min-h-10 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium"
+            style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}
           >
-            {c.name}
+            <RotateCcw size={15} strokeWidth={2} />
+            <span className="hidden sm:inline">Returns</span>
           </button>
-        ))}
+          <button
+            type="button"
+            onClick={() => setHeldOpen(true)}
+            title="Suspended orders"
+            className="relative flex min-h-10 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium"
+            style={{ borderColor: heldCount > 0 ? 'var(--color-accent)' : 'var(--color-border)', color: heldCount > 0 ? 'var(--color-accent)' : 'var(--color-ink-900)' }}
+          >
+            <PauseCircle size={15} strokeWidth={2} />
+            <span className="hidden sm:inline">On hold</span>
+            {heldCount > 0 && (
+              <span className="data-num rounded-full px-1.5 text-xs font-semibold" style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}>
+                {heldCount}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setFocusMode((v) => !v)}
+            aria-label={focusMode ? 'Leave full-screen POS' : 'Full-screen POS'}
+            title={focusMode ? 'Leave full-screen POS' : 'Full-screen POS'}
+            className="flex h-10 w-10 items-center justify-center rounded-md border"
+            style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-600)' }}
+          >
+            {focusMode ? <Minimize2 size={15} strokeWidth={2} /> : <Maximize2 size={15} strokeWidth={2} />}
+          </button>
+        </div>
       </div>
 
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <div className="border-b p-4" style={{ borderColor: 'var(--color-border)' }}>
-          <div className="relative">
-            <Search size={16} strokeWidth={2} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-ink-600)' }} />
-            <input
-              ref={searchRef}
-              autoFocus
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={handleSearchKeyDown}
-              placeholder='Search products — try "1.5 inch square pipe" or a SKU. ↑↓ to pick, Enter to add.'
-              className="w-full rounded-md border py-3 pl-10 pr-3 text-base outline-none focus:border-[var(--color-accent)]"
-              style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)', color: 'var(--color-ink-900)' }}
-            />
-          </div>
+      {notice && (
+        <button
+          type="button"
+          onClick={() => setNotice(null)}
+          className="shrink-0 px-4 py-2 text-left text-sm"
+          style={{ backgroundColor: 'var(--color-status-okSoft)', color: 'var(--color-status-ok)' }}
+        >
+          {notice}
+        </button>
+      )}
+
+      <div className="flex min-h-0 flex-1">
+        {/* Category rail — tap-to-browse, no typing required. */}
+        <div className="hidden w-44 shrink-0 flex-col gap-0.5 overflow-y-auto border-r p-2 xl:flex" style={{ borderColor: 'var(--color-border)' }}>
+          <button
+            type="button"
+            onClick={() => setActiveCategory(null)}
+            className="rounded-md px-2.5 py-2 text-left text-sm font-medium"
+            style={{ backgroundColor: activeCategory === null ? 'var(--color-accent-soft)' : 'transparent', color: activeCategory === null ? 'var(--color-accent)' : 'var(--color-ink-600)' }}
+          >
+            All products
+          </button>
+          {categories.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => setActiveCategory(c.id)}
+              className="truncate rounded-md px-2.5 py-2 text-left text-sm font-medium"
+              style={{ backgroundColor: activeCategory === c.id ? 'var(--color-accent-soft)' : 'transparent', color: activeCategory === c.id ? 'var(--color-accent)' : 'var(--color-ink-600)' }}
+            >
+              {c.name}
+            </button>
+          ))}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-            {visibleProducts.map((p, i) => {
-              const gauge = thicknessLabel(p.shape, p.thicknessMm);
-              const isHighlighted = query.trim().length > 0 && i === highlighted;
-              return (
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="shrink-0 border-b p-3" style={{ borderColor: 'var(--color-border)' }}>
+            <div className="relative">
+              <Search size={16} strokeWidth={2} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-ink-600)' }} />
+              <input
+                ref={searchRef}
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+                placeholder='Search products — "1.5 inch square pipe". ↑↓ to pick, Enter to add.'
+                className="min-h-12 w-full rounded-md border pl-10 pr-3 text-base outline-none focus:border-[var(--color-accent)]"
+                style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)', color: 'var(--color-ink-900)' }}
+              />
+            </div>
+
+            {/* Categories collapse to a scrolling strip where the rail is hidden. */}
+            <div className="mt-2 flex gap-1.5 overflow-x-auto pb-0.5 xl:hidden">
+              <button
+                type="button"
+                onClick={() => setActiveCategory(null)}
+                className="min-h-9 shrink-0 rounded-md border px-3 text-xs font-medium"
+                style={{ borderColor: activeCategory === null ? 'var(--color-accent)' : 'var(--color-border)', color: activeCategory === null ? 'var(--color-accent)' : 'var(--color-ink-600)' }}
+              >
+                All
+              </button>
+              {categories.map((c) => (
                 <button
-                  key={p.id}
+                  key={c.id}
                   type="button"
-                  onClick={() => addToCart(p)}
-                  onMouseEnter={() => query.trim().length > 0 && setHighlighted(i)}
-                  className="flex flex-col items-start gap-2 rounded-lg border p-3 text-left transition-colors"
-                  style={{
-                    borderColor: isHighlighted ? 'var(--color-accent)' : 'var(--color-border)',
-                    backgroundColor: isHighlighted ? 'var(--color-accent-soft)' : 'var(--color-surface)',
-                  }}
+                  onClick={() => setActiveCategory(c.id)}
+                  className="min-h-9 shrink-0 rounded-md border px-3 text-xs font-medium"
+                  style={{ borderColor: activeCategory === c.id ? 'var(--color-accent)' : 'var(--color-border)', color: activeCategory === c.id ? 'var(--color-accent)' : 'var(--color-ink-600)' }}
                 >
-                  <ProductThumb product={p} size={64} />
-                  <div className="w-full">
-                    <p className="text-sm font-medium" style={{ color: 'var(--color-ink-900)' }}>
-                      {p.displayName ?? p.name}
-                    </p>
-                    <p className="text-xs" style={{ color: 'var(--color-ink-600)' }}>
-                      {[p.nominalSize, gauge].filter(Boolean).join(' · ') || p.name}
-                    </p>
-                    <div className="mt-1 flex w-full items-center justify-between">
-                      <span className="text-sm font-semibold data-num" style={{ color: 'var(--color-ink-900)' }}>
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-3" style={{ paddingBottom: cart.length > 0 ? '5rem' : undefined }}>
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+              {visibleProducts.map((p, i) => {
+                const gauge = thicknessLabel(p.shape, p.thicknessMm);
+                const isHighlighted = query.trim().length > 0 && i === highlighted;
+                const outOfStock = p.stockQuantity <= 0;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => addToCart(p)}
+                    onMouseEnter={() => query.trim().length > 0 && setHighlighted(i)}
+                    className="flex min-h-[7.5rem] flex-col gap-2 rounded-lg border p-3 text-left transition-colors active:scale-[0.99]"
+                    style={{
+                      borderColor: isHighlighted ? 'var(--color-accent)' : 'var(--color-border)',
+                      backgroundColor: isHighlighted ? 'var(--color-accent-soft)' : 'var(--color-surface)',
+                    }}
+                  >
+                    <div className="flex w-full items-start gap-2">
+                      <ProductIcon product={p} size={36} />
+                      <div className="min-w-0 flex-1">
+                        <p className="line-clamp-2 text-sm font-medium leading-snug" style={{ color: 'var(--color-ink-900)' }}>
+                          {p.displayName ?? p.name}
+                        </p>
+                        <p className="truncate text-xs" style={{ color: 'var(--color-ink-600)' }}>
+                          {[p.nominalSize, gauge].filter(Boolean).join(' · ') || p.unit.symbol}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-auto flex w-full items-center justify-between gap-2">
+                      <span className="data-num text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>
                         {money(p.basePrice)}
                       </span>
-                      <span className="text-xs data-num" style={{ color: p.stockQuantity > 0 ? 'var(--color-status-ok)' : 'var(--color-status-bad)' }}>
+                      <span
+                        className="data-num shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium"
+                        style={{
+                          backgroundColor: outOfStock ? 'var(--color-status-badSoft)' : 'var(--color-status-okSoft)',
+                          color: outOfStock ? 'var(--color-status-bad)' : 'var(--color-status-ok)',
+                        }}
+                      >
                         {p.stockQuantity} {p.unit.symbol}
                       </span>
                     </div>
-                  </div>
-                </button>
-              );
-            })}
+                  </button>
+                );
+              })}
+            </div>
+            {query && visibleProducts.length === 0 && (
+              <p className="mt-10 text-center text-sm" style={{ color: 'var(--color-ink-600)' }}>
+                No products match &ldquo;{query}&rdquo;.
+              </p>
+            )}
           </div>
-          {query && visibleProducts.length === 0 && (
-            <p className="mt-10 text-center text-sm" style={{ color: 'var(--color-ink-600)' }}>
-              No products match "{query}".
-            </p>
-          )}
         </div>
-      </div>
 
-      {/* Desktop cart — larger, since it's the working surface at a real till */}
-      <div className="hidden w-[28rem] shrink-0 border-l lg:block" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
-        {cartContent}
+        {/* Desktop cart — the working surface at a real till. */}
+        <div className="hidden w-[26rem] shrink-0 border-l lg:block 2xl:w-[28rem]" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+          {cartContent}
+        </div>
       </div>
 
       {/* Mobile: sticky summary bar -> full-screen cart */}
@@ -466,8 +777,8 @@ export default function PosPage() {
         <button
           type="button"
           onClick={() => setMobileCartOpen(true)}
-          className="fixed bottom-0 left-0 right-0 z-30 flex items-center justify-between px-4 py-3 text-sm font-medium text-white lg:hidden"
-          style={{ backgroundColor: 'var(--color-accent)' }}
+          className="fixed bottom-0 left-0 right-0 z-30 flex min-h-14 items-center justify-between px-4 text-sm font-semibold text-white lg:hidden"
+          style={{ backgroundColor: 'var(--color-accent)', paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
         >
           <span className="flex items-center gap-2">
             <ShoppingCart size={16} strokeWidth={2} />
@@ -491,7 +802,48 @@ export default function PosPage() {
         />
       )}
 
-      {receipt && <ReceiptDialog sale={receipt} onClose={() => setReceipt(null)} />}
+      {shortfalls && (
+        <StockShortfallDialog
+          shortfalls={shortfalls}
+          canProceed={canOverrideStock}
+          busy={submitting}
+          action="sale"
+          onCancel={() => setShortfalls(null)}
+          onProceed={() => {
+            setShortfalls(null);
+            checkout({ allowNegativeStock: true });
+          }}
+        />
+      )}
+
+      {suspendOpen && (
+        <SuspendOrderDialog
+          defaultLabel={customerMode === 'existing' ? selectedCustomer?.businessName || selectedCustomer?.name || '' : walkinName}
+          itemCount={cart.length}
+          total={Math.max(0, estimatedTotal)}
+          busy={submitting}
+          onCancel={() => setSuspendOpen(false)}
+          onConfirm={suspendCurrent}
+        />
+      )}
+
+      {heldOpen && <SuspendedOrdersDialog onClose={() => setHeldOpen(false)} onResume={resumeOrder} onChanged={refreshHeldCount} />}
+
+      {returnOpen && (
+        <ReturnDialog
+          onClose={() => setReturnOpen(false)}
+          onCompleted={(result) => setNotice(`Return ${result.returnNumber} recorded — stock restored.`)}
+        />
+      )}
+
+      {receipt && (
+        <ReceiptDialog
+          sale={receipt}
+          onClose={() => setReceipt(null)}
+          onCreateDeliveryNote={createDeliveryNote}
+          deliveryNoteBusy={deliveryNoteBusy}
+        />
+      )}
     </div>
   );
 }

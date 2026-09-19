@@ -8,6 +8,8 @@ import { DocumentLetterhead } from './DocumentLetterhead';
 import { ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { shareElementAsPdf } from '../../lib/pdf';
+import { StockShortfallDialog } from './StockShortfallDialog';
+import { readStockShortfalls, type StockShortfall } from '../../lib/pos-api';
 
 function docTypeLabel(type: string) {
   return type === 'QUOTE' ? 'Quote' : type === 'INVOICE' ? 'Invoice' : type === 'DELIVERY_NOTE' ? 'Delivery note' : 'Receipt';
@@ -45,7 +47,7 @@ export function DocumentDetailDrawer({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [stockShortfall, setStockShortfall] = useState(false);
+  const [shortfalls, setShortfalls] = useState<StockShortfall[] | null>(null);
   const [sharing, setSharing] = useState(false);
   const { user } = useAuth();
   const canOverrideStock = user?.role === 'ADMIN' || !!user?.canInvoiceWithoutStock;
@@ -59,7 +61,7 @@ export function DocumentDetailDrawer({
 
   useEffect(() => {
     load();
-    setStockShortfall(false);
+    setShortfalls(null);
     setNotice(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documentId]);
@@ -71,14 +73,17 @@ export function DocumentDetailDrawer({
     setError(null);
     try {
       await fn();
-      setStockShortfall(false);
+      setShortfalls(null);
       await load();
       onChanged();
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : 'Could not complete that action.';
-      setError(message);
-      if (opts?.detectStockShortfall && message.toLowerCase().startsWith('insufficient stock')) {
-        setStockShortfall(true);
+      // A stock shortage isn't an error to show in red — it's a decision to
+      // put to the operator, with the numbers, in a confirmation dialog.
+      const detected = opts?.detectStockShortfall && err instanceof ApiError ? readStockShortfalls(err.details) : null;
+      if (detected) {
+        setShortfalls(detected);
+      } else {
+        setError(err instanceof ApiError ? err.message : 'Could not complete that action.');
       }
     } finally {
       setBusy(false);
@@ -119,6 +124,7 @@ export function DocumentDetailDrawer({
   }
 
   const status = doc ? STATUS_LABEL[doc.status] : null;
+  const isDeliveryNote = doc?.type === 'DELIVERY_NOTE';
   const docNumber = doc?.receiptNumber ?? doc?.invoiceNumber ?? doc?.quoteNumber ?? doc?.deliveryNoteNumber;
 
   return (
@@ -140,17 +146,30 @@ export function DocumentDetailDrawer({
                 {notice}
               </p>
             )}
-            {stockShortfall && canOverrideStock && doc.status === 'QUOTED' && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => runAction(() => documentsApi.convertToInvoice(doc.id, true))}
-                className="rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-60"
-                style={{ borderColor: 'var(--color-status-warn)', color: 'var(--color-status-warn)' }}
-              >
-                Proceed anyway — invoice as a backorder (logged to audit trail)
-              </button>
+            {/* An unpaid invoice is settled here, and how it was settled is
+                recorded on the receipt rather than guessed at later. */}
+            {doc.status === 'INVOICED' && (
+              <div className="rounded-md border p-3" style={{ borderColor: 'var(--color-border)' }}>
+                <p className="text-xs font-medium" style={{ color: 'var(--color-ink-600)' }}>
+                  Settle this invoice
+                </p>
+                <div className="mt-2 flex gap-2">
+                  {(['MPESA', 'CASH'] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      disabled={busy}
+                      onClick={() => runAction(() => documentsApi.markPaid(doc.id, m))}
+                      className="min-h-10 flex-1 rounded-md px-3 text-sm font-semibold text-white disabled:opacity-60"
+                      style={{ backgroundColor: 'var(--color-accent)' }}
+                    >
+                      Paid · {m === 'MPESA' ? 'M-Pesa' : 'Cash'}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
+
             <div className="flex gap-2">
               {doc.status === 'QUOTED' && (
                 <>
@@ -163,14 +182,9 @@ export function DocumentDetailDrawer({
                 </>
               )}
               {doc.status === 'INVOICED' && (
-                <>
-                  <button type="button" disabled={busy} onClick={() => runAction(() => documentsApi.cancel(doc.id))} className="flex-1 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-status-bad)' }}>
-                    Cancel invoice
-                  </button>
-                  <button type="button" disabled={busy} onClick={() => runAction(() => documentsApi.markPaid(doc.id))} className="flex-1 rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
-                    Mark paid
-                  </button>
-                </>
+                <button type="button" disabled={busy} onClick={() => runAction(() => documentsApi.cancel(doc.id))} className="flex-1 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-status-bad)' }}>
+                  Cancel invoice
+                </button>
               )}
             </div>
             <div className="flex gap-2">
@@ -194,6 +208,17 @@ export function DocumentDetailDrawer({
       }
     >
       {doc && <DocumentLetterhead doc={doc} />}
+
+      {doc && shortfalls && (
+        <StockShortfallDialog
+          shortfalls={shortfalls}
+          canProceed={canOverrideStock}
+          busy={busy}
+          action="invoice"
+          onCancel={() => setShortfalls(null)}
+          onProceed={() => runAction(() => documentsApi.convertToInvoice(doc.id, true))}
+        />
+      )}
 
       {loading && (
         <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
@@ -220,13 +245,21 @@ export function DocumentDetailDrawer({
             </p>
           </div>
 
+          {/* A delivery note is a dispatch document — quantities only, never
+              prices, in the drawer as well as on the printed sheet. */}
           <div className="overflow-hidden rounded-md border" style={{ borderColor: 'var(--color-border)' }}>
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)' }}>
                   <th className="px-3 py-2 font-medium" style={{ color: 'var(--color-ink-600)' }}>Item</th>
-                  <th className="px-3 py-2 text-right font-medium" style={{ color: 'var(--color-ink-600)' }}>Qty × Price</th>
-                  <th className="px-3 py-2 text-right font-medium" style={{ color: 'var(--color-ink-600)' }}>Total</th>
+                  {isDeliveryNote ? (
+                    <th className="px-3 py-2 text-right font-medium" style={{ color: 'var(--color-ink-600)' }}>Quantity</th>
+                  ) : (
+                    <>
+                      <th className="px-3 py-2 text-right font-medium" style={{ color: 'var(--color-ink-600)' }}>Qty × Price</th>
+                      <th className="px-3 py-2 text-right font-medium" style={{ color: 'var(--color-ink-600)' }}>Total</th>
+                    </>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -235,19 +268,27 @@ export function DocumentDetailDrawer({
                     <td className="px-3 py-2" style={{ color: 'var(--color-ink-900)' }}>
                       {item.description}
                     </td>
-                    <td className="px-3 py-2 text-right data-num" style={{ color: 'var(--color-ink-600)' }}>
-                      {item.qty} × {money(item.unitPrice)}
-                    </td>
-                    <td className="px-3 py-2 text-right font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>
-                      {money(item.lineTotal)}
-                    </td>
+                    {isDeliveryNote ? (
+                      <td className="px-3 py-2 text-right font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>
+                        {item.qty} {item.product?.unit?.symbol ?? ''}
+                      </td>
+                    ) : (
+                      <>
+                        <td className="px-3 py-2 text-right data-num" style={{ color: 'var(--color-ink-600)' }}>
+                          {item.qty} × {money(item.unitPrice)}
+                        </td>
+                        <td className="px-3 py-2 text-right font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>
+                          {money(item.lineTotal)}
+                        </td>
+                      </>
+                    )}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          <div className="flex flex-col gap-1 text-sm">
+          <div className={isDeliveryNote ? 'hidden' : 'flex flex-col gap-1 text-sm'}>
             <div className="flex justify-between">
               <span style={{ color: 'var(--color-ink-600)' }}>Subtotal</span>
               <span className="data-num" style={{ color: 'var(--color-ink-900)' }}>{money(doc.subtotal)}</span>

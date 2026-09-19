@@ -79,6 +79,55 @@ body {
   z-index: -1;
 }
 
+/* Anything destined for paper or a PDF carries .printable-doc. It is pinned
+   to a white background with dark ink and opts out of the dark palette
+   entirely: html2canvas captures whatever is computed on screen, so a
+   receipt rendered while PAVA is in dark mode would otherwise export as
+   light text on white. Theme variables must never reach these nodes. */
+.printable-doc,
+.printable-doc * {
+  color-scheme: light;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.printable-doc {
+  background-color: #ffffff;
+  color: #111827;
+}
+
+/* POS focus mode: the till takes the whole screen and the app chrome steps
+   out of the way. Driven by a data attribute on <html> so the POS page can
+   toggle it without the shell layout needing to know. */
+:root[data-pos-focus='on'] [data-app-topbar] {
+  display: none;
+}
+
+/* Physical page geometry for anything meant to be printed or exported —
+   applied unconditionally, NOT just inside @media print. html2canvas (used
+   for the Share/Download-as-PDF path) captures the DOM as it renders on
+   screen; it does not evaluate print-media rules. Width, padding and base
+   font size living only in @media print meant the off-screen PDF capture
+   got none of them — an unconstrained div with no margins and whatever
+   font size it happened to inherit. This is what a real print job also
+   uses, so what you print and what you share are the same box. */
+.print-a4 {
+  box-sizing: border-box;
+  width: 210mm;
+  min-height: 297mm;
+  padding: 18mm 16mm;
+  font-family: var(--font-sans, sans-serif);
+  font-size: 13px;
+  color: #111827;
+  background: #fff;
+}
+
+.print-thermal {
+  box-sizing: border-box;
+  width: 80mm;
+  font-family: var(--font-mono), monospace;
+  font-size: 13px;
+}
+
 /* Printable documents — the thermal 80mm receipt strip, and the full A4
    letterhead layout used for anything meant to be shared (quotes, invoices,
    delivery notes). Both hide everything else on the page and reveal only
@@ -97,22 +146,38 @@ body {
     position: absolute;
     top: 0;
     left: 0;
-  }
-
-  #print-area.print-thermal {
-    width: 80mm;
-    font-family: var(--font-mono), monospace;
-    font-size: 11px;
-  }
-
-  #print-area.print-a4 {
-    width: 210mm;
-    min-height: 297mm;
-    padding: 14mm;
-    font-family: var(--font-sans, sans-serif);
-    font-size: 12px;
+    right: auto;
+    /* Neutralises whatever container it was rendered in — an off-screen
+       capture node, or a panel with its own scrolling and height cap. A
+       clipped or zero-height ancestor is what prints as a blank page. */
+    max-height: none;
+    max-width: none;
+    overflow: visible;
+    background: #ffffff;
     color: #111827;
-    background: #fff;
+  }
+
+  /* Belt and braces: force printer-friendly ink regardless of the theme the
+     app happened to be in when Print was pressed. */
+  #print-area,
+  #print-area * {
+    background-color: transparent !important;
+    color: #111827 !important;
+    box-shadow: none !important;
+  }
+
+  #print-area.print-a4,
+  #print-area.print-thermal {
+    background-color: #ffffff !important;
+  }
+
+  /* Our own padding above is the page's only margin. Without zeroing the
+     browser's default page margin (commonly ~12.7mm on top of ours), a wide
+     table — the delivery note's quantity/unit columns especially — has
+     less room than it was laid out for and can run off the sheet edge. */
+  @page {
+    size: A4;
+    margin: 0;
   }
 }
 

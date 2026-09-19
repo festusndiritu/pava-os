@@ -10,6 +10,14 @@ export class ConvertToInvoiceDto {
   allowNegativeStock?: boolean;
 }
 
+export class MarkPaidDto {
+  // How the outstanding invoice was actually settled, so the receipt says
+  // so. Optional for invoices raised before this was recorded.
+  @IsOptional()
+  @IsIn(['CASH', 'MPESA'] as const)
+  paymentMethod?: 'CASH' | 'MPESA';
+}
+
 export class DocumentItemDto {
   @IsOptional()
   @IsString()

@@ -42,6 +42,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
 
   return (
     <header
+      data-app-topbar
       className="sticky top-0 z-20 flex h-14 items-center justify-between border-b px-4"
       style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
     >

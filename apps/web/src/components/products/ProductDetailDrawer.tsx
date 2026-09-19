@@ -3,9 +3,11 @@
 import { useEffect, useState } from 'react';
 import { Drawer } from '../ui/Drawer';
 import { inventoryApi, productsApi, type InventoryBatch, type InventoryMovement, type Product, type ProductPriceHistoryEntry } from '../../lib/products-api';
+import { AdjustStockDialog } from '../inventory/AdjustStockDialog';
 import { thicknessLabel } from '../../lib/shape-config';
 import { ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 
 function fmtDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(iso));
@@ -45,8 +47,12 @@ export function ProductDetailDrawer({
   const [movements, setMovements] = useState<InventoryMovement[]>([]);
   const [loading, setLoading] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
-  const { canViewCost } = useAuth();
+  const [confirmArchive, setConfirmArchive] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { canViewCost, user } = useAuth();
   const showCost = canViewCost();
+  const isAdmin = user?.role === 'ADMIN';
 
   useEffect(() => {
     if (!productId) return;
@@ -60,6 +66,38 @@ export function ProductDetailDrawer({
       })
       .finally(() => setLoading(false));
   }, [productId]);
+
+  async function archive() {
+    if (!product) return;
+    setArchiving(true);
+    setError(null);
+    try {
+      await productsApi.archive(product.id);
+      setConfirmArchive(false);
+      onChanged();
+      onClose();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not archive this product.');
+      setConfirmArchive(false);
+    } finally {
+      setArchiving(false);
+    }
+  }
+
+  async function restore() {
+    if (!product) return;
+    setArchiving(true);
+    setError(null);
+    try {
+      const updated = await productsApi.restore(product.id);
+      setProduct(updated);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not restore this product.');
+    } finally {
+      setArchiving(false);
+    }
+  }
 
   if (!productId) return null;
 
@@ -76,23 +114,41 @@ export function ProductDetailDrawer({
         subtitle={product?.name}
         footer={
           product && (
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => onEdit(product)}
-                className="flex-1 rounded-md border px-4 py-2 text-sm font-medium"
-                style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}
-              >
-                Edit product
-              </button>
-              <button
-                type="button"
-                onClick={() => setAdjustOpen(true)}
-                className="flex-1 rounded-md px-4 py-2 text-sm font-medium text-white"
-                style={{ backgroundColor: 'var(--color-accent)' }}
-              >
-                Adjust stock
-              </button>
+            <div className="flex flex-col gap-2">
+              {error && (
+                <p className="rounded-md px-3 py-2 text-left text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
+                  {error}
+                </p>
+              )}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => onEdit(product)}
+                  className="flex-1 rounded-md border px-4 py-2 text-sm font-medium"
+                  style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}
+                >
+                  Edit product
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAdjustOpen(true)}
+                  className="flex-1 rounded-md px-4 py-2 text-sm font-medium text-white"
+                  style={{ backgroundColor: 'var(--color-accent)' }}
+                >
+                  Adjust stock
+                </button>
+              </div>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => (product.active ? setConfirmArchive(true) : restore())}
+                  disabled={archiving}
+                  className="rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-60"
+                  style={{ borderColor: 'var(--color-border)', color: product.active ? 'var(--color-status-bad)' : 'var(--color-accent)' }}
+                >
+                  {archiving ? 'Working…' : product.active ? 'Archive product' : 'Restore product'}
+                </button>
+              )}
             </div>
           )
         }
@@ -256,97 +312,17 @@ export function ProductDetailDrawer({
           }}
         />
       )}
+
+      {confirmArchive && product && (
+        <ConfirmDialog
+          title="Archive this product?"
+          description={`${product.displayName ?? product.name} will drop out of the catalogue and POS search. Past documents and price history are unaffected, and it can be restored any time.`}
+          confirmLabel="Archive"
+          busy={archiving}
+          onCancel={() => setConfirmArchive(false)}
+          onConfirm={archive}
+        />
+      )}
     </>
-  );
-}
-
-function AdjustStockDialog({ product, onClose, onDone }: { product: Product; onClose: () => void; onDone: () => void }) {
-  const [type, setType] = useState<'ADJUSTMENT' | 'CORRECTION' | 'RETURN'>('ADJUSTMENT');
-  const [quantity, setQuantity] = useState('');
-  const [note, setNote] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-
-  async function submit(allowNegative = false) {
-    const qty = Number(quantity);
-    if (!qty) return;
-    setSaving(true);
-    setError(null);
-    try {
-      await inventoryApi.adjust({ productId: product.id, quantity: qty, type, note: note || undefined, allowNegative });
-      onDone();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not adjust stock.');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-      <div className="absolute inset-0" style={{ backgroundColor: 'rgba(16, 24, 40, 0.5)' }} onClick={onClose} />
-      <div className="relative w-full max-w-sm rounded-lg border p-5" style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', boxShadow: 'var(--shadow-card)' }}>
-        <h3 className="text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>
-          Adjust stock — {product.displayName ?? product.name}
-        </h3>
-        <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>
-          Current: {product.stockQuantity} {product.unit.symbol}
-        </p>
-
-        <div className="mt-4 flex flex-col gap-3">
-          <select
-            value={type}
-            onChange={(e) => setType(e.target.value as typeof type)}
-            className="w-full rounded-md border px-3 py-2 text-sm"
-            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}
-          >
-            <option value="ADJUSTMENT">Stocktake adjustment</option>
-            <option value="CORRECTION">Correction</option>
-            <option value="RETURN">Customer return</option>
-          </select>
-          <input
-            type="number"
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-            placeholder="Quantity (use a negative number to reduce)"
-            className="w-full rounded-md border px-3 py-2 text-sm data-num"
-            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}
-          />
-          <input
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="Reason (recommended)"
-            className="w-full rounded-md border px-3 py-2 text-sm"
-            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}
-          />
-
-          {error && (
-            <div className="rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
-              {error}
-              {error.toLowerCase().includes('negative') && (
-                <button type="button" onClick={() => submit(true)} className="ml-2 font-semibold underline">
-                  Proceed anyway
-                </button>
-              )}
-            </div>
-          )}
-
-          <div className="mt-1 flex gap-2">
-            <button type="button" onClick={onClose} className="flex-1 rounded-md border px-4 py-2 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => submit(false)}
-              disabled={saving || !quantity}
-              className="flex-1 rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-              style={{ backgroundColor: 'var(--color-accent)' }}
-            >
-              {saving ? 'Saving…' : 'Apply'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
   );
 }

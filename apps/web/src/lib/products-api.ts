@@ -102,18 +102,25 @@ export interface ReceiveLineResult {
   currentPrice: number;
 }
 
+export type CatalogueStatus = 'active' | 'archived' | 'all';
+
 export const productsApi = {
-  list: (params: { search?: string; brandId?: string; categoryId?: string } = {}) => {
+  list: (params: { search?: string; brandId?: string; categoryId?: string; status?: CatalogueStatus } = {}) => {
     const qs = new URLSearchParams();
     if (params.search) qs.set('search', params.search);
     if (params.brandId) qs.set('brandId', params.brandId);
     if (params.categoryId) qs.set('categoryId', params.categoryId);
+    if (params.status) qs.set('status', params.status);
     const suffix = qs.toString() ? `?${qs.toString()}` : '';
     return api.get<Product[]>(`/products${suffix}`);
   },
   get: (id: string) => api.get<Product>(`/products/${id}`),
   create: (data: Partial<Omit<Product, 'aliases'>> & { aliases?: string[] }) => api.post<Product>('/products', data),
   update: (id: string, data: Partial<Omit<Product, 'aliases'>> & { aliases?: string[] }) => api.patch<Product>(`/products/${id}`, data),
+  // Soft delete — the product's past documents and price history stay
+  // intact; it just drops out of the active catalogue and the POS search.
+  archive: (id: string) => api.delete<Product>(`/products/${id}`),
+  restore: (id: string) => api.post<Product>(`/products/${id}/restore`),
   priceHistory: (id: string) => api.get<ProductPriceHistoryEntry[]>(`/products/${id}/price-history`),
   brands: () => api.get<Brand[]>('/brands'),
   createBrand: (name: string) => api.post<Brand>('/brands', { name }),
@@ -133,7 +140,7 @@ export const inventoryApi = {
   receive: (data: { supplier: string; reference?: string; notes?: string; lines: { productId: string; quantity: number; unitCost: number }[] }) =>
     api.post<{ receipt: InventoryReceipt; lines: ReceiveLineResult[] }>('/inventory/receipts', data),
   adjust: (data: { productId: string; quantity: number; type: 'ADJUSTMENT' | 'CORRECTION' | 'RETURN'; note?: string; allowNegative?: boolean }) =>
-    api.post('/inventory/adjustments', data),
+    api.post<{ id: string }>('/inventory/adjustments', data),
   batches: (productId: string) => api.get<InventoryBatch[]>(`/inventory/batches?productId=${productId}`),
   movements: (productId: string) => api.get<InventoryMovement[]>(`/inventory/movements?productId=${productId}`),
 };
