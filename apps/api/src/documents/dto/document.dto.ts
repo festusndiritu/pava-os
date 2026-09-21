@@ -10,6 +10,23 @@ export class ConvertToInvoiceDto {
   allowNegativeStock?: boolean;
 }
 
+export class CreateDeliveryNoteDto {
+  // Dispatch/site address for this note — distinct from the customer's
+  // stored address (delivery site and billing address aren't always the
+  // same). Optional: falls back to the customer's stored address at render
+  // time when omitted.
+  @IsOptional()
+  @IsString()
+  deliveryLocation?: string;
+
+  // A contact number for whoever's at the drop-off site — often not the
+  // customer themselves. Optional: falls back to the customer's stored
+  // phone at render time when omitted.
+  @IsOptional()
+  @IsString()
+  deliveryPhone?: string;
+}
+
 export class MarkPaidDto {
   // How the outstanding invoice was actually settled, so the receipt says
   // so. Optional for invoices raised before this was recorded.

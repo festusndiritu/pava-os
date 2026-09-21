@@ -497,6 +497,19 @@ model Document {
   sourceDocument   Document?  @relation("DeliveryNoteSource", fields: [sourceDocumentId], references: [id])
   deliveryNotes    Document[] @relation("DeliveryNoteSource")
 
+  // For a DELIVERY_NOTE only — the dispatch/site address, captured at
+  // creation time. Distinct from the customer's stored address: the site
+  // goods are dropped at and the customer's billing address aren't always
+  // the same. Frozen once the note is created, same immutability rule as
+  // every other document field.
+  deliveryLocation String?
+
+  // For a DELIVERY_NOTE only — a contact number for whoever's at the drop-off
+  // site, since that's often not the customer themselves (a site foreman, a
+  // gate guard) and not necessarily the same number on the customer's own
+  // record. Same immutability rule as deliveryLocation above.
+  deliveryPhone String?
+
   items         DocumentItem[]
   ledgerEntries CustomerLedgerEntry[]
   returns       Return[]

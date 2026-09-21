@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { X } from 'lucide-react';
 import { useAuth } from '../../lib/auth-context';
+import { moduleForPath } from '../../lib/constants';
 import { Sidebar } from '../../components/shell/Sidebar';
 import { Topbar } from '../../components/shell/Topbar';
 import { IdleWarningDialog } from '../../components/shell/IdleWarningDialog';
@@ -11,7 +12,7 @@ import { IdleWarningDialog } from '../../components/shell/IdleWarningDialog';
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, loading } = useAuth();
+  const { user, loading, hasPermission } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   // POS wants every pixel it can get on a counter screen — the sidebar
@@ -26,6 +27,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // already sending them to /login. This is a UX-only guard; every real
   // protected request is still enforced server-side regardless.
   if (loading || !user) return null;
+
+  // The sidebar only ever links to what hasPermission() allows, but a typed
+  // URL, a stale bookmark, or the browser's back/forward can still land the
+  // user on a page their nav never showed them. Block the page itself here,
+  // once, for every module-gated route — rather than relying on each page
+  // to duplicate this check (most don't) or on every backend read endpoint
+  // happening to be permission-gated (some legitimately aren't, e.g. ones
+  // shared across modules). Routes with no module (e.g. /profile) pass through.
+  const requiredModule = moduleForPath(pathname ?? '');
+  const allowed = !requiredModule || hasPermission(requiredModule);
 
   return (
     <div className="flex min-h-screen" style={{ backgroundColor: 'var(--color-bg)' }}>
@@ -69,7 +80,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar onMenuClick={() => setMobileNavOpen(true)} />
-        <main className="flex-1">{children}</main>
+        <main className="flex-1">
+          {allowed ? (
+            children
+          ) : (
+            <div className="p-6">
+              <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
+                You don't have access to this page.
+              </p>
+            </div>
+          )}
+        </main>
       </div>
 
       <IdleWarningDialog />

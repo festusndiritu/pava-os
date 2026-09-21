@@ -1,0 +1,1005 @@
+diff -ruN '--exclude=.git' a/apps/api/src/documents/documents.controller.ts b/apps/api/src/documents/documents.controller.ts
+--- a/apps/api/src/documents/documents.controller.ts	2026-09-20 06:29:34.000000000 +0000
++++ b/apps/api/src/documents/documents.controller.ts	2026-09-21 14:14:45.915074177 +0000
+@@ -23,8 +23,11 @@
+   // delivery note in the business. Gated to the same OR-set already used on
+   // create/convert/cancel below, since that's what actually consumes it
+   // (Quotes, Invoices and POS pages/returns all read through here).
++  // REPORTS is in the set because the Reports page is a read-only register
++  // of exactly this data — granting it without one of the selling modules
++  // would otherwise show an empty page behind a nav link the person can see.
+   @UseGuards(PermissionsGuard)
+-  @Permissions(Module.QUOTES, Module.INVOICES, Module.POS)
++  @Permissions(Module.QUOTES, Module.INVOICES, Module.POS, Module.REPORTS)
+   @Get()
+   findAll(
+     @Query('status') status?: DocumentStatus,
+@@ -36,12 +39,10 @@
+     return this.documents.findAll({ status, type, from, to, search });
+   }
+ 
+-  // Currently unused by the frontend (Reports has no page yet), but same
+-  // reasoning as findAll above — a sales aggregate shouldn't be readable by
+-  // someone with none of the selling modules just because it was never
+-  // wired up to the UI.
++  // Same reasoning as findAll above — a sales aggregate shouldn't be
++  // readable by someone with none of the selling modules.
+   @UseGuards(PermissionsGuard)
+-  @Permissions(Module.QUOTES, Module.INVOICES, Module.POS)
++  @Permissions(Module.QUOTES, Module.INVOICES, Module.POS, Module.REPORTS)
+   @Get('reports/sales-summary')
+   salesSummary(@Query('days') days?: string) {
+     return this.documents.salesSummary(days ? parseInt(days) : 30);
+@@ -55,8 +56,9 @@
+     return this.documents.listSuspended();
+   }
+ 
++  // POS raises returns; Reports only reads the log of them.
+   @UseGuards(PermissionsGuard)
+-  @Permissions(Module.POS)
++  @Permissions(Module.POS, Module.REPORTS)
+   @Get('returns/recent')
+   listReturns(@Query('limit') limit?: string) {
+     return this.returns.list(limit ? parseInt(limit) : 50);
+diff -ruN '--exclude=.git' a/apps/api/src/documents/documents.service.ts b/apps/api/src/documents/documents.service.ts
+--- a/apps/api/src/documents/documents.service.ts	2026-09-20 05:59:07.000000000 +0000
++++ b/apps/api/src/documents/documents.service.ts	2026-09-21 14:14:31.067828168 +0000
+@@ -6,6 +6,13 @@
+ import { SettingsService } from '../settings/settings.service.js';
+ import type { CreatePosSaleDto } from './dto/pos-sale.dto.js';
+ 
++/** Exclusive upper bound covering the whole of the given calendar day. */
++function endOfDay(date: string) {
++  const end = new Date(date);
++  end.setHours(23, 59, 59, 999);
++  return new Date(end.getTime() + 1);
++}
++
+ type ItemInput = {
+   productId?: string;
+   description?: string;
+@@ -366,11 +373,15 @@
+               ],
+             }
+           : {}),
++        // A bare "to" date means "through the end of that day". Comparing
++        // against new Date('2026-09-21') is midnight at its *start*, which
++        // silently dropped everything sold on the last day of the range —
++        // the same correction parseRange() already makes for analytics.
+         ...(from || to
+           ? {
+               createdAt: {
+                 ...(from ? { gte: new Date(from) } : {}),
+-                ...(to ? { lte: new Date(to) } : {}),
++                ...(to ? { lt: endOfDay(to) } : {}),
+               },
+             }
+           : {}),
+diff -ruN '--exclude=.git' a/apps/web/src/app/(app)/analytics/page.tsx b/apps/web/src/app/(app)/analytics/page.tsx
+--- a/apps/web/src/app/(app)/analytics/page.tsx	1970-01-01 00:00:00.000000000 +0000
++++ b/apps/web/src/app/(app)/analytics/page.tsx	2026-09-21 14:13:12.953068017 +0000
+@@ -0,0 +1,327 @@
++'use client';
++
++import { useEffect, useState } from 'react';
++import { Bar, BarChart, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
++import { BarChart3, Boxes, CircleDollarSign, PieChart as PieChartIcon, Receipt, ShoppingCart, TrendingUp, Undo2, UserRound, Users } from 'lucide-react';
++import { useAuth } from '../../../lib/auth-context';
++import {
++  analyticsApi,
++  type AnalyticsOverview,
++  type CategorySalesRow,
++  type InventorySnapshot,
++  type PaymentMixRow,
++  type StaffPerformanceRow,
++  type TopCustomerRow,
++  type TopProductRow,
++} from '../../../lib/analytics-api';
++import { RangeBar, useDateRange } from '../../../components/insights/RangeBar';
++import { ListRow, SectionCard, StatCard } from '../../../components/dashboard/DashboardPrimitives';
++import { fmtDate, money, paymentColor, paymentLabel, plural, trendBetween, truncate } from '../../../components/dashboard/dashboard-derive';
++
++const AXIS_TICK = { fontSize: 11, fill: 'var(--color-ink-600)' };
++const TOOLTIP_STYLE = {
++  fontSize: 12,
++  borderRadius: 6,
++  border: '1px solid var(--color-border)',
++  backgroundColor: 'var(--color-surface)',
++  color: 'var(--color-ink-900)',
++};
++
++function shortMoney(value: number) {
++  if (Math.abs(value) >= 1_000_000) return `${Math.round(value / 100_000) / 10}m`;
++  if (Math.abs(value) >= 1000) return `${Math.round(value / 1000)}k`;
++  return String(Math.round(value));
++}
++
++function Empty({ line }: { line: string }) {
++  return (
++    <p className="py-8 text-center text-sm" style={{ color: 'var(--color-ink-600)' }}>
++      {line}
++    </p>
++  );
++}
++
++function RankRow({ index }: { index: number }) {
++  return (
++    <span
++      className="data-num flex h-6 w-6 shrink-0 items-center justify-center rounded text-xs font-semibold"
++      style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-600)' }}
++    >
++      {index + 1}
++    </span>
++  );
++}
++
++interface Loaded {
++  overview: AnalyticsOverview;
++  categories: CategorySalesRow[];
++  payments: PaymentMixRow[];
++  products: TopProductRow[];
++  customers: TopCustomerRow[];
++  staff: StaffPerformanceRow[];
++  inventory: InventorySnapshot;
++}
++
++export default function AnalyticsPage() {
++  const { hasPermission } = useAuth();
++  const { range, preset, setPreset, setBound } = useDateRange('30d');
++  const [data, setData] = useState<Loaded | null>(null);
++  const [error, setError] = useState<string | null>(null);
++
++  useEffect(() => {
++    let cancelled = false;
++    setData(null);
++    setError(null);
++    Promise.all([
++      analyticsApi.overview(range),
++      analyticsApi.salesByCategory(range),
++      analyticsApi.paymentMix(range),
++      analyticsApi.topProducts(range),
++      analyticsApi.topCustomers(range),
++      analyticsApi.staffPerformance(range),
++      analyticsApi.inventorySnapshot(),
++    ])
++      .then(([overview, categories, payments, products, customers, staff, inventory]) => {
++        if (cancelled) return;
++        setData({ overview, categories, payments, products, customers, staff, inventory });
++      })
++      .catch((err) => {
++        if (cancelled) return;
++        setError(err instanceof Error ? err.message : 'Could not load analytics');
++      });
++    return () => {
++      cancelled = true;
++    };
++  }, [range.from, range.to]);
++
++  if (!hasPermission('ANALYTICS')) {
++    return (
++      <div className="p-6">
++        <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
++          You don&apos;t have access to this page.
++        </p>
++      </div>
++    );
++  }
++
++  const o = data?.overview;
++  const prev = o?.previous;
++  const paymentSlices = (data?.payments ?? []).map((row) => ({
++    ...row,
++    key: row.method ?? 'UNSPECIFIED',
++    label: row.method ? paymentLabel(row.method) : 'Unspecified',
++  }));
++
++  return (
++    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-5 p-4 sm:p-6">
++      <div>
++        <h1 className="text-lg font-semibold tracking-tight" style={{ color: 'var(--color-ink-900)' }}>
++          Analytics
++        </h1>
++        <p className="mt-0.5 text-sm" style={{ color: 'var(--color-ink-600)' }}>
++          Revenue, margin and mix over a period. Sales count once settled — paid, or invoiced and still open.
++        </p>
++      </div>
++
++      <RangeBar range={range} preset={preset} onPreset={setPreset} onBound={setBound} />
++
++      {error && (
++        <div className="rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
++          {error}
++        </div>
++      )}
++
++      {!data && !error && (
++        <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 xl:grid-cols-4">
++          {[...Array(4)].map((_, i) => (
++            <div key={i} className="h-28 animate-pulse rounded-lg" style={{ backgroundColor: 'var(--color-border)' }} />
++          ))}
++        </div>
++      )}
++
++      {o && (
++        <>
++          <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 xl:grid-cols-4">
++            <StatCard
++              label="Revenue"
++              value={money(o.revenue)}
++              sub={`${o.ordersCount} ${plural(o.ordersCount, 'sale')}`}
++              icon={CircleDollarSign}
++              tone="neutral"
++              trend={prev ? trendBetween(o.revenue, prev.revenue) : null}
++              trendComparison="vs previous period"
++            />
++            <StatCard
++              label="Gross profit"
++              value={money(o.grossProfit)}
++              sub={o.marginPct === null ? 'No sales in range' : `${o.marginPct.toFixed(1)}% margin · ${money(o.cogs)} cost`}
++              icon={TrendingUp}
++              tone={o.grossProfit >= 0 ? 'ok' : 'bad'}
++              trend={prev ? trendBetween(o.grossProfit, prev.grossProfit) : null}
++              trendComparison="vs previous period"
++            />
++            <StatCard
++              label="Average sale"
++              value={money(o.avgOrderValue)}
++              sub={`${o.ordersCount} ${plural(o.ordersCount, 'sale')} in range`}
++              icon={ShoppingCart}
++              tone="neutral"
++              trend={prev ? trendBetween(o.avgOrderValue, prev.avgOrderValue) : null}
++              trendComparison="vs previous period"
++            />
++            <StatCard
++              label="Returns"
++              value={money(o.returnsTotal)}
++              sub={`${o.returnsCount} ${plural(o.returnsCount, 'return')} credited back`}
++              icon={Undo2}
++              tone={o.returnsCount > 0 ? 'warn' : 'ok'}
++            />
++          </div>
++
++          <SectionCard title="Revenue" description="Settled sales per day" icon={TrendingUp}>
++            {o.chart.length > 1 ? (
++              <div className="h-56 w-full sm:h-64">
++                <ResponsiveContainer width="100%" height="100%">
++                  <LineChart data={o.chart} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
++                    <XAxis dataKey="date" tickFormatter={fmtDate} tick={AXIS_TICK} axisLine={false} tickLine={false} minTickGap={24} />
++                    <YAxis tickFormatter={shortMoney} tick={AXIS_TICK} axisLine={false} tickLine={false} width={40} />
++                    <Tooltip formatter={(v: number) => money(v)} labelFormatter={fmtDate} contentStyle={TOOLTIP_STYLE} cursor={{ stroke: 'var(--color-border)' }} />
++                    <Line type="monotone" dataKey="total" stroke="var(--color-accent)" strokeWidth={2} dot={false} />
++                  </LineChart>
++                </ResponsiveContainer>
++              </div>
++            ) : (
++              <Empty line="Not enough days with sales in this range to draw a trend." />
++            )}
++          </SectionCard>
++
++          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
++            <SectionCard title="Sales by category" description="Revenue share of the catalogue" icon={BarChart3}>
++              {data.categories.length > 0 ? (
++                <div className="h-56 w-full sm:h-64">
++                  <ResponsiveContainer width="100%" height="100%">
++                    <BarChart data={data.categories.slice(0, 8)} layout="vertical" margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>
++                      <XAxis type="number" tickFormatter={shortMoney} tick={AXIS_TICK} axisLine={false} tickLine={false} />
++                      <YAxis
++                        type="category"
++                        dataKey="name"
++                        tickFormatter={(v: string) => truncate(v, 14)}
++                        tick={AXIS_TICK}
++                        axisLine={false}
++                        tickLine={false}
++                        width={92}
++                      />
++                      <Tooltip formatter={(v: number) => money(v)} contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'var(--color-bg)' }} />
++                      <Bar dataKey="revenue" fill="var(--color-accent)" radius={[0, 3, 3, 0]} />
++                    </BarChart>
++                  </ResponsiveContainer>
++                </div>
++              ) : (
++                <Empty line="Nothing sold in this range." />
++              )}
++            </SectionCard>
++
++            <SectionCard title="Payment mix" description="How settled sales were paid" icon={PieChartIcon}>
++              {paymentSlices.length > 0 ? (
++                <div className="flex flex-col items-center gap-4 sm:flex-row">
++                  <div className="h-44 w-full sm:w-1/2">
++                    <ResponsiveContainer width="100%" height="100%">
++                      <PieChart>
++                        <Pie data={paymentSlices} dataKey="total" nameKey="label" innerRadius={38} outerRadius={64} paddingAngle={2}>
++                          {paymentSlices.map((slice) => (
++                            <Cell key={slice.key} fill={paymentColor(slice.key)} stroke="none" />
++                          ))}
++                        </Pie>
++                        <Tooltip formatter={(v: number) => money(v)} contentStyle={TOOLTIP_STYLE} />
++                      </PieChart>
++                    </ResponsiveContainer>
++                  </div>
++                  <div className="flex w-full flex-col gap-2 sm:w-1/2">
++                    {paymentSlices.map((slice) => (
++                      <div key={slice.key} className="flex items-center gap-2 text-sm">
++                        <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: paymentColor(slice.key) }} />
++                        <span className="min-w-0 flex-1 truncate" style={{ color: 'var(--color-ink-600)' }}>
++                          {slice.label}
++                        </span>
++                        <span className="data-num font-medium" style={{ color: 'var(--color-ink-900)' }}>
++                          {money(slice.total)}
++                        </span>
++                      </div>
++                    ))}
++                  </div>
++                </div>
++              ) : (
++                <Empty line="No settled sales recorded a payment method in this range." />
++              )}
++            </SectionCard>
++          </div>
++
++          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
++            <SectionCard title="Top products" description="By revenue in range" icon={Receipt} iconTone="ok">
++              <div className="flex flex-col">
++                {data.products.length === 0 && <Empty line="Nothing sold in this range." />}
++                {data.products.map((p, i) => (
++                  <ListRow key={p.id} marker={<RankRow index={i} />} title={p.name} meta={`${p.unitsSold} sold`} value={money(p.revenue)} />
++                ))}
++              </div>
++            </SectionCard>
++
++            <SectionCard title="Top customers" description="By revenue in range" icon={Users} iconTone="neutral">
++              <div className="flex flex-col">
++                {data.customers.length === 0 && <Empty line="No sales were attached to a customer in this range." />}
++                {data.customers.map((c, i) => (
++                  <ListRow
++                    key={c.id}
++                    marker={<RankRow index={i} />}
++                    title={c.name}
++                    meta={`${c.orderCount} ${plural(c.orderCount, 'sale')}`}
++                    value={money(c.revenue)}
++                  />
++                ))}
++              </div>
++            </SectionCard>
++          </div>
++
++          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
++            <SectionCard title="Staff performance" description="Sales rung up, by who raised the document" icon={UserRound} iconTone="neutral">
++              <div className="flex flex-col">
++                {data.staff.length === 0 && <Empty line="No settled sales in this range." />}
++                {data.staff.map((s, i) => (
++                  <ListRow
++                    key={s.id}
++                    marker={<RankRow index={i} />}
++                    title={s.name}
++                    meta={`${s.orderCount} ${plural(s.orderCount, 'sale')} · ${money(s.avgOrderValue)} average`}
++                    value={money(s.revenue)}
++                  />
++                ))}
++              </div>
++            </SectionCard>
++
++            <SectionCard
++              title="Stock on hand"
++              description="Valued at last received cost — a snapshot of right now, not the range"
++              icon={Boxes}
++              iconTone={data.inventory.uncostedUnits > 0 ? 'warn' : 'neutral'}
++            >
++              <p className="data-num mb-3 text-xl font-semibold" style={{ color: 'var(--color-ink-900)' }}>
++                {money(data.inventory.totalValue)}
++              </p>
++              {data.inventory.uncostedUnits > 0 && (
++                <p className="mb-3 text-xs" style={{ color: 'var(--color-status-warn)' }}>
++                  {data.inventory.uncostedUnits} {plural(data.inventory.uncostedUnits, 'unit')} have no recorded cost, so this figure is understated.
++                </p>
++              )}
++              <div className="flex flex-col">
++                {data.inventory.categories.length === 0 && <Empty line="No active products in the catalogue." />}
++                {data.inventory.categories.slice(0, 8).map((c) => (
++                  <ListRow key={c.id} title={c.name} meta={`${c.qty} ${plural(c.qty, 'unit')}`} value={money(c.value)} />
++                ))}
++              </div>
++            </SectionCard>
++          </div>
++        </>
++      )}
++    </div>
++  );
++}
+diff -ruN '--exclude=.git' a/apps/web/src/app/(app)/reports/page.tsx b/apps/web/src/app/(app)/reports/page.tsx
+--- a/apps/web/src/app/(app)/reports/page.tsx	1970-01-01 00:00:00.000000000 +0000
++++ b/apps/web/src/app/(app)/reports/page.tsx	2026-09-21 14:14:04.637071089 +0000
+@@ -0,0 +1,318 @@
++'use client';
++
++import { useEffect, useMemo, useState } from 'react';
++import { Download, FileBarChart, Undo2 } from 'lucide-react';
++import { useAuth } from '../../../lib/auth-context';
++import { documentsApi, type SaleDocument } from '../../../lib/documents-api';
++import { reportsApi, type ReturnRow } from '../../../lib/analytics-api';
++import { RangeBar, useDateRange } from '../../../components/insights/RangeBar';
++import { StatCard } from '../../../components/dashboard/DashboardPrimitives';
++import { money, plural } from '../../../components/dashboard/dashboard-derive';
++
++type Tab = 'sales' | 'returns';
++
++const SETTLED: SaleDocument['status'][] = ['INVOICED', 'PAID'];
++
++const STATUS_BADGE: Record<string, { label: string; bg: string; fg: string }> = {
++  DRAFT: { label: 'Delivery note', bg: 'var(--color-bg)', fg: 'var(--color-ink-600)' },
++  QUOTED: { label: 'Quote', bg: 'var(--color-accent-soft)', fg: 'var(--color-accent)' },
++  INVOICED: { label: 'Invoiced', bg: 'var(--color-status-warnSoft)', fg: 'var(--color-status-warn)' },
++  PAID: { label: 'Paid', bg: 'var(--color-status-okSoft)', fg: 'var(--color-status-ok)' },
++  CANCELLED: { label: 'Cancelled', bg: 'var(--color-status-badSoft)', fg: 'var(--color-status-bad)' },
++};
++
++function fmtDateTime(iso: string) {
++  return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(iso));
++}
++
++function docNumber(doc: SaleDocument) {
++  return doc.receiptNumber ?? doc.invoiceNumber ?? doc.quoteNumber ?? doc.deliveryNoteNumber ?? '—';
++}
++
++function customerLabel(doc: SaleDocument) {
++  return doc.customer?.businessName || doc.customer?.name || doc.customerName || 'Walk-in';
++}
++
++/**
++ * Quotes a CSV cell the way a spreadsheet expects, and defuses the leading
++ * =/+/-/@ that Excel would otherwise execute as a formula — customer names
++ * and note fields are free text typed by staff.
++ */
++function csvCell(value: string | number) {
++  const text = String(value ?? '');
++  const safe = /^[=+\-@]/.test(text) ? `'${text}` : text;
++  return `"${safe.replace(/"/g, '""')}"`;
++}
++
++function downloadCsv(filename: string, rows: (string | number)[][]) {
++  const body = rows.map((row) => row.map(csvCell).join(',')).join('\r\n');
++  // BOM so Excel opens it as UTF-8 rather than mangling anything non-ASCII.
++  const blob = new Blob([`\uFEFF${body}`], { type: 'text/csv;charset=utf-8' });
++  const url = URL.createObjectURL(blob);
++  const a = document.createElement('a');
++  a.href = url;
++  a.download = filename;
++  document.body.appendChild(a);
++  a.click();
++  a.remove();
++  URL.revokeObjectURL(url);
++}
++
++export default function ReportsPage() {
++  const { hasPermission } = useAuth();
++  const { range, preset, setPreset, setBound } = useDateRange('30d');
++  const [tab, setTab] = useState<Tab>('sales');
++  const [docs, setDocs] = useState<SaleDocument[] | null>(null);
++  const [returns, setReturns] = useState<ReturnRow[] | null>(null);
++  const [error, setError] = useState<string | null>(null);
++
++  useEffect(() => {
++    let cancelled = false;
++    setDocs(null);
++    setReturns(null);
++    setError(null);
++    Promise.all([documentsApi.list({ from: range.from, to: range.to }), reportsApi.returns()])
++      .then(([documents, returnRows]) => {
++        if (cancelled) return;
++        setDocs(documents);
++        // The returns endpoint takes a limit, not a range, so the range is
++        // applied here rather than asking for a filter the API doesn't have.
++        setReturns(returnRows.filter((r) => r.createdAt.slice(0, 10) >= range.from && r.createdAt.slice(0, 10) <= range.to));
++      })
++      .catch((err) => {
++        if (cancelled) return;
++        setError(err instanceof Error ? err.message : 'Could not load reports');
++      });
++    return () => {
++      cancelled = true;
++    };
++  }, [range.from, range.to]);
++
++  const settled = useMemo(() => (docs ?? []).filter((d) => SETTLED.includes(d.status)), [docs]);
++  const settledTotal = settled.reduce((sum, d) => sum + d.total, 0);
++  const unpaidTotal = settled.filter((d) => d.status === 'INVOICED').reduce((sum, d) => sum + d.total, 0);
++  const returnsTotal = (returns ?? []).reduce((sum, r) => sum + r.total, 0);
++
++  function exportCurrentTab() {
++    if (tab === 'sales') {
++      downloadCsv(`sales-${range.from}-to-${range.to}.csv`, [
++        ['Date', 'Number', 'Type', 'Status', 'Customer', 'Raised by', 'Payment', 'Total'],
++        ...(docs ?? []).map((d) => [
++          d.createdAt.slice(0, 10),
++          docNumber(d),
++          d.type,
++          d.status,
++          customerLabel(d),
++          d.createdBy?.name ?? '',
++          d.paymentMethod ?? '',
++          d.total,
++        ]),
++      ]);
++      return;
++    }
++    downloadCsv(`returns-${range.from}-to-${range.to}.csv`, [
++      ['Date', 'Return number', 'Against', 'Refund method', 'Reason', 'Items', 'Total'],
++      ...(returns ?? []).map((r) => [
++        r.createdAt.slice(0, 10),
++        r.returnNumber,
++        r.document?.receiptNumber ?? r.document?.invoiceNumber ?? '',
++        r.refundMethod ?? '',
++        r.reason ?? '',
++        r.items.length,
++        r.total,
++      ]),
++    ]);
++  }
++
++  if (!hasPermission('REPORTS')) {
++    return (
++      <div className="p-6">
++        <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
++          You don&apos;t have access to this page.
++        </p>
++      </div>
++    );
++  }
++
++  const loading = docs === null && returns === null && !error;
++  const rowCount = tab === 'sales' ? docs?.length ?? 0 : returns?.length ?? 0;
++
++  return (
++    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-5 p-4 sm:p-6">
++      <div>
++        <h1 className="text-lg font-semibold tracking-tight" style={{ color: 'var(--color-ink-900)' }}>
++          Reports
++        </h1>
++        <p className="mt-0.5 text-sm" style={{ color: 'var(--color-ink-600)' }}>
++          Every document raised in a period, line by line — the register to reconcile the till against.
++        </p>
++      </div>
++
++      <RangeBar
++        range={range}
++        preset={preset}
++        onPreset={setPreset}
++        onBound={setBound}
++        trailing={
++          <button
++            type="button"
++            onClick={exportCurrentTab}
++            disabled={rowCount === 0}
++            className="ml-auto flex min-h-9 items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium disabled:opacity-50"
++            style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)', backgroundColor: 'var(--color-surface)' }}
++          >
++            <Download size={14} strokeWidth={2} />
++            Export CSV
++          </button>
++        }
++      />
++
++      {error && (
++        <div className="rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
++          {error}
++        </div>
++      )}
++
++      <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 xl:grid-cols-4">
++        <StatCard label="Settled sales" value={money(settledTotal)} sub={`${settled.length} ${plural(settled.length, 'document')}`} icon={FileBarChart} />
++        <StatCard
++          label="Still unpaid"
++          value={money(unpaidTotal)}
++          sub="Invoiced, not yet settled"
++          icon={FileBarChart}
++          tone={unpaidTotal > 0 ? 'warn' : 'ok'}
++        />
++        <StatCard
++          label="Returns"
++          value={money(returnsTotal)}
++          sub={`${returns?.length ?? 0} ${plural(returns?.length ?? 0, 'return')}`}
++          icon={Undo2}
++          tone={returnsTotal > 0 ? 'warn' : 'ok'}
++        />
++        <StatCard label="Net of returns" value={money(settledTotal - returnsTotal)} sub="Settled sales less credits" icon={FileBarChart} tone="ok" />
++      </div>
++
++      <div className="flex gap-1.5">
++        {(['sales', 'returns'] as Tab[]).map((key) => {
++          const active = tab === key;
++          return (
++            <button
++              key={key}
++              type="button"
++              onClick={() => setTab(key)}
++              className="rounded-md border px-3 py-1.5 text-xs font-medium"
++              style={{
++                borderColor: active ? 'var(--color-accent)' : 'var(--color-border)',
++                color: active ? 'var(--color-accent)' : 'var(--color-ink-600)',
++              }}
++            >
++              {key === 'sales' ? 'Sales register' : 'Returns'}
++            </button>
++          );
++        })}
++      </div>
++
++      <div className="overflow-hidden rounded-lg border" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
++        <div className="overflow-x-auto">
++          <table className="w-full text-sm">
++            <thead>
++              <tr className="border-b text-left" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)' }}>
++                {(tab === 'sales'
++                  ? ['Date', 'Number', 'Customer', 'Raised by', 'Payment', 'Status', 'Total']
++                  : ['Date', 'Return', 'Against', 'Refund', 'Reason', 'Items', 'Total']
++                ).map((heading, i, all) => (
++                  <th
++                    key={heading}
++                    className={`whitespace-nowrap px-4 py-2.5 font-medium ${i === all.length - 1 ? 'text-right' : ''}`}
++                    style={{ color: 'var(--color-ink-600)' }}
++                  >
++                    {heading}
++                  </th>
++                ))}
++              </tr>
++            </thead>
++            <tbody>
++              {loading &&
++                [...Array(5)].map((_, i) => (
++                  <tr key={i} className="border-b" style={{ borderColor: 'var(--color-border)' }}>
++                    <td className="px-4 py-3" colSpan={7}>
++                      <div className="h-4 w-2/3 animate-pulse rounded" style={{ backgroundColor: 'var(--color-border)' }} />
++                    </td>
++                  </tr>
++                ))}
++
++              {!loading && rowCount === 0 && (
++                <tr>
++                  <td className="px-4 py-10 text-center text-sm" colSpan={7} style={{ color: 'var(--color-ink-600)' }}>
++                    Nothing was recorded in this period.
++                  </td>
++                </tr>
++              )}
++
++              {tab === 'sales' &&
++                docs?.map((d) => {
++                  const badge = STATUS_BADGE[d.status];
++                  return (
++                    <tr key={d.id} className="border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
++                      <td className="whitespace-nowrap px-4 py-3" style={{ color: 'var(--color-ink-600)' }}>
++                        {fmtDateTime(d.createdAt)}
++                      </td>
++                      <td className="data-num whitespace-nowrap px-4 py-3" style={{ color: 'var(--color-ink-900)' }}>
++                        {docNumber(d)}
++                      </td>
++                      <td className="max-w-[220px] truncate px-4 py-3" style={{ color: 'var(--color-ink-900)' }}>
++                        {customerLabel(d)}
++                      </td>
++                      <td className="whitespace-nowrap px-4 py-3" style={{ color: 'var(--color-ink-600)' }}>
++                        {d.createdBy?.name ?? '—'}
++                      </td>
++                      <td className="whitespace-nowrap px-4 py-3" style={{ color: 'var(--color-ink-600)' }}>
++                        {d.paymentMethod ?? '—'}
++                      </td>
++                      <td className="whitespace-nowrap px-4 py-3">
++                        {badge && (
++                          <span className="rounded px-1.5 py-0.5 text-[11px] font-medium" style={{ backgroundColor: badge.bg, color: badge.fg }}>
++                            {badge.label}
++                          </span>
++                        )}
++                      </td>
++                      <td className="data-num whitespace-nowrap px-4 py-3 text-right font-medium" style={{ color: 'var(--color-ink-900)' }}>
++                        {money(d.total)}
++                      </td>
++                    </tr>
++                  );
++                })}
++
++              {tab === 'returns' &&
++                returns?.map((r) => (
++                  <tr key={r.id} className="border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
++                    <td className="whitespace-nowrap px-4 py-3" style={{ color: 'var(--color-ink-600)' }}>
++                      {fmtDateTime(r.createdAt)}
++                    </td>
++                    <td className="data-num whitespace-nowrap px-4 py-3" style={{ color: 'var(--color-ink-900)' }}>
++                      {r.returnNumber}
++                    </td>
++                    <td className="data-num whitespace-nowrap px-4 py-3" style={{ color: 'var(--color-ink-600)' }}>
++                      {r.document?.receiptNumber ?? r.document?.invoiceNumber ?? '—'}
++                    </td>
++                    <td className="whitespace-nowrap px-4 py-3" style={{ color: 'var(--color-ink-600)' }}>
++                      {r.refundMethod ?? '—'}
++                    </td>
++                    <td className="max-w-[220px] truncate px-4 py-3" style={{ color: 'var(--color-ink-600)' }}>
++                      {r.reason ?? '—'}
++                    </td>
++                    <td className="data-num whitespace-nowrap px-4 py-3" style={{ color: 'var(--color-ink-600)' }}>
++                      {r.items.length}
++                    </td>
++                    <td className="data-num whitespace-nowrap px-4 py-3 text-right font-medium" style={{ color: 'var(--color-status-warn)' }}>
++                      {money(r.total)}
++                    </td>
++                  </tr>
++                ))}
++            </tbody>
++          </table>
++        </div>
++      </div>
++    </div>
++  );
++}
+diff -ruN '--exclude=.git' a/apps/web/src/components/insights/RangeBar.tsx b/apps/web/src/components/insights/RangeBar.tsx
+--- a/apps/web/src/components/insights/RangeBar.tsx	1970-01-01 00:00:00.000000000 +0000
++++ b/apps/web/src/components/insights/RangeBar.tsx	2026-09-21 14:12:26.177065236 +0000
+@@ -0,0 +1,136 @@
++'use client';
++
++import { useMemo, useState } from 'react';
++import { CalendarRange } from 'lucide-react';
++import type { DateRange } from '../../lib/analytics-api';
++
++export type PresetKey = 'today' | '7d' | '30d' | 'month' | 'custom';
++
++const PRESETS: { key: PresetKey; label: string }[] = [
++  { key: 'today', label: 'Today' },
++  { key: '7d', label: '7 days' },
++  { key: '30d', label: '30 days' },
++  { key: 'month', label: 'This month' },
++  { key: 'custom', label: 'Custom' },
++];
++
++/**
++ * Local calendar day as YYYY-MM-DD. Deliberately not toISOString(), which
++ * shifts to UTC and hands the backend yesterday's date for anyone east of
++ * Greenwich — Nairobi is UTC+3, so every "Today" before 3am would have been
++ * wrong.
++ */
++export function isoDay(date: Date) {
++  const pad = (n: number) => String(n).padStart(2, '0');
++  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
++}
++
++export function rangeForPreset(key: Exclude<PresetKey, 'custom'>, now = new Date()): DateRange {
++  const today = isoDay(now);
++  if (key === 'today') return { from: today, to: today };
++  if (key === 'month') return { from: isoDay(new Date(now.getFullYear(), now.getMonth(), 1)), to: today };
++  const days = key === '7d' ? 6 : 29;
++  const start = new Date(now);
++  start.setDate(start.getDate() - days);
++  return { from: isoDay(start), to: today };
++}
++
++export function useDateRange(initial: Exclude<PresetKey, 'custom'> = '30d') {
++  const [preset, setPresetState] = useState<PresetKey>(initial);
++  const [range, setRange] = useState<DateRange>(() => rangeForPreset(initial));
++
++  function setPreset(key: PresetKey) {
++    setPresetState(key);
++    if (key !== 'custom') setRange(rangeForPreset(key));
++  }
++
++  function setBound(which: 'from' | 'to', value: string) {
++    if (!value) return;
++    setPresetState('custom');
++    setRange((current) => {
++      const next = { ...current, [which]: value };
++      // Keep the range the right way round rather than letting the server
++      // reject it — picking a "from" past the current "to" almost always
++      // means the person is starting a new range, not asking for an error.
++      if (next.from > next.to) return which === 'from' ? { from: value, to: value } : { from: value, to: value };
++      return next;
++    });
++  }
++
++  return { range, preset, setPreset, setBound };
++}
++
++export function RangeBar({
++  range,
++  preset,
++  onPreset,
++  onBound,
++  trailing,
++}: {
++  range: DateRange;
++  preset: PresetKey;
++  onPreset: (key: PresetKey) => void;
++  onBound: (which: 'from' | 'to', value: string) => void;
++  trailing?: React.ReactNode;
++}) {
++  const label = useMemo(() => {
++    const fmt = (iso: string) => new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' }).format(new Date(`${iso}T00:00:00`));
++    return range.from === range.to ? fmt(range.from) : `${fmt(range.from)} – ${fmt(range.to)}`;
++  }, [range]);
++
++  return (
++    <div className="flex flex-wrap items-center gap-2">
++      <div className="flex flex-wrap gap-1.5">
++        {PRESETS.map((p) => {
++          const active = preset === p.key;
++          return (
++            <button
++              key={p.key}
++              type="button"
++              onClick={() => onPreset(p.key)}
++              className="rounded-md border px-3 py-1.5 text-xs font-medium transition-colors"
++              style={{
++                borderColor: active ? 'var(--color-accent)' : 'var(--color-border)',
++                color: active ? 'var(--color-accent)' : 'var(--color-ink-600)',
++                backgroundColor: active ? 'var(--color-accent-soft)' : 'var(--color-surface)',
++              }}
++            >
++              {p.label}
++            </button>
++          );
++        })}
++      </div>
++
++      {preset === 'custom' ? (
++        <div className="flex items-center gap-1.5">
++          <input
++            type="date"
++            value={range.from}
++            max={range.to}
++            onChange={(e) => onBound('from', e.target.value)}
++            className="rounded-md border px-2.5 py-1.5 text-xs outline-none"
++            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}
++          />
++          <span className="text-xs" style={{ color: 'var(--color-ink-500)' }}>
++            to
++          </span>
++          <input
++            type="date"
++            value={range.to}
++            min={range.from}
++            onChange={(e) => onBound('to', e.target.value)}
++            className="rounded-md border px-2.5 py-1.5 text-xs outline-none"
++            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}
++          />
++        </div>
++      ) : (
++        <span className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--color-ink-500)' }}>
++          <CalendarRange size={13} strokeWidth={2} />
++          {label}
++        </span>
++      )}
++
++      {trailing}
++    </div>
++  );
++}
+diff -ruN '--exclude=.git' a/apps/web/src/lib/analytics-api.ts b/apps/web/src/lib/analytics-api.ts
+--- a/apps/web/src/lib/analytics-api.ts	1970-01-01 00:00:00.000000000 +0000
++++ b/apps/web/src/lib/analytics-api.ts	2026-09-21 14:12:02.673063839 +0000
+@@ -0,0 +1,110 @@
++import { api } from './api';
++
++// A calendar range, inclusive at both ends, in the YYYY-MM-DD form the
++// analytics controller parses. "to" is widened to end-of-day server-side
++// (see parseRange), so a single-day range is from === to.
++export interface DateRange {
++  from: string;
++  to: string;
++}
++
++export interface AnalyticsOverview {
++  revenue: number;
++  ordersCount: number;
++  avgOrderValue: number;
++  cogs: number;
++  grossProfit: number;
++  // Null when nothing sold in the range — a margin on zero revenue is not
++  // 0%, it's undefined, and the service is careful to say so.
++  marginPct: number | null;
++  returnsTotal: number;
++  returnsCount: number;
++  chart: { date: string; total: number }[];
++  previous?: {
++    revenue: number;
++    ordersCount: number;
++    avgOrderValue: number;
++    grossProfit: number;
++  };
++}
++
++export interface CategorySalesRow {
++  id: string;
++  name: string;
++  revenue: number;
++  unitsSold: number;
++}
++
++export interface PaymentMixRow {
++  method: string | null;
++  total: number;
++  count: number;
++}
++
++export interface TopProductRow {
++  id: string;
++  name: string;
++  unitsSold: number;
++  revenue: number;
++}
++
++export interface TopCustomerRow {
++  id: string;
++  name: string;
++  revenue: number;
++  orderCount: number;
++}
++
++export interface StaffPerformanceRow {
++  id: string;
++  name: string;
++  revenue: number;
++  orderCount: number;
++  avgOrderValue: number;
++}
++
++export interface InventorySnapshot {
++  totalValue: number;
++  // Units sitting in the yard with no recorded cost — they contribute
++  // nothing to totalValue, so a large number here means the valuation is
++  // understated and someone needs to back-fill costs.
++  uncostedUnits: number;
++  categories: { id: string; name: string; qty: number; value: number }[];
++}
++
++export interface ReturnRow {
++  id: string;
++  returnNumber: string;
++  documentId: string;
++  total: number;
++  refundMethod: 'CASH' | 'MPESA' | null;
++  reason: string | null;
++  createdAt: string;
++  createdBy: { name: string };
++  document: { id: string; receiptNumber: string | null; invoiceNumber: string | null } | null;
++  items: { id: string; description: string; qty: number; unitPrice: number; lineTotal: number }[];
++}
++
++function rangeQuery(range: DateRange, extra: Record<string, string | number | undefined> = {}) {
++  const qs = new URLSearchParams({ from: range.from, to: range.to });
++  for (const [key, value] of Object.entries(extra)) {
++    if (value !== undefined) qs.set(key, String(value));
++  }
++  return `?${qs.toString()}`;
++}
++
++export const analyticsApi = {
++  overview: (range: DateRange, compare = true) =>
++    api.get<AnalyticsOverview>(`/analytics/overview${rangeQuery(range, { compare: compare ? undefined : 'false' })}`),
++  salesByCategory: (range: DateRange) => api.get<CategorySalesRow[]>(`/analytics/sales-by-category${rangeQuery(range)}`),
++  paymentMix: (range: DateRange) => api.get<PaymentMixRow[]>(`/analytics/payment-mix${rangeQuery(range)}`),
++  topProducts: (range: DateRange, limit = 10) => api.get<TopProductRow[]>(`/analytics/top-products${rangeQuery(range, { limit })}`),
++  topCustomers: (range: DateRange, limit = 10) => api.get<TopCustomerRow[]>(`/analytics/top-customers${rangeQuery(range, { limit })}`),
++  staffPerformance: (range: DateRange) => api.get<StaffPerformanceRow[]>(`/analytics/staff-performance${rangeQuery(range)}`),
++  // Deliberately range-free: what the yard holds right now, not over a period.
++  inventorySnapshot: () => api.get<InventorySnapshot>('/analytics/inventory-snapshot'),
++};
++
++export const reportsApi = {
++  returns: (limit = 200) => api.get<ReturnRow[]>(`/documents/returns/recent?limit=${limit}`),
++};
+diff -ruN '--exclude=.git' a/apps/web/src/lib/documents-api.ts b/apps/web/src/lib/documents-api.ts
+--- a/apps/web/src/lib/documents-api.ts	2026-09-20 06:29:34.000000000 +0000
++++ b/apps/web/src/lib/documents-api.ts	2026-09-21 14:14:13.751649251 +0000
+@@ -67,11 +67,16 @@
+ }
+ 
+ export const documentsApi = {
+-  list: (params: { status?: DocumentStatus; type?: DocumentType; search?: string } = {}) => {
++  // `from`/`to` are YYYY-MM-DD calendar days, inclusive at both ends — the
++  // backend widens `to` to the end of that day. The API has always accepted
++  // them; Reports is the first caller to need them.
++  list: (params: { status?: DocumentStatus; type?: DocumentType; search?: string; from?: string; to?: string } = {}) => {
+     const qs = new URLSearchParams();
+     if (params.status) qs.set('status', params.status);
+     if (params.type) qs.set('type', params.type);
+     if (params.search) qs.set('search', params.search);
++    if (params.from) qs.set('from', params.from);
++    if (params.to) qs.set('to', params.to);
+     const s = qs.toString();
+     return api.get<SaleDocument[]>(`/documents${s ? `?${s}` : ''}`);
+   },

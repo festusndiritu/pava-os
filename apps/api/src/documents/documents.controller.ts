@@ -6,7 +6,7 @@ import { PermissionsGuard } from '../auth/permissions.guard.js';
 import { Permissions } from '../auth/permissions.decorator.js';
 import { Module } from '../../generated/prisma/client.js';
 import { CreatePosSaleDto, SuspendOrderDto } from './dto/pos-sale.dto.js';
-import { CreateDocumentDto, ConvertToInvoiceDto, MarkPaidDto } from './dto/document.dto.js';
+import { CreateDocumentDto, ConvertToInvoiceDto, MarkPaidDto, CreateDeliveryNoteDto } from './dto/document.dto.js';
 import { CreateReturnDto } from './dto/return.dto.js';
 import { ReturnsService } from './returns.service.js';
 
@@ -18,6 +18,16 @@ export class DocumentsController {
     private returns: ReturnsService,
   ) {}
 
+  // Listing/detail were previously ungated — any authenticated user, even
+  // one with none of these modules, could read every quote/invoice/receipt/
+  // delivery note in the business. Gated to the same OR-set already used on
+  // create/convert/cancel below, since that's what actually consumes it
+  // (Quotes, Invoices and POS pages/returns all read through here).
+  // REPORTS is in the set because the Reports page is a read-only register
+  // of exactly this data — granting it without one of the selling modules
+  // would otherwise show an empty page behind a nav link the person can see.
+  @UseGuards(PermissionsGuard)
+  @Permissions(Module.QUOTES, Module.INVOICES, Module.POS, Module.REPORTS)
   @Get()
   findAll(
     @Query('status') status?: DocumentStatus,
@@ -29,6 +39,10 @@ export class DocumentsController {
     return this.documents.findAll({ status, type, from, to, search });
   }
 
+  // Same reasoning as findAll above — a sales aggregate shouldn't be
+  // readable by someone with none of the selling modules.
+  @UseGuards(PermissionsGuard)
+  @Permissions(Module.QUOTES, Module.INVOICES, Module.POS, Module.REPORTS)
   @Get('reports/sales-summary')
   salesSummary(@Query('days') days?: string) {
     return this.documents.salesSummary(days ? parseInt(days) : 30);
@@ -42,13 +56,16 @@ export class DocumentsController {
     return this.documents.listSuspended();
   }
 
+  // POS raises returns; Reports only reads the log of them.
   @UseGuards(PermissionsGuard)
-  @Permissions(Module.POS)
+  @Permissions(Module.POS, Module.REPORTS)
   @Get('returns/recent')
   listReturns(@Query('limit') limit?: string) {
     return this.returns.list(limit ? parseInt(limit) : 50);
   }
 
+  @UseGuards(PermissionsGuard)
+  @Permissions(Module.QUOTES, Module.INVOICES, Module.POS)
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.documents.findOne(id);
@@ -122,7 +139,7 @@ export class DocumentsController {
   // and the till operator may not hold QUOTES/INVOICES access.
   @Permissions(Module.QUOTES, Module.INVOICES, Module.POS)
   @Post(':id/delivery-note')
-  createDeliveryNote(@Param('id') id: string, @Req() req: any) {
-    return this.documents.createDeliveryNote(id, req.user.sub);
+  createDeliveryNote(@Param('id') id: string, @Req() req: any, @Body() body: CreateDeliveryNoteDto) {
+    return this.documents.createDeliveryNote(id, req.user.sub, body?.deliveryLocation, body?.deliveryPhone);
   }
 }

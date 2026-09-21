@@ -5,7 +5,7 @@ import { Copy, Megaphone, Printer, Share2 } from 'lucide-react';
 import { productsApi, type Product } from '../../../lib/products-api';
 import { thicknessLabel } from '../../../lib/shape-config';
 import { settingsApi, type BusinessSettings } from '../../../lib/settings-api';
-import { shareElementAsPdf } from '../../../lib/pdf';
+import { sharePricelistAsPdf } from '../../../lib/pdf/document-pdf';
 
 export default function MarketingPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -91,7 +91,20 @@ export default function MarketingPage() {
     setSharing(true);
     setShareNotice(null);
     try {
-      const result = await shareElementAsPdf('print-area', `${title.trim() || 'pricelist'}.pdf`, title);
+      const result = await sharePricelistAsPdf({
+        title: title.trim() || 'PAVA STEEL HARDWARE',
+        address: settings?.address ?? null,
+        phone: settings?.phone ?? null,
+        email: settings?.email ?? null,
+        categories: groupedSelected.map(([category, items]) => ({
+          name: category,
+          items: items.map((p) => ({
+            id: p.id,
+            label: [p.displayName ?? p.name, [p.nominalSize, thicknessLabel(p.shape, p.thicknessMm)].filter(Boolean).join(' ')].filter(Boolean).join(' — '),
+            price: p.basePrice,
+          })),
+        })),
+      });
       setShareNotice(result === 'shared' ? 'Shared.' : 'Downloaded — attach it in WhatsApp or wherever you need it.');
     } catch {
       setShareNotice('Could not generate the PDF.');

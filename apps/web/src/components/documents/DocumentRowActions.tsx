@@ -84,7 +84,10 @@ export function DocumentRowActions({
           />
         )}
         {canDeliveryNote && (
-          <ActionButton label="Create delivery note" icon={Truck} disabled={busy} onClick={() => run(() => documentsApi.createDeliveryNote(doc.id))} />
+          // Capturing the delivery location is a small judgement call (site
+          // vs. the customer's stored address), so this hands off to the
+          // detail drawer's dialog rather than firing straight from the row.
+          <ActionButton label="Create delivery note" icon={Truck} disabled={busy} onClick={() => onOpen(doc.id)} />
         )}
       {canCancel && <ActionButton label="Cancel" icon={Ban} tone="danger" disabled={busy} onClick={() => run(() => documentsApi.cancel(doc.id))} />}
     </div>

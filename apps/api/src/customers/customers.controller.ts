@@ -11,16 +11,27 @@ import { AdjustBalanceDto, CreateCustomerDto, RecordPaymentDto, UpdateCustomerDt
 export class CustomersController {
   constructor(private customers: CustomersService) {}
 
+  // Was ungated — any authenticated user could list/search the full
+  // customer directory. Kept broad (not just CUSTOMERS) because POS and the
+  // quote/invoice form both need to look a customer up mid-sale.
+  @UseGuards(PermissionsGuard)
+  @Permissions(Module.CUSTOMERS, Module.POS, Module.QUOTES, Module.INVOICES)
   @Get()
   findAll(@Query('search') search?: string, @Query('status') status?: 'active' | 'archived' | 'all') {
     return this.customers.findAll({ search, status });
   }
 
+  @UseGuards(PermissionsGuard)
+  @Permissions(Module.CUSTOMERS, Module.POS, Module.QUOTES, Module.INVOICES)
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.customers.findOne(id);
   }
 
+  // Narrower than findOne above — the credit ledger is only ever opened
+  // from the Customers page itself, not from POS/quotes mid-sale.
+  @UseGuards(PermissionsGuard)
+  @Permissions(Module.CUSTOMERS)
   @Get(':id/ledger')
   ledger(@Param('id') id: string) {
     return this.customers.ledger(id);

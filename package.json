@@ -12,6 +12,7 @@
     "dev:api": "cd apps/api && bun run start:dev",
     "dev:web": "cd apps/web && bun run dev",
     "prisma:migrate": "cd apps/api && bun run prisma:migrate",
+    "prisma:generate": "cd apps/api && bun run prisma:generate",
     "prisma:seed": "cd apps/api && bun run prisma:seed"
   },
   "dependencies": {

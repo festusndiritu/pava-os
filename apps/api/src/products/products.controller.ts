@@ -15,11 +15,13 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
-import { Role } from '../../generated/prisma/client.js';
+import { Role, Module } from '../../generated/prisma/client.js';
 import { ProductsService } from './products.service.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/roles.guard.js';
 import { Roles } from '../auth/roles.decorator.js';
+import { PermissionsGuard } from '../auth/permissions.guard.js';
+import { Permissions } from '../auth/permissions.decorator.js';
 import { CreateProductDto, UpdateProductDto, CreateProductFamilyDto, UpdateProductFamilyDto } from './dto/product.dto.js';
 
 @UseGuards(JwtAuthGuard)
@@ -79,6 +81,15 @@ export class ProductsController {
     return this.products.update(id, req.user.sub, body);
   }
 
+  // Was ungated — only read from ProductDetailDrawer (Products or
+  // Inventory pages), same reasoning as inventory batches/movements above.
+  // findAll/findOne/families stay open deliberately: POS, quote/invoice
+  // building, the marketing pricelist, and inventory all need to browse
+  // the catalog regardless of which single module they hold, and cost is
+  // already a separate, correctly-gated dimension (canViewCost) — so an
+  // OR-list here would end up covering nearly every module anyway.
+  @UseGuards(PermissionsGuard)
+  @Permissions(Module.PRODUCTS, Module.INVENTORY)
   @Get(':id/price-history')
   priceHistory(@Param('id') id: string) {
     return this.products.priceHistory(id);

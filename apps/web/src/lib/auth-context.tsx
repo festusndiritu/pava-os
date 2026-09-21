@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, clearTokens, getAccessToken, pingActivity, setTokens, SESSION_EXPIRED_EVENT } from './api';
-import type { ModuleKey } from './constants';
+import { ADMIN_ONLY_MODULES, type ModuleKey } from './constants';
 
 export interface AuthUser {
   id: string;
@@ -166,6 +166,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (module: ModuleKey) => {
       if (!user) return false;
       if (user.role === 'ADMIN') return true;
+      // USERS/AUDIT stay admin-only even if a permissions array somehow
+      // still carries them (e.g. granted before this rule existed) — the
+      // backend would 403 a STAFF user on every request either way.
+      if (ADMIN_ONLY_MODULES.includes(module)) return false;
       return user.permissions.includes(module);
     },
     [user],

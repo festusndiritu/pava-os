@@ -35,6 +35,7 @@ import { ProductIcon } from '../../../components/pos/ProductIcon';
 import { SuspendOrderDialog, SuspendedOrdersDialog } from '../../../components/pos/SuspendedOrders';
 import { ReturnDialog } from '../../../components/pos/ReturnDialog';
 import { StockShortfallDialog } from '../../../components/documents/StockShortfallDialog';
+import { DeliveryLocationDialog } from '../../../components/documents/DeliveryLocationDialog';
 import { ApiError } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth-context';
 
@@ -83,6 +84,7 @@ export default function PosPage() {
   const [submitting, setSubmitting] = useState(false);
   const [receipt, setReceipt] = useState<PosSaleResult | null>(null);
   const [deliveryNoteBusy, setDeliveryNoteBusy] = useState(false);
+  const [askingDeliveryLocation, setAskingDeliveryLocation] = useState(false);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
 
   const [focusMode, setFocusMode] = useState(false);
@@ -94,9 +96,11 @@ export default function PosPage() {
   const { user } = useAuth();
   const canOverrideStock = user?.role === 'ADMIN' || !!user?.canInvoiceWithoutStock;
 
-  // Focus mode hides the app topbar so the till owns the screen. The attribute
-  // lives on <html> and is always cleaned up, so leaving POS can never strand
-  // the rest of the app without its navigation.
+  // Focus mode hides the app topbar (via the data-pos-focus attribute on
+  // <html>) AND requests real browser fullscreen — the button was
+  // previously only doing the former while claiming to be "Full-screen
+  // POS". The attribute is always cleaned up on the way out, so leaving
+  // POS can never strand the rest of the app without its navigation.
   useEffect(() => {
     const root = document.documentElement;
     if (focusMode) root.dataset.posFocus = 'on';
@@ -105,6 +109,34 @@ export default function PosPage() {
       delete root.dataset.posFocus;
     };
   }, [focusMode]);
+
+  useEffect(() => {
+    if (!focusMode) return;
+    // Fullscreen requires a user gesture and can be refused (some mobile
+    // Safari versions, embedded webviews) — the topbar-hiding CSS above
+    // still applies either way, so a refusal just means the till doesn't
+    // also take over the OS chrome.
+    document.documentElement.requestFullscreen?.().catch(() => {});
+  }, [focusMode]);
+
+  // The browser's own Esc-to-exit (or swipe-down on mobile) leaves
+  // fullscreen without going through our button — this keeps focusMode
+  // (and the Minimize2/Maximize2 icon) truthful when that happens.
+  useEffect(() => {
+    function onFullscreenChange() {
+      if (!document.fullscreenElement) setFocusMode(false);
+    }
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+  }, []);
+
+  function toggleFocusMode() {
+    setFocusMode((v) => {
+      const next = !v;
+      if (!next && document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+      return next;
+    });
+  }
 
   const refreshHeldCount = useCallback(() => {
     posApi
@@ -314,11 +346,12 @@ export default function PosPage() {
     refreshHeldCount();
   }
 
-  async function createDeliveryNote() {
+  async function createDeliveryNote(deliveryLocation: string, deliveryPhone: string) {
     if (!receipt) return;
     setDeliveryNoteBusy(true);
     try {
-      const note = await documentsApi.createDeliveryNote(receipt.id);
+      const note = await documentsApi.createDeliveryNote(receipt.id, deliveryLocation || undefined, deliveryPhone || undefined);
+      setAskingDeliveryLocation(false);
       setReceipt(null);
       setNotice(`Delivery note ${note.deliveryNoteNumber ?? ''} created — open it under Invoices › Delivery notes to print.`);
     } catch (err) {
@@ -625,7 +658,7 @@ export default function PosPage() {
           </button>
           <button
             type="button"
-            onClick={() => setFocusMode((v) => !v)}
+            onClick={toggleFocusMode}
             aria-label={focusMode ? 'Leave full-screen POS' : 'Full-screen POS'}
             title={focusMode ? 'Leave full-screen POS' : 'Full-screen POS'}
             className="flex h-10 w-10 items-center justify-center rounded-md border"
@@ -840,8 +873,16 @@ export default function PosPage() {
         <ReceiptDialog
           sale={receipt}
           onClose={() => setReceipt(null)}
-          onCreateDeliveryNote={createDeliveryNote}
+          onCreateDeliveryNote={() => setAskingDeliveryLocation(true)}
           deliveryNoteBusy={deliveryNoteBusy}
+        />
+      )}
+
+      {receipt && askingDeliveryLocation && (
+        <DeliveryLocationDialog
+          busy={deliveryNoteBusy}
+          onCancel={() => setAskingDeliveryLocation(false)}
+          onConfirm={createDeliveryNote}
         />
       )}
     </div>

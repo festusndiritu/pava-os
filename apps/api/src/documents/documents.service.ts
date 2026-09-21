@@ -6,6 +6,13 @@ import { AuditService } from '../audit/audit.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import type { CreatePosSaleDto } from './dto/pos-sale.dto.js';
 
+/** Exclusive upper bound covering the whole of the given calendar day. */
+function endOfDay(date: string) {
+  const end = new Date(date);
+  end.setHours(23, 59, 59, 999);
+  return new Date(end.getTime() + 1);
+}
+
 type ItemInput = {
   productId?: string;
   description?: string;
@@ -285,7 +292,7 @@ export class DocumentsService {
   // view of the invoice/quote it came from — copies items/customer/transport
   // at the moment it's created so it survives the source document changing
   // status later (e.g. the invoice being paid, or even cancelled).
-  async createDeliveryNote(sourceId: string, actorId: string) {
+  async createDeliveryNote(sourceId: string, actorId: string, deliveryLocation?: string, deliveryPhone?: string) {
     const source = await this.findOne(sourceId);
     if (source.type === DocumentType.DELIVERY_NOTE) {
       throw new BadRequestException('Cannot create a delivery note from another delivery note');
@@ -314,6 +321,8 @@ export class DocumentsService {
           notes: source.notes,
           sourceDocumentId: source.id,
           deliveryNoteNumber,
+          deliveryLocation: deliveryLocation?.trim() || null,
+          deliveryPhone: deliveryPhone?.trim() || null,
           items: {
             create: source.items.map((i) => ({
               productId: i.productId,
@@ -364,11 +373,15 @@ export class DocumentsService {
               ],
             }
           : {}),
+        // A bare "to" date means "through the end of that day". Comparing
+        // against new Date('2026-09-21') is midnight at its *start*, which
+        // silently dropped everything sold on the last day of the range —
+        // the same correction parseRange() already makes for analytics.
         ...(from || to
           ? {
               createdAt: {
                 ...(from ? { gte: new Date(from) } : {}),
-                ...(to ? { lte: new Date(to) } : {}),
+                ...(to ? { lt: endOfDay(to) } : {}),
               },
             }
           : {}),

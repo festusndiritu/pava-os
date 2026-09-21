@@ -1,14 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Printer, Share2, Truck } from 'lucide-react';
+import { Receipt, Share2, Truck } from 'lucide-react';
 import { Drawer } from '../ui/Drawer';
 import { documentsApi, type SaleDocument } from '../../lib/documents-api';
-import { DocumentLetterhead } from './DocumentLetterhead';
+import { settingsApi, type BusinessSettings } from '../../lib/settings-api';
+import { buildDocumentViewModel } from '../../lib/document-view-model';
+import { ThermalDocument } from './ThermalDocument';
 import { ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
-import { shareElementAsPdf } from '../../lib/pdf';
+import { shareDocumentAsPdf } from '../../lib/pdf/document-pdf';
 import { StockShortfallDialog } from './StockShortfallDialog';
+import { DeliveryLocationDialog } from './DeliveryLocationDialog';
 import { readStockShortfalls, type StockShortfall } from '../../lib/pos-api';
 
 function docTypeLabel(type: string) {
@@ -49,8 +52,28 @@ export function DocumentDetailDrawer({
   const [notice, setNotice] = useState<string | null>(null);
   const [shortfalls, setShortfalls] = useState<StockShortfall[] | null>(null);
   const [sharing, setSharing] = useState(false);
+  const [askingDeliveryLocation, setAskingDeliveryLocation] = useState(false);
+  const [settings, setSettings] = useState<BusinessSettings | null>(null);
+  // Thermal is the only print format here now — the A4 off-screen sheet and
+  // its Print button were dropped. printTick is what actually fires the
+  // print, so clicking the button twice in a row still re-prints even
+  // though there's only one format to switch to.
+  const [printTick, setPrintTick] = useState(0);
   const { user } = useAuth();
   const canOverrideStock = user?.role === 'ADMIN' || !!user?.canInvoiceWithoutStock;
+
+  useEffect(() => {
+    settingsApi.get().then(setSettings).catch(() => {});
+  }, []);
+
+  // Waits for the print-source node to actually be in the DOM before
+  // printing — this only matters on the very first click, since after that
+  // it's already mounted, but requestAnimationFrame costs nothing either way.
+  useEffect(() => {
+    if (printTick === 0) return;
+    const id = requestAnimationFrame(() => window.print());
+    return () => cancelAnimationFrame(id);
+  }, [printTick]);
 
   async function load() {
     if (!documentId) return;
@@ -96,8 +119,7 @@ export function DocumentDetailDrawer({
     setError(null);
     setNotice(null);
     try {
-      const number = doc.invoiceNumber ?? doc.quoteNumber ?? doc.receiptNumber ?? doc.id.slice(0, 8);
-      const result = await shareElementAsPdf('print-area', `${number}.pdf`, `${docTypeLabel(doc.type)} ${number}`);
+      const result = await shareDocumentAsPdf(doc, settings);
       setNotice(result === 'shared' ? 'Shared.' : 'Downloaded — attach it in WhatsApp or wherever you need it.');
     } catch (err) {
       setError('Could not generate the PDF.');
@@ -106,13 +128,14 @@ export function DocumentDetailDrawer({
     }
   }
 
-  async function handleCreateDeliveryNote() {
+  async function handleCreateDeliveryNote(deliveryLocation: string, deliveryPhone: string) {
     if (!doc) return;
     setBusy(true);
     setError(null);
     setNotice(null);
     try {
-      const note = await documentsApi.createDeliveryNote(doc.id);
+      const note = await documentsApi.createDeliveryNote(doc.id, deliveryLocation || undefined, deliveryPhone || undefined);
+      setAskingDeliveryLocation(false);
       onChanged();
       setNotice('Delivery note created.');
       onNavigate?.(note.id);
@@ -187,18 +210,18 @@ export function DocumentDetailDrawer({
                 </button>
               )}
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {doc.type !== 'DELIVERY_NOTE' && (doc.status === 'QUOTED' || doc.status === 'INVOICED' || doc.status === 'PAID') && (
-                <button type="button" disabled={busy} onClick={handleCreateDeliveryNote} className="flex flex-1 items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
+                <button type="button" disabled={busy} onClick={() => setAskingDeliveryLocation(true)} className="flex flex-1 items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
                   <Truck size={14} strokeWidth={2} />
                   Delivery note
                 </button>
               )}
-              <button type="button" onClick={() => window.print()} className="flex flex-1 items-center justify-center gap-1.5 rounded-md border px-4 py-2 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
-                <Printer size={14} strokeWidth={2} />
-                Print
+              <button type="button" onClick={() => setPrintTick((t) => t + 1)} className="flex flex-1 items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
+                <Receipt size={14} strokeWidth={2} />
+                Print thermal
               </button>
-              <button type="button" disabled={sharing} onClick={handleShare} className="flex flex-1 items-center justify-center gap-1.5 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
+              <button type="button" disabled={sharing} onClick={handleShare} className="flex flex-1 items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
                 <Share2 size={14} strokeWidth={2} />
                 {sharing ? 'Preparing…' : 'Share PDF'}
               </button>
@@ -207,7 +230,7 @@ export function DocumentDetailDrawer({
         )
       }
     >
-      {doc && <DocumentLetterhead doc={doc} />}
+      {doc && <ThermalDocument vm={buildDocumentViewModel(doc, settings)} variant="print" />}
 
       {doc && shortfalls && (
         <StockShortfallDialog
@@ -217,6 +240,16 @@ export function DocumentDetailDrawer({
           action="invoice"
           onCancel={() => setShortfalls(null)}
           onProceed={() => runAction(() => documentsApi.convertToInvoice(doc.id, true))}
+        />
+      )}
+
+      {doc && askingDeliveryLocation && (
+        <DeliveryLocationDialog
+          customerAddress={doc.customer?.address || doc.customer?.location}
+          customerPhone={doc.customer?.phone}
+          busy={busy}
+          onCancel={() => setAskingDeliveryLocation(false)}
+          onConfirm={handleCreateDeliveryNote}
         />
       )}
 
@@ -244,6 +277,13 @@ export function DocumentDetailDrawer({
               By {doc.createdBy.name}
             </p>
           </div>
+
+          {isDeliveryNote && (doc.deliveryLocation || doc.deliveryPhone) && (
+            <div className="flex flex-col gap-0.5 text-sm">
+              {doc.deliveryLocation && <p style={{ color: 'var(--color-ink-900)' }}>{doc.deliveryLocation}</p>}
+              {doc.deliveryPhone && <p style={{ color: 'var(--color-ink-600)' }}>{doc.deliveryPhone}</p>}
+            </div>
+          )}
 
           {/* A delivery note is a dispatch document — quantities only, never
               prices, in the drawer as well as on the printed sheet. */}

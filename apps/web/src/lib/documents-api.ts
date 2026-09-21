@@ -42,6 +42,12 @@ export interface SaleDocument {
   items: DocumentItem[];
   sourceDocumentId: string | null;
   sourceDocument: { id: string; receiptNumber: string | null; invoiceNumber: string | null; quoteNumber: string | null } | null;
+  // DELIVERY_NOTE only — dispatch/site address, distinct from the
+  // customer's stored address. Null when the note was created without one.
+  deliveryLocation: string | null;
+  // DELIVERY_NOTE only — contact number for whoever's at the drop-off site.
+  // Null when the note was created without one.
+  deliveryPhone: string | null;
   invoicedAt: string | null;
   paidAt: string | null;
   createdAt: string;
@@ -61,11 +67,16 @@ export interface CreateDocumentInput {
 }
 
 export const documentsApi = {
-  list: (params: { status?: DocumentStatus; type?: DocumentType; search?: string } = {}) => {
+  // `from`/`to` are YYYY-MM-DD calendar days, inclusive at both ends — the
+  // backend widens `to` to the end of that day. The API has always accepted
+  // them; Reports is the first caller to need them.
+  list: (params: { status?: DocumentStatus; type?: DocumentType; search?: string; from?: string; to?: string } = {}) => {
     const qs = new URLSearchParams();
     if (params.status) qs.set('status', params.status);
     if (params.type) qs.set('type', params.type);
     if (params.search) qs.set('search', params.search);
+    if (params.from) qs.set('from', params.from);
+    if (params.to) qs.set('to', params.to);
     const s = qs.toString();
     return api.get<SaleDocument[]>(`/documents${s ? `?${s}` : ''}`);
   },
@@ -76,5 +87,6 @@ export const documentsApi = {
   // is same-day, so an invoice raised at the till is closed off here.
   markPaid: (id: string, paymentMethod?: 'CASH' | 'MPESA') => api.post<SaleDocument>(`/documents/${id}/mark-paid`, { paymentMethod }),
   cancel: (id: string) => api.post<SaleDocument>(`/documents/${id}/cancel`),
-  createDeliveryNote: (id: string) => api.post<SaleDocument>(`/documents/${id}/delivery-note`),
+  createDeliveryNote: (id: string, deliveryLocation?: string, deliveryPhone?: string) =>
+    api.post<SaleDocument>(`/documents/${id}/delivery-note`, { deliveryLocation, deliveryPhone }),
 };

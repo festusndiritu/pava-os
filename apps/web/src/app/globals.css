@@ -73,17 +73,22 @@ body {
 }
 
 .pdf-capture-offscreen {
+  /* Name kept from the old html2canvas pipeline — the class still does
+     exactly what it says (keeps the print source off-screen until
+     @media print reveals it), it just no longer feeds a canvas capture.
+     PDF export now renders straight from data via @react-pdf/renderer. */
   position: fixed;
   top: 0;
   left: -10000px;
   z-index: -1;
 }
 
-/* Anything destined for paper or a PDF carries .printable-doc. It is pinned
-   to a white background with dark ink and opts out of the dark palette
-   entirely: html2canvas captures whatever is computed on screen, so a
-   receipt rendered while PAVA is in dark mode would otherwise export as
-   light text on white. Theme variables must never reach these nodes. */
+/* Anything destined for paper carries .printable-doc. It is pinned to a
+   white background with dark ink and opts out of the dark palette
+   entirely, since it's still rendered live behind the print dialog with
+   whichever theme the app is currently in — theme variables must never
+   reach these nodes, or a receipt printed in dark mode would come out as
+   light text on white. */
 .printable-doc,
 .printable-doc * {
   color-scheme: light;
@@ -102,14 +107,10 @@ body {
   display: none;
 }
 
-/* Physical page geometry for anything meant to be printed or exported —
-   applied unconditionally, NOT just inside @media print. html2canvas (used
-   for the Share/Download-as-PDF path) captures the DOM as it renders on
-   screen; it does not evaluate print-media rules. Width, padding and base
-   font size living only in @media print meant the off-screen PDF capture
-   got none of them — an unconstrained div with no margins and whatever
-   font size it happened to inherit. This is what a real print job also
-   uses, so what you print and what you share are the same box. */
+/* Physical page geometry for the printable A4 sheet — applied
+   unconditionally, not just inside @media print, since the off-screen node
+   above is a real box in the page's own layout, not something evaluated
+   only at print time. */
 .print-a4 {
   box-sizing: border-box;
   width: 210mm;

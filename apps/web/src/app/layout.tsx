@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
@@ -10,6 +10,12 @@ const mono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono-custom'
 export const metadata: Metadata = {
   title: "Pava OS",
   description: 'Internal quotes, invoices, receipts and stock reference',
+};
+
+// Tints the mobile browser chrome (and the PWA splash screen background)
+// with the brand accent rather than leaving it to the browser default.
+export const viewport: Viewport = {
+  themeColor: '#0559C9',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

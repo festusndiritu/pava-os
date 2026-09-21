@@ -11,11 +11,18 @@ import { CreateContactDto, UpdateContactDto } from './dto/contact.dto.js';
 export class ContactsController {
   constructor(private contacts: ContactsService) {}
 
+  // Was ungated — any authenticated user could read the full contacts
+  // directory regardless of module access. Only the Contacts page reads
+  // these, so this matches create/update below exactly.
+  @UseGuards(PermissionsGuard)
+  @Permissions(Module.CONTACTS)
   @Get()
   findAll(@Query('search') search?: string) {
     return this.contacts.findAll(search);
   }
 
+  @UseGuards(PermissionsGuard)
+  @Permissions(Module.CONTACTS)
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.contacts.findOne(id);

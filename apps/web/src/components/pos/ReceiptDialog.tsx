@@ -1,24 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Printer, Share2, Truck, X } from 'lucide-react';
 import type { PosSaleResult } from '../../lib/pos-api';
-import { shareElementAsPdf } from '../../lib/pdf';
-import { ThermalReceipt, type ReceiptData } from '../documents/ThermalReceipt';
-
-function toReceiptData(sale: PosSaleResult): ReceiptData {
-  return {
-    number: sale.receiptNumber ?? sale.invoiceNumber,
-    createdAt: sale.createdAt,
-    customerLabel: sale.customer?.businessName || sale.customer?.name || sale.customerName || 'Walk-in customer',
-    items: sale.items.map((i) => ({ id: i.id, description: i.description, qty: i.qty, unitPrice: i.unitPrice, lineTotal: i.lineTotal })),
-    subtotal: sale.subtotal,
-    total: sale.total,
-    transportMode: sale.transportMode,
-    transportAmount: sale.transportAmount,
-    paymentMethod: sale.paymentMethod,
-  };
-}
+import { settingsApi, type BusinessSettings } from '../../lib/settings-api';
+import { buildPosReceiptViewModel } from '../../lib/document-view-model';
+import { shareViewModelAsPdf } from '../../lib/pdf/document-pdf';
+import { ThermalDocument } from '../documents/ThermalDocument';
 
 export function ReceiptDialog({
   sale,
@@ -33,7 +21,13 @@ export function ReceiptDialog({
 }) {
   const [sharing, setSharing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const data = toReceiptData(sale);
+  const [settings, setSettings] = useState<BusinessSettings | null>(null);
+
+  useEffect(() => {
+    settingsApi.get().then(setSettings).catch(() => {});
+  }, []);
+
+  const vm = buildPosReceiptViewModel(sale, settings);
   // A settle-later sale leaves the counter as an unpaid invoice, not a receipt.
   const unpaid = sale.status === 'INVOICED';
 
@@ -41,8 +35,7 @@ export function ReceiptDialog({
     setSharing(true);
     setNotice(null);
     try {
-      const number = data.number ?? sale.id.slice(0, 8);
-      const result = await shareElementAsPdf('print-area', `${number}.pdf`, `Receipt ${number}`);
+      const result = await shareViewModelAsPdf(vm);
       setNotice(result === 'shared' ? 'Shared.' : 'Downloaded.');
     } catch {
       setNotice('Could not generate the PDF.');
@@ -53,11 +46,13 @@ export function ReceiptDialog({
 
   return (
     <>
-      {/* The print/PDF source lives outside the dialog on purpose: printing
-          from inside a fixed, scrolling modal is what produced blank pages.
-          This node is laid out off-screen, so html2canvas can capture it and
-          the print stylesheet can reveal it in place. */}
-      <ThermalReceipt data={data} variant="print" title={unpaid ? 'INVOICE' : 'RECEIPT'} />
+      {/* The print source lives outside the dialog on purpose: printing from
+          inside a fixed, scrolling modal is what produced blank pages. This
+          node is laid out off-screen and revealed in place by the print
+          stylesheet. PDF sharing no longer captures this DOM node at all —
+          it renders straight from `vm` via @react-pdf/renderer — but the
+          browser Print button still uses it. */}
+      <ThermalDocument vm={vm} variant="print" />
 
       <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:px-4 print:hidden">
         <div className="absolute inset-0" style={{ backgroundColor: 'rgba(16, 24, 40, 0.5)' }} onClick={onClose} />
@@ -70,11 +65,9 @@ export function ReceiptDialog({
               <p className="text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>
                 {unpaid ? 'Goods released — unpaid' : 'Sale complete'}
               </p>
-              {data.number && (
-                <p className="data-num truncate text-xs" style={{ color: 'var(--color-ink-600)' }}>
-                  {data.number}
-                </p>
-              )}
+              <p className="data-num truncate text-xs" style={{ color: 'var(--color-ink-600)' }}>
+                {vm.number}
+              </p>
             </div>
             <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-md" style={{ color: 'var(--color-ink-600)' }} aria-label="Close">
               <X size={17} strokeWidth={2} />
@@ -91,7 +84,7 @@ export function ReceiptDialog({
               the operator sees is what the printer produces. */}
           <div className="flex-1 overflow-y-auto p-4">
             <div className="mx-auto max-w-[320px] rounded-md border" style={{ borderColor: 'var(--color-border)' }}>
-              <ThermalReceipt data={data} variant="preview" title={unpaid ? 'INVOICE' : 'RECEIPT'} />
+              <ThermalDocument vm={vm} variant="preview" />
             </div>
           </div>
 

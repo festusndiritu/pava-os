@@ -167,6 +167,9 @@ export function UserFormDrawer({
             Module access
           </p>
           <PermissionEditor value={permissions} onChange={setPermissions} />
+          <p className="mt-2 text-xs" style={{ color: 'var(--color-ink-600)' }}>
+            Users & Access and Audit Trail aren't listed here — those stay admin-only.
+          </p>
         </div>
 
         <div className="border-t pt-5" style={{ borderColor: 'var(--color-border)' }}>

@@ -11,11 +11,17 @@ import { CreateLeadDto, UpdateLeadDto } from './dto/lead.dto.js';
 export class LeadsController {
   constructor(private leads: LeadsService) {}
 
+  // Was ungated — matches contacts/customers findings: read access should
+  // require the same module as create/update below.
+  @UseGuards(PermissionsGuard)
+  @Permissions(Module.LEADS)
   @Get()
   findAll(@Query('stage') stage?: string, @Query('assignedToId') assignedToId?: string) {
     return this.leads.findAll({ stage, assignedToId });
   }
 
+  @UseGuards(PermissionsGuard)
+  @Permissions(Module.LEADS)
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.leads.findOne(id);
