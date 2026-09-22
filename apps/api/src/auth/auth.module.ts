@@ -14,9 +14,6 @@ import { PermissionsGuard } from './permissions.guard.js';
       inject: [ConfigService],
       useFactory: (config: ConfigService): JwtModuleOptions => ({
         secret: config.get<string>('JWT_SECRET'),
-        // Fallback only — AuthService always passes an explicit expiresIn
-        // per token (see JWT_ACCESS_TOKEN_TTL) so real inactivity/session
-        // rules stay in one place.
         signOptions: {
           expiresIn: config.get('JWT_ACCESS_TOKEN_TTL') || '15m',
         },

@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ['millennium-gem-farmers-cute.trycloudflare.com'],
+  allowedDevOrigins: ['engines-contemporary-definitely-providers.trycloudflare.com'],
 };
 
 export default nextConfig;
