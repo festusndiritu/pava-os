@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Delete } from 'lucide-react';
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
@@ -18,10 +18,8 @@ export function PinPad({
 }) {
   const [pin, setPin] = useState('');
   const [shake, setShake] = useState(false);
-  const submittedRef = useRef(false);
+  const [submitted, setSubmitted] = useState(false);
 
-  // Support physical keyboards on desktop without using a
-  // focusable input, which would trigger the mobile keyboard.
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (disabled) return;
@@ -45,8 +43,6 @@ export function PinPad({
     };
   }, [disabled, pin, error]);
 
-  // On a wrong PIN: shake the dots, then clear so the next attempt
-  // starts fresh.
   useEffect(() => {
     if (!error) return;
 
@@ -58,7 +54,7 @@ export function PinPad({
 
     const clearPin = setTimeout(() => {
       setPin('');
-      submittedRef.current = false;
+      setSubmitted(false);
     }, 450);
 
     return () => {
@@ -70,11 +66,9 @@ export function PinPad({
   function commit(next: string) {
     setPin(next);
 
-    if (next.length === 4 && !submittedRef.current) {
-      submittedRef.current = true;
+    if (next.length === 4 && !submitted) {
+      setSubmitted(true);
 
-      // Brief pause so the 4th dot is visible before
-      // switching to the loading/error state.
       setTimeout(() => {
         onComplete(next);
       }, 120);
@@ -99,7 +93,7 @@ export function PinPad({
     }
 
     setPin((current) => current.slice(0, -1));
-    submittedRef.current = false;
+    setSubmitted(false);
   }
 
   const keyStyle = {
@@ -110,7 +104,6 @@ export function PinPad({
 
   return (
     <div className="flex flex-col items-center gap-6">
-      {/* PIN dots */}
       <div className={`flex gap-3 ${shake ? 'animate-shake' : ''}`}>
         {[0, 1, 2, 3].map((i) => (
           <span
@@ -131,7 +124,6 @@ export function PinPad({
         ))}
       </div>
 
-      {/* Status / instruction */}
       <p
         className="h-5 text-xs font-medium"
         style={{
@@ -143,7 +135,6 @@ export function PinPad({
         {error ?? 'Enter your 4-digit PIN'}
       </p>
 
-      {/* Custom keypad */}
       <div className="grid grid-cols-3 gap-3">
         {KEYS.map((digit) => (
           <button
@@ -151,34 +142,31 @@ export function PinPad({
             type="button"
             disabled={disabled}
             onClick={() => append(digit)}
-            className="h-14 w-14 rounded-full border text-base font-medium transition-colors active:scale-95 disabled:opacity-50"
+            className="h-14 w-14 rounded-full border text-base font-medium transition-all active:scale-95 disabled:opacity-50"
             style={keyStyle}
           >
             {digit}
           </button>
         ))}
 
-        {/* Empty bottom-left slot */}
         <span aria-hidden className="h-14 w-14" />
 
-        {/* Zero */}
         <button
           type="button"
           disabled={disabled}
           onClick={() => append('0')}
-          className="h-14 w-14 rounded-full border text-base font-medium transition-colors active:scale-95 disabled:opacity-50"
+          className="h-14 w-14 rounded-full border text-base font-medium transition-all active:scale-95 disabled:opacity-50"
           style={keyStyle}
         >
           0
         </button>
 
-        {/* Backspace */}
         <button
           type="button"
           disabled={disabled}
           onClick={backspace}
           aria-label="Backspace"
-          className="flex h-14 w-14 items-center justify-center rounded-full border transition-colors disabled:opacity-50"
+          className="flex h-14 w-14 items-center justify-center rounded-full border transition-all active:scale-95 disabled:opacity-50"
           style={{
             ...keyStyle,
             color: 'var(--color-ink-600)',
