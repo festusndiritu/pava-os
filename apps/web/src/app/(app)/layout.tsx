@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { X } from 'lucide-react';
+import { LockKeyhole, X } from 'lucide-react';
 import { useAuth } from '../../lib/auth-context';
 import { moduleForPath } from '../../lib/constants';
 import { Sidebar } from '../../components/shell/Sidebar';
@@ -84,10 +84,51 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {allowed ? (
             children
           ) : (
-            <div className="p-6">
-              <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
-                You don't have access to this page.
-              </p>
+            <div className="flex min-h-[calc(100vh-64px)] items-center justify-center p-6">
+              <div
+                className="w-full max-w-md rounded-xl border p-8 text-center"
+                style={{
+                  backgroundColor: 'var(--color-surface)',
+                  borderColor: 'var(--color-border)',
+                  boxShadow: 'var(--shadow-card)',
+                }}
+              >
+                <div
+                  className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-full"
+                  style={{
+                    backgroundColor: 'var(--color-status-warnSoft)',
+                    color: 'var(--color-status-warn)',
+                  }}
+                >
+                  <LockKeyhole size={22} strokeWidth={1.8} />
+                </div>
+
+                <h1
+                  className="text-lg font-semibold"
+                  style={{ color: 'var(--color-ink-900)' }}
+                >
+                  Access restricted
+                </h1>
+
+                <p
+                  className="mx-auto mt-2 max-w-sm text-sm leading-6"
+                  style={{ color: 'var(--color-ink-600)' }}
+                >
+                  You don't have permission to view this module.
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() => router.push('/dashboard')}
+                  className="mt-6 rounded-md px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90"
+                  style={{
+                    backgroundColor: 'var(--color-accent)',
+                    color: '#FFFFFF',
+                  }}
+                >
+                  Back to Dashboard
+                </button>
+              </div>
             </div>
           )}
         </main>
