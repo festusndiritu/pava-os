@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { normalizeSearchTerm, parseSearchHints } from './search-normalize.js';
@@ -187,10 +187,6 @@ export class ProductsService {
     });
   }
 
-  setImage(id: string, imageUrl: string) {
-    return this.prisma.product.update({ where: { id }, data: { imageUrl } });
-  }
-
   families() {
     return this.prisma.productFamily.findMany({ orderBy: { name: 'asc' } });
   }
@@ -222,5 +218,31 @@ export class ProductsService {
     const product = await this.prisma.product.update({ where: { id }, data: { active: true } });
     await this.audit.log({ actorId, action: 'product.restored', entityType: 'Product', entityId: id, metadata: { name: product.name } });
     return product;
+  }
+
+  // Permanent — only once archived, and only once nothing real would be
+  // lost: any document line it was ever sold on, any return, any price
+  // change, or any inventory movement/batch. A product with none of those
+  // was created and archived by mistake before it ever transacted, which
+  // is exactly the case this exists for. Aliases have no history of their
+  // own and are dropped along with it.
+  async hardDelete(id: string, actorId: string) {
+    const product = await this.prisma.product.findUnique({ where: { id } });
+    if (!product) throw new NotFoundException('Product not found');
+    if (product.active) throw new BadRequestException('Archive this product before deleting it permanently');
+    const [itemCount, returnItemCount, priceHistoryCount, batchCount, movementCount] = await Promise.all([
+      this.prisma.documentItem.count({ where: { productId: id } }),
+      this.prisma.returnItem.count({ where: { productId: id } }),
+      this.prisma.productPriceHistory.count({ where: { productId: id } }),
+      this.prisma.inventoryBatch.count({ where: { productId: id } }),
+      this.prisma.inventoryMovement.count({ where: { productId: id } }),
+    ]);
+    if (itemCount > 0 || returnItemCount > 0 || priceHistoryCount > 0 || batchCount > 0 || movementCount > 0) {
+      throw new BadRequestException('This product has sales, stock, or price history and cannot be permanently deleted');
+    }
+    await this.prisma.productAlias.deleteMany({ where: { productId: id } });
+    await this.prisma.product.delete({ where: { id } });
+    await this.audit.log({ actorId, action: 'product.deleted_permanently', entityType: 'Product', entityId: id, metadata: { name: product.name } });
+    return { deleted: true };
   }
 }

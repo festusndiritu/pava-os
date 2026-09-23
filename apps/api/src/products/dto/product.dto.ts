@@ -1,4 +1,5 @@
 import { IsArray, IsBoolean, IsIn, IsNumber, IsOptional, IsString, Length, Min } from 'class-validator';
+import { IsMoney } from '../../common/validation/money.validator.js';
 
 export class CreateProductFamilyDto {
   @IsString()
@@ -58,8 +59,7 @@ export class CreateProductDto {
   @IsString()
   unitId!: string;
 
-  @IsNumber()
-  @Min(0)
+  @IsMoney()
   basePrice!: number;
 
   @IsOptional()
@@ -132,8 +132,7 @@ export class UpdateProductDto {
   unitId?: string;
 
   @IsOptional()
-  @IsNumber()
-  @Min(0)
+  @IsMoney()
   basePrice?: number;
 
   @IsOptional()

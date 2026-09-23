@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { MovementType } from '../../generated/prisma/client.js';
+import { roundMoney } from '../common/money.js';
 
 // Simple markup-preserving suggestion for the "update selling price?" prompt
 // on receiving (brief §23) — not a general rounding/pricing engine (that's
@@ -188,7 +189,12 @@ export class InventoryService {
         data: { stockQuantity: { decrement: consumedQuantity } },
       });
 
-      return { totalCost, averageCost: totalCost / (consumedQuantity || 1), consumed, shortfall: Math.max(remaining, 0) };
+      return {
+        totalCost: roundMoney(totalCost),
+        averageCost: roundMoney(totalCost / (consumedQuantity || 1)),
+        consumed,
+        shortfall: Math.max(remaining, 0),
+      };
     };
 
     return client ? run(client) : this.prisma.$transaction(run);

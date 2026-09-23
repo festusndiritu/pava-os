@@ -1,4 +1,6 @@
-import { IsIn, IsNumber, IsOptional, IsString, Length, Min } from 'class-validator';
+import { IsIn, IsOptional, IsString, Length } from 'class-validator';
+import { IsMoney } from '../../common/validation/money.validator.js';
+import { OptionalKenyanPhone } from '../../common/validation/phone.validator.js';
 
 const EMPLOYMENT_STATUSES = ['ACTIVE', 'ON_LEAVE', 'TERMINATED'] as const;
 
@@ -11,16 +13,14 @@ export class CreateEmployeeDto {
   @IsString()
   avatar?: string;
 
-  @IsOptional()
-  @IsString()
+  @OptionalKenyanPhone()
   phone?: string;
 
   @IsOptional()
   @IsString()
   emergencyContactName?: string;
 
-  @IsOptional()
-  @IsString()
+  @OptionalKenyanPhone()
   emergencyContactPhone?: string;
 
   @IsOptional()
@@ -40,8 +40,7 @@ export class CreateEmployeeDto {
   employmentStatus?: (typeof EMPLOYMENT_STATUSES)[number];
 
   @IsOptional()
-  @IsNumber()
-  @Min(0)
+  @IsMoney()
   baseSalary?: number;
 
   @IsOptional()
@@ -59,16 +58,14 @@ export class UpdateEmployeeDto {
   @IsString()
   avatar?: string;
 
-  @IsOptional()
-  @IsString()
+  @OptionalKenyanPhone()
   phone?: string;
 
   @IsOptional()
   @IsString()
   emergencyContactName?: string;
 
-  @IsOptional()
-  @IsString()
+  @OptionalKenyanPhone()
   emergencyContactPhone?: string;
 
   @IsOptional()
@@ -88,8 +85,7 @@ export class UpdateEmployeeDto {
   employmentStatus?: (typeof EMPLOYMENT_STATUSES)[number];
 
   @IsOptional()
-  @IsNumber()
-  @Min(0)
+  @IsMoney()
   baseSalary?: number;
 
   @IsOptional()

@@ -442,9 +442,10 @@ export default function PosPage() {
                       </button>
                       <input
                         type="number"
-                        inputMode="decimal"
+                        inputMode="numeric"
+                        step={1}
                         value={l.qty}
-                        onChange={(e) => updateLine(l.product.id, { qty: Math.max(0.01, Number(e.target.value) || 0) })}
+                        onChange={(e) => updateLine(l.product.id, { qty: Math.max(1, Math.round(Number(e.target.value) || 0)) })}
                         className="data-num w-12 border-0 bg-transparent text-center text-sm outline-none"
                         style={{ color: 'var(--color-ink-900)' }}
                       />
@@ -454,10 +455,11 @@ export default function PosPage() {
                     </div>
                     <input
                       type="number"
-                      inputMode="decimal"
+                      inputMode="numeric"
+                      step={1}
                       aria-label="Unit price"
                       value={l.unitPrice}
-                      onChange={(e) => updateLine(l.product.id, { unitPrice: Number(e.target.value) || 0 })}
+                      onChange={(e) => updateLine(l.product.id, { unitPrice: Math.max(0, Math.round(Number(e.target.value) || 0)) })}
                       className="data-num min-h-10 w-24 rounded-md border px-2 text-sm"
                       style={inputStyle}
                     />

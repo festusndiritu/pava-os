@@ -40,12 +40,12 @@ export function TransportDialog({
   const manualSum = Object.values(manual).reduce((s, v) => s + (Number(v) || 0), 0);
 
   function apply() {
-    const amt = Number(amount) || 0;
+    const amt = Math.round(Number(amount) || 0);
     onApply({
       amount: amt,
       allocation,
       applyTo: [...applyTo],
-      manualAllocations: Object.fromEntries(Object.entries(manual).map(([k, v]) => [k, Number(v) || 0])),
+      manualAllocations: Object.fromEntries(Object.entries(manual).map(([k, v]) => [k, Math.round(Number(v)) || 0])),
       fold,
     });
     onClose();

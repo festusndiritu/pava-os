@@ -3,7 +3,9 @@ import { CustomersService } from './customers.service.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { PermissionsGuard } from '../auth/permissions.guard.js';
 import { Permissions } from '../auth/permissions.decorator.js';
-import { Module } from '../../generated/prisma/client.js';
+import { RolesGuard } from '../auth/roles.guard.js';
+import { Roles } from '../auth/roles.decorator.js';
+import { Module, Role } from '../../generated/prisma/client.js';
 import { AdjustBalanceDto, CreateCustomerDto, RecordPaymentDto, UpdateCustomerDto } from './dto/customer.dto.js';
 
 @UseGuards(JwtAuthGuard)
@@ -77,5 +79,14 @@ export class CustomersController {
   @Post(':id/restore')
   restore(@Param('id') id: string, @Req() req: any) {
     return this.customers.restore(id, req.user.sub);
+  }
+
+  // Permanent deletion is admin-only, same as every other hard-delete
+  // route in the system — archiving (above) is what everyone else uses.
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  @Delete(':id/permanent')
+  hardDelete(@Param('id') id: string, @Req() req: any) {
+    return this.customers.hardDelete(id, req.user.sub);
   }
 }

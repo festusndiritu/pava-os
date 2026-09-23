@@ -74,8 +74,8 @@ export function QuoteFormDrawer({ open, onClose, onCreated }: { open: boolean; o
         customerName: customerMode === 'walkin' ? walkinName || undefined : undefined,
         items: lines.map((l) => ({
           productId: l.product.id,
-          qty: Number(l.qty) || 0,
-          unitPrice: Number(l.unitPrice) || 0,
+          qty: Math.round(Number(l.qty)) || 0,
+          unitPrice: Math.round(Number(l.unitPrice)) || 0,
         })),
         transportAmount: transport?.amount || undefined,
         transportAllocation: transport?.allocation,
@@ -188,12 +188,12 @@ export function QuoteFormDrawer({ open, onClose, onCreated }: { open: boolean; o
                   <tr key={line.product.id} className="border-b last:border-0" style={{ borderColor: 'var(--color-border)' }}>
                     <td className="px-3 py-2" style={{ color: 'var(--color-ink-900)' }}>{line.product.displayName ?? line.product.name}</td>
                     <td className="px-3 py-2">
-                      <input type="number" step="0.01" min="0" value={line.qty} onChange={(e) => setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, qty: e.target.value } : l)))} className="w-16 rounded border px-2 py-1 text-sm data-num" style={inputStyle} />
+                      <input type="number" step="1" min="1" value={line.qty} onChange={(e) => setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, qty: e.target.value } : l)))} className="w-16 rounded border px-2 py-1 text-sm data-num" style={inputStyle} />
                     </td>
                     <td className="px-3 py-2">
                       <input
                         type="number"
-                        step="0.01"
+                        step="1"
                         min="0"
                         value={line.unitPrice}
                         onChange={(e) => setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, unitPrice: e.target.value } : l)))}

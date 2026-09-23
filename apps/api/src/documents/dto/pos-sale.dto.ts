@@ -1,12 +1,14 @@
-import { ArrayMinSize, IsArray, IsBoolean, IsIn, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
+import { IsMoney } from '../../common/validation/money.validator.js';
 
 export class PosItemDto {
   @IsString()
   productId!: string;
 
-  @IsNumber()
-  @Min(0.001)
+  // PAVA sells whole units only — no half-kilos, no half lengths.
+  @IsInt()
+  @Min(1)
   qty!: number;
 
   // The final, negotiated per-unit price the operator agreed with the
@@ -15,8 +17,7 @@ export class PosItemDto {
   // the implied discount itself (against the authoritative product price)
   // for permission-limit enforcement and reporting; the client cannot spoof
   // a fake "before" price to dodge the discount-limit check.
-  @IsNumber()
-  @Min(0)
+  @IsMoney()
   unitPrice!: number;
 }
 
@@ -24,8 +25,7 @@ export class ManualAllocationDto {
   @IsString()
   productId!: string;
 
-  @IsNumber()
-  @Min(0)
+  @IsMoney()
   amount!: number;
 }
 
@@ -51,8 +51,7 @@ export class CreatePosSaleDto {
   items!: PosItemDto[];
 
   @IsOptional()
-  @IsNumber()
-  @Min(0)
+  @IsMoney()
   transportAmount?: number;
 
   @IsOptional()
@@ -130,8 +129,7 @@ export class SuspendOrderDto {
   items!: PosItemDto[];
 
   @IsOptional()
-  @IsNumber()
-  @Min(0)
+  @IsMoney()
   transportAmount?: number;
 
   @IsOptional()

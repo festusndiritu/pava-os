@@ -59,7 +59,7 @@ export function ExpenseFormDrawer({
       const payload = {
         categoryId: categoryId || undefined,
         categoryName: !categoryId && newCategory ? newCategory : undefined,
-        amount: Number(amount),
+        amount: Math.round(Number(amount)),
         date: date || undefined,
         description: description || undefined,
         vendor: vendor || undefined,
@@ -103,7 +103,7 @@ export function ExpenseFormDrawer({
             <label className={labelClass} style={labelStyle}>
               Amount (KSh)
             </label>
-            <input required type="number" min="0.01" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)] data-num" style={inputStyle} />
+            <input required type="number" min="1" step="1" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)] data-num" style={inputStyle} />
           </div>
           <div>
             <label className={labelClass} style={labelStyle}>

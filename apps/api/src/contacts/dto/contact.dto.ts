@@ -1,4 +1,5 @@
 import { IsArray, IsOptional, IsString, Length } from 'class-validator';
+import { OptionalKenyanPhone } from '../../common/validation/phone.validator.js';
 
 export class CreateContactDto {
   @IsString()
@@ -13,12 +14,10 @@ export class CreateContactDto {
   @IsString()
   role?: string;
 
-  @IsOptional()
-  @IsString()
+  @OptionalKenyanPhone()
   phone?: string;
 
-  @IsOptional()
-  @IsString()
+  @OptionalKenyanPhone()
   altPhone?: string;
 
   @IsOptional()
@@ -49,12 +48,10 @@ export class UpdateContactDto {
   @IsString()
   role?: string;
 
-  @IsOptional()
-  @IsString()
+  @OptionalKenyanPhone()
   phone?: string;
 
-  @IsOptional()
-  @IsString()
+  @OptionalKenyanPhone()
   altPhone?: string;
 
   @IsOptional()

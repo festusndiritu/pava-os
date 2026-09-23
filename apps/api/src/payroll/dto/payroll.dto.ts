@@ -1,11 +1,12 @@
-import { ArrayMinSize, IsArray, IsIn, IsISO8601, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { ArrayMinSize, IsArray, IsIn, IsISO8601, IsOptional, IsString, Min } from 'class-validator';
+import { IsMoney } from '../../common/validation/money.validator.js';
 
 export class CreateAdvanceDto {
   @IsString()
   employeeId!: string;
 
-  @IsNumber()
-  @Min(0.01)
+  @IsMoney()
+  @Min(1)
   amount!: number;
 
   @IsOptional()
@@ -46,12 +47,15 @@ export class CreatePayrollRunDto {
 }
 
 export class UpdatePayrollItemDto {
+  // Non-negative — a positive amount withheld from pay, not a credit.
   @IsOptional()
-  @IsNumber()
+  @IsMoney()
   otherDeductions?: number;
 
+  // Signed on purpose: a positive adjustment is a bonus/top-up, a negative
+  // one is a manual deduction outside otherDeductions.
   @IsOptional()
-  @IsNumber()
+  @IsMoney({ allowNegative: true })
   adjustments?: number;
 
   @IsOptional()

@@ -81,6 +81,36 @@ export class CustomersService {
     return updated;
   }
 
+  // Permanent — only once archived, and only once nothing real would be
+  // lost: any document raised for this customer, any ledger entry (a
+  // payment, an opening balance, a write-off), or any lead that converted
+  // into it. Any of those is real business history; a customer that has
+  // none of them was created by mistake and archived right away, which is
+  // exactly the case this exists for.
+  async hardDelete(id: string, actorId: string) {
+    const customer = await this.findOne(id);
+    if (customer.active) throw new BadRequestException('Archive this customer before deleting it permanently');
+    const [documentCount, ledgerCount, convertedLeadCount] = await Promise.all([
+      this.prisma.document.count({ where: { customerId: id } }),
+      this.prisma.customerLedgerEntry.count({ where: { customerId: id } }),
+      this.prisma.lead.count({ where: { convertedCustomerId: id } }),
+    ]);
+    if (documentCount > 0 || ledgerCount > 0 || convertedLeadCount > 0) {
+      throw new BadRequestException(
+        'This customer has sales, ledger, or lead history and cannot be permanently deleted',
+      );
+    }
+    await this.prisma.customer.delete({ where: { id } });
+    await this.audit.log({
+      actorId,
+      action: 'customer.deleted_permanently',
+      entityType: 'Customer',
+      entityId: id,
+      metadata: { name: customer.businessName || customer.name },
+    });
+    return { deleted: true };
+  }
+
   ledger(customerId: string) {
     return this.prisma.customerLedgerEntry.findMany({
       where: { customerId },

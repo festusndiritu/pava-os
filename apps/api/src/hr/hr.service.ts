@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { EmploymentStatus, Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuditService } from '../audit/audit.service.js';
@@ -90,5 +90,35 @@ export class HrService {
       metadata: { before: { baseSalary: existing.baseSalary, employmentStatus: existing.employmentStatus }, after: { baseSalary: employee.baseSalary, employmentStatus: employee.employmentStatus } },
     });
     return employee;
+  }
+
+  // Employee doesn't get a separate active flag like Customer/Product/Lead
+  // /Contact — TERMINATED already is the "this person is gone" state
+  // (set via the ordinary update above), so it doubles as the archived
+  // state a hard delete requires. Permanent only once nothing real would
+  // be lost: any advance ever given, or any payroll item ever run for
+  // them. Both are pay history; an employee with neither was added and
+  // terminated before a single payroll touched them.
+  async hardDelete(id: string, actorId: string) {
+    const employee = await this.findOne(id);
+    if (employee.employmentStatus !== 'TERMINATED') {
+      throw new BadRequestException('Set this employee to Terminated before deleting them permanently');
+    }
+    const [advanceCount, payrollItemCount] = await Promise.all([
+      this.prisma.employeeAdvance.count({ where: { employeeId: id } }),
+      this.prisma.payrollItem.count({ where: { employeeId: id } }),
+    ]);
+    if (advanceCount > 0 || payrollItemCount > 0) {
+      throw new BadRequestException('This employee has advance or payroll history and cannot be permanently deleted');
+    }
+    await this.prisma.employee.delete({ where: { id } });
+    await this.audit.log({
+      actorId,
+      action: 'hr.employee_deleted_permanently',
+      entityType: 'Employee',
+      entityId: id,
+      metadata: { displayName: employee.displayName },
+    });
+    return { deleted: true };
   }
 }

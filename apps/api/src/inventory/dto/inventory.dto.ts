@@ -1,16 +1,16 @@
-import { ArrayMinSize, IsArray, IsBoolean, IsIn, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
+import { IsMoney } from '../../common/validation/money.validator.js';
 
 export class ReceiveLineDto {
   @IsString()
   productId!: string;
 
-  @IsNumber()
-  @Min(0.001)
+  @IsInt()
+  @Min(1)
   quantity!: number;
 
-  @IsNumber()
-  @Min(0)
+  @IsMoney()
   unitCost!: number;
 }
 
@@ -39,8 +39,8 @@ export class AdjustInventoryDto {
   @IsString()
   productId!: string;
 
-  @IsNumber()
-  quantity!: number; // signed
+  @IsInt()
+  quantity!: number; // signed, whole units
 
   @IsIn(ADJUST_TYPES)
   type!: (typeof ADJUST_TYPES)[number];
@@ -58,11 +58,10 @@ export class OpeningBalanceDto {
   @IsString()
   productId!: string;
 
-  @IsNumber()
-  @Min(0.001)
+  @IsInt()
+  @Min(1)
   quantity!: number;
 
-  @IsNumber()
-  @Min(0)
+  @IsMoney()
   unitCost!: number;
 }

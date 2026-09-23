@@ -42,7 +42,7 @@ export function PayrollRunDetailDrawer({ runId, onClose, onChanged }: { runId: s
     if (!run) return;
     setBusyId(itemId);
     try {
-      await payrollApi.updateItem(run.id, itemId, { [field]: value === '' ? 0 : Number(value) });
+      await payrollApi.updateItem(run.id, itemId, { [field]: value === '' ? 0 : Math.round(Number(value)) });
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not save.');

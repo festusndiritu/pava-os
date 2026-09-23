@@ -68,7 +68,7 @@ export function ReturnDialog({ onClose, onCompleted }: { onClose: () => void; on
   }
 
   function setQty(documentItemId: string, next: number, max: number) {
-    const clamped = Math.max(0, Math.min(next, max));
+    const clamped = Math.max(0, Math.min(Math.round(next), max));
     setQuantities((prev) => ({ ...prev, [documentItemId]: clamped }));
   }
 
@@ -221,7 +221,8 @@ export function ReturnDialog({ onClose, onCompleted }: { onClose: () => void; on
                             </button>
                             <input
                               type="number"
-                              inputMode="decimal"
+                              inputMode="numeric"
+                              step={1}
                               value={picked || ''}
                               placeholder="0"
                               onChange={(e) => setQty(item.documentItemId, Number(e.target.value) || 0, item.qtyReturnable)}

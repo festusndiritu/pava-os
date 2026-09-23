@@ -61,7 +61,7 @@ export function CustomerFormDrawer({
         address: address || undefined,
         notes: notes || undefined,
         isCredit,
-        creditLimit: creditLimit ? Number(creditLimit) : undefined,
+        creditLimit: creditLimit ? Math.round(Number(creditLimit)) : undefined,
       };
       if (isEdit && customer) await customersApi.update(customer.id, payload);
       else await customersApi.create(payload);

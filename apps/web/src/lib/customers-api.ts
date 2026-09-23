@@ -49,4 +49,7 @@ export const customersApi = {
   // they just drop out of the active list and stop being offered at the till.
   archive: (id: string) => api.delete<Customer>(`/customers/${id}`),
   restore: (id: string) => api.post<Customer>(`/customers/${id}/restore`),
+  // Only succeeds on an already-archived customer with no sales/ledger/
+  // lead history — the backend enforces both; this just surfaces the result.
+  hardDelete: (id: string) => api.delete<{ deleted: true }>(`/customers/${id}/permanent`),
 };

@@ -1,5 +1,6 @@
 import { ArrayUnique, IsArray, IsBoolean, IsEnum, IsNumber, IsOptional, IsString, Length, Matches, Max, Min } from 'class-validator';
 import { Module } from '../../../generated/prisma/client.js';
+import { OptionalKenyanPhone } from '../../common/validation/phone.validator.js';
 
 export class CreateStaffDto {
   @IsString()
@@ -13,8 +14,7 @@ export class CreateStaffDto {
   @IsString()
   avatar?: string;
 
-  @IsOptional()
-  @IsString()
+  @OptionalKenyanPhone()
   phone?: string;
 
   @IsArray()
@@ -48,8 +48,7 @@ export class UpdateStaffDto {
   @IsString()
   avatar?: string;
 
-  @IsOptional()
-  @IsString()
+  @OptionalKenyanPhone()
   phone?: string;
 
   @IsOptional()

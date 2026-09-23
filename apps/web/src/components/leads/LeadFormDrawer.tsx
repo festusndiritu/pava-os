@@ -54,7 +54,7 @@ export function LeadFormDrawer({ open, onClose, onSaved, lead }: { open: boolean
         location: location || undefined,
         source: source || undefined,
         stage,
-        expectedValue: expectedValue ? Number(expectedValue) : undefined,
+        expectedValue: expectedValue ? Math.round(Number(expectedValue)) : undefined,
         notes: notes || undefined,
         followUpAt: followUpAt || undefined,
       };

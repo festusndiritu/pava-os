@@ -31,7 +31,6 @@ export interface Product {
   name: string;
   displayName: string | null;
   spec: string | null;
-  imageUrl: string | null;
   brandId: string | null;
   brand: Brand | null;
   categoryId: string | null;
@@ -121,6 +120,9 @@ export const productsApi = {
   // intact; it just drops out of the active catalogue and the POS search.
   archive: (id: string) => api.delete<Product>(`/products/${id}`),
   restore: (id: string) => api.post<Product>(`/products/${id}/restore`),
+  // Only succeeds on an already-archived product with no sales/stock/price
+  // history — the backend enforces both; this just surfaces the result.
+  hardDelete: (id: string) => api.delete<{ deleted: true }>(`/products/${id}/permanent`),
   priceHistory: (id: string) => api.get<ProductPriceHistoryEntry[]>(`/products/${id}/price-history`),
   brands: () => api.get<Brand[]>('/brands'),
   createBrand: (name: string) => api.post<Brand>('/brands', { name }),

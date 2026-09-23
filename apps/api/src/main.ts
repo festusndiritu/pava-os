@@ -1,24 +1,12 @@
 import { NestFactory } from '@nestjs/core';
-import { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { join } from 'path';
-import { existsSync, mkdirSync } from 'fs';
 import { AppModule } from './app.module.js';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create(AppModule);
 
   app.enableCors({ origin: true, credentials: true });
-
-  // Uploaded product photos live outside the compiled dist/ folder so they
-  // survive a rebuild. Served at /uploads/products/<file>.
-  const uploadsDir = join(process.cwd(), 'uploads', 'products');
-  if (!existsSync(uploadsDir)) mkdirSync(uploadsDir, { recursive: true });
-
-  app.useStaticAssets(join(process.cwd(), 'uploads'), {
-    prefix: '/uploads/',
-  });
 
   app.useGlobalPipes(
     new ValidationPipe({

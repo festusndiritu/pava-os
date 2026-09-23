@@ -1,5 +1,7 @@
-import { ArrayMinSize, IsArray, IsBoolean, IsIn, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
+import { IsMoney } from '../../common/validation/money.validator.js';
+import { OptionalKenyanPhone } from '../../common/validation/phone.validator.js';
 
 export class ConvertToInvoiceDto {
   // Backorder promise (brief step 3): converts a quote to an invoice even
@@ -22,8 +24,7 @@ export class CreateDeliveryNoteDto {
   // A contact number for whoever's at the drop-off site — often not the
   // customer themselves. Optional: falls back to the customer's stored
   // phone at render time when omitted.
-  @IsOptional()
-  @IsString()
+  @OptionalKenyanPhone()
   deliveryPhone?: string;
 }
 
@@ -47,14 +48,14 @@ export class DocumentItemDto {
   @IsString()
   description?: string;
 
-  @IsNumber()
-  @Min(0.001)
+  // PAVA sells whole units only — no half-kilos, no half lengths.
+  @IsInt()
+  @Min(1)
   qty!: number;
 
   // The final, negotiated per-unit price — see PosItemDto for why there's
   // no separate "discount" field. Same rule here.
-  @IsNumber()
-  @Min(0)
+  @IsMoney()
   unitPrice!: number;
 }
 
@@ -62,8 +63,7 @@ export class ManualAllocationDto {
   @IsString()
   productId!: string;
 
-  @IsNumber()
-  @Min(0)
+  @IsMoney()
   amount!: number;
 }
 
@@ -85,8 +85,7 @@ export class CreateDocumentDto {
   items!: DocumentItemDto[];
 
   @IsOptional()
-  @IsNumber()
-  @Min(0)
+  @IsMoney()
   transportAmount?: number;
 
   @IsOptional()

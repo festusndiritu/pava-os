@@ -49,6 +49,8 @@ export function ProductDetailDrawer({
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const [confirmHardDelete, setConfirmHardDelete] = useState(false);
+  const [deletingForever, setDeletingForever] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { canViewCost, user } = useAuth();
   const showCost = canViewCost();
@@ -96,6 +98,23 @@ export function ProductDetailDrawer({
       setError(err instanceof ApiError ? err.message : 'Could not restore this product.');
     } finally {
       setArchiving(false);
+    }
+  }
+
+  async function hardDelete() {
+    if (!product) return;
+    setDeletingForever(true);
+    setError(null);
+    try {
+      await productsApi.hardDelete(product.id);
+      setConfirmHardDelete(false);
+      onChanged();
+      onClose();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not permanently delete this product.');
+      setConfirmHardDelete(false);
+    } finally {
+      setDeletingForever(false);
     }
   }
 
@@ -147,6 +166,17 @@ export function ProductDetailDrawer({
                   style={{ borderColor: 'var(--color-border)', color: product.active ? 'var(--color-status-bad)' : 'var(--color-accent)' }}
                 >
                   {archiving ? 'Working…' : product.active ? 'Archive product' : 'Restore product'}
+                </button>
+              )}
+              {isAdmin && !product.active && (
+                <button
+                  type="button"
+                  onClick={() => setConfirmHardDelete(true)}
+                  disabled={deletingForever}
+                  className="rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-60"
+                  style={{ borderColor: 'var(--color-status-bad)', color: 'var(--color-status-bad)' }}
+                >
+                  Delete permanently
                 </button>
               )}
             </div>
@@ -321,6 +351,17 @@ export function ProductDetailDrawer({
           busy={archiving}
           onCancel={() => setConfirmArchive(false)}
           onConfirm={archive}
+        />
+      )}
+
+      {confirmHardDelete && product && (
+        <ConfirmDialog
+          title="Delete this product forever?"
+          description={`${product.displayName ?? product.name} will be permanently removed — this cannot be undone. It only succeeds if the product has no sales, stock, or price history; if it does, delete will be refused and you'll see why.`}
+          confirmLabel="Delete permanently"
+          busy={deletingForever}
+          onCancel={() => setConfirmHardDelete(false)}
+          onConfirm={hardDelete}
         />
       )}
     </>

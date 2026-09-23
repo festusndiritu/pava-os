@@ -61,7 +61,7 @@ export function EmployeeFormDrawer({
         department: department || undefined,
         employmentStartDate: employmentStartDate || undefined,
         employmentStatus,
-        baseSalary: baseSalary ? Number(baseSalary) : undefined,
+        baseSalary: baseSalary ? Math.round(Number(baseSalary)) : undefined,
         emergencyContactName: emergencyContactName || undefined,
         emergencyContactPhone: emergencyContactPhone || undefined,
         notes: notes || undefined,

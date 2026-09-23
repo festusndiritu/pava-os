@@ -1,4 +1,5 @@
 import { IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { OptionalKenyanPhone } from '../../common/validation/phone.validator.js';
 
 export class UpdateSettingsDto {
   @IsOptional()
@@ -9,8 +10,7 @@ export class UpdateSettingsDto {
   @IsString()
   address?: string;
 
-  @IsOptional()
-  @IsString()
+  @OptionalKenyanPhone()
   phone?: string;
 
   @IsOptional()

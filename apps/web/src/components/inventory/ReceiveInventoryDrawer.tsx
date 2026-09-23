@@ -47,7 +47,7 @@ export function ReceiveInventoryDrawer({ open, onClose, onDone }: { open: boolea
         supplier,
         reference: reference || undefined,
         notes: notes || undefined,
-        lines: lines.map((l) => ({ productId: l.product.id, quantity: Number(l.quantity), unitCost: Number(l.unitCost) })),
+        lines: lines.map((l) => ({ productId: l.product.id, quantity: Math.round(Number(l.quantity)), unitCost: Math.round(Number(l.unitCost)) })),
       });
       // Only worth asking about products whose suggested price actually differs from the current one.
       const worthAsking = result.lines.filter((l) => l.suggestedPrice !== l.currentPrice);
@@ -160,7 +160,7 @@ export function ReceiveInventoryDrawer({ open, onClose, onDone }: { open: boolea
                       <td className="px-3 py-2">
                         <input
                           type="number"
-                          step="0.01"
+                          step="1"
                           min="0"
                           required
                           value={line.quantity}
@@ -172,7 +172,7 @@ export function ReceiveInventoryDrawer({ open, onClose, onDone }: { open: boolea
                       <td className="px-3 py-2">
                         <input
                           type="number"
-                          step="0.01"
+                          step="1"
                           min="0"
                           required
                           value={line.unitCost}

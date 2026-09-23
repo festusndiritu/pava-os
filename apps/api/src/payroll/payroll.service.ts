@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { AdvanceStatus, PayrollItemStatus, PayrollStatus } from '../../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuditService } from '../audit/audit.service.js';
+import { roundMoney } from '../common/money.js';
 import { CreateAdvanceDto, CreatePayrollRunDto, DecideAdvanceDto, UpdatePayrollItemDto } from './dto/payroll.dto.js';
 
 @Injectable()
@@ -112,8 +113,8 @@ export class PayrollService {
 
     const otherDeductions = dto.otherDeductions ?? item.otherDeductions;
     const adjustments = dto.adjustments ?? item.adjustments;
-    const grossPay = item.baseSalary + adjustments;
-    const netPay = grossPay - item.advancesDeducted - otherDeductions;
+    const grossPay = roundMoney(item.baseSalary + adjustments);
+    const netPay = roundMoney(grossPay - item.advancesDeducted - otherDeductions);
 
     return this.prisma.payrollItem.update({
       where: { id: itemId },
@@ -135,9 +136,9 @@ export class PayrollService {
         const unsettled = await tx.employeeAdvance.findMany({
           where: { employeeId: item.employeeId, status: AdvanceStatus.APPROVED, payrollItemId: null },
         });
-        const advancesDeducted = unsettled.reduce((s, a) => s + a.amount, 0);
-        const grossPay = item.baseSalary + item.adjustments;
-        const netPay = grossPay - advancesDeducted - item.otherDeductions;
+        const advancesDeducted = roundMoney(unsettled.reduce((s, a) => s + a.amount, 0));
+        const grossPay = roundMoney(item.baseSalary + item.adjustments);
+        const netPay = roundMoney(grossPay - advancesDeducted - item.otherDeductions);
 
         await tx.payrollItem.update({
           where: { id: item.id },

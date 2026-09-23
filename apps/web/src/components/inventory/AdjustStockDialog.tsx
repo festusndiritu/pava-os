@@ -34,7 +34,7 @@ export function AdjustStockDialog({ product, onClose, onDone }: { product: Produ
   const [saving, setSaving] = useState(false);
 
   async function submit(allowNegative = false) {
-    const qty = Number(quantity);
+    const qty = Math.round(Number(quantity));
     if (!qty) return;
     setSaving(true);
     setError(null);
@@ -115,7 +115,8 @@ export function AdjustStockDialog({ product, onClose, onDone }: { product: Produ
             </select>
             <input
               type="number"
-              inputMode="decimal"
+              inputMode="numeric"
+              step={1}
               value={quantity}
               onChange={(e) => setQuantity(e.target.value)}
               placeholder="Quantity (use a negative number to reduce)"

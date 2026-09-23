@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { InventoryService } from '../inventory/inventory.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { SettingsService } from '../settings/settings.service.js';
+import { roundMoney } from '../common/money.js';
 import type { CreatePosSaleDto } from './dto/pos-sale.dto.js';
 
 /** Exclusive upper bound covering the whole of the given calendar day. */
@@ -86,7 +87,10 @@ export class DocumentsService {
         const basis = targetIdxs.reduce((s, idx) => s + (byValue ? negotiatedValues[idx] : items[idx].qty), 0) || 1;
         for (const idx of targetIdxs) {
           const weight = byValue ? negotiatedValues[idx] : items[idx].qty;
-          allocations[idx] = transportAmount * (weight / basis);
+          // Each share is a fraction of transportAmount, which is exact
+          // (validated to 2dp on the way in) — the division is where float
+          // noise creeps in, so it's rounded right back out here.
+          allocations[idx] = roundMoney(transportAmount * (weight / basis));
         }
       }
     }
@@ -103,10 +107,10 @@ export class DocumentsService {
       // Manual lines (no productId — a one-off labour/service charge) have no
       // list price to compare against, so they never register as "discounted".
       const listPrice = product?.basePrice ?? line.unitPrice;
-      const negotiated = negotiatedValues[idx];
+      const negotiated = roundMoney(negotiatedValues[idx]);
       subtotalAtNegotiatedPrice += negotiated;
-      subtotalAtListPrice += listPrice * line.qty;
-      const impliedDiscount = Math.max(0, listPrice * line.qty - negotiated);
+      subtotalAtListPrice += roundMoney(listPrice * line.qty);
+      const impliedDiscount = roundMoney(Math.max(0, listPrice * line.qty - negotiated));
       impliedDiscountTotal += impliedDiscount;
 
       const allocated = allocations[idx];
@@ -117,8 +121,8 @@ export class DocumentsService {
       if (fold && transportAmount > 0) {
         const perUnitWithTransport = (negotiated + allocated) / line.qty;
         finalUnitPrice = roundUp(perUnitWithTransport);
-        lineTotal = finalUnitPrice * line.qty;
-        lineRoundingAdjustment = lineTotal - (negotiated + allocated);
+        lineTotal = roundMoney(finalUnitPrice * line.qty);
+        lineRoundingAdjustment = roundMoney(lineTotal - (negotiated + allocated));
         roundingAdjustmentTotal += lineRoundingAdjustment;
       }
 
@@ -138,7 +142,15 @@ export class DocumentsService {
     let total = lines.reduce((s, l) => s + l.lineTotal, 0);
     if (!fold && transportAmount > 0) total += transportAmount;
 
-    return { lines, subtotalAtNegotiatedPrice, subtotalAtListPrice, impliedDiscountTotal, roundingAdjustmentTotal, total, transportMode };
+    return {
+      lines,
+      subtotalAtNegotiatedPrice: roundMoney(subtotalAtNegotiatedPrice),
+      subtotalAtListPrice: roundMoney(subtotalAtListPrice),
+      impliedDiscountTotal: roundMoney(impliedDiscountTotal),
+      roundingAdjustmentTotal: roundMoney(roundingAdjustmentTotal),
+      total: roundMoney(total),
+      transportMode,
+    };
   }
 
   // Brief §24 — enforced here, never trusted from the frontend. Compares

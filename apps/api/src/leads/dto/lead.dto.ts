@@ -1,4 +1,6 @@
-import { IsIn, IsNumber, IsOptional, IsString, Length, Min } from 'class-validator';
+import { IsIn, IsOptional, IsString, Length } from 'class-validator';
+import { IsMoney } from '../../common/validation/money.validator.js';
+import { OptionalKenyanPhone } from '../../common/validation/phone.validator.js';
 
 const STAGES = ['NEW', 'CONTACTED', 'QUALIFIED', 'QUOTE_REQUIRED', 'QUOTE_SENT', 'NEGOTIATING', 'WON', 'LOST'] as const;
 
@@ -11,8 +13,7 @@ export class CreateLeadDto {
   @IsString()
   company?: string;
 
-  @IsOptional()
-  @IsString()
+  @OptionalKenyanPhone()
   phone?: string;
 
   @IsOptional()
@@ -32,8 +33,7 @@ export class CreateLeadDto {
   stage?: (typeof STAGES)[number];
 
   @IsOptional()
-  @IsNumber()
-  @Min(0)
+  @IsMoney()
   expectedValue?: number;
 
   @IsOptional()
@@ -59,8 +59,7 @@ export class UpdateLeadDto {
   @IsString()
   company?: string;
 
-  @IsOptional()
-  @IsString()
+  @OptionalKenyanPhone()
   phone?: string;
 
   @IsOptional()
@@ -80,8 +79,7 @@ export class UpdateLeadDto {
   stage?: (typeof STAGES)[number];
 
   @IsOptional()
-  @IsNumber()
-  @Min(0)
+  @IsMoney()
   expectedValue?: number;
 
   @IsOptional()

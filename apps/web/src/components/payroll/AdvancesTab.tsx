@@ -157,7 +157,7 @@ function AdvanceFormDrawer({ open, onClose, onSaved }: { open: boolean; onClose:
     setSaving(true);
     setError(null);
     try {
-      await payrollApi.createAdvance({ employeeId, amount: Number(amount), reason: reason || undefined, notes: notes || undefined });
+      await payrollApi.createAdvance({ employeeId, amount: Math.round(Number(amount)), reason: reason || undefined, notes: notes || undefined });
       onSaved();
       onClose();
     } catch (err) {

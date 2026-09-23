@@ -170,7 +170,7 @@ export function ProductFormDrawer({
         brandId: brandId || undefined,
         categoryId: categoryId || undefined,
         unitId,
-        basePrice: Number(basePrice),
+        basePrice: Math.round(Number(basePrice)),
         stockStatus,
         shape: shape || undefined,
         nominalSize: nominalSize || undefined,
@@ -531,7 +531,7 @@ export function ProductFormDrawer({
               <input
                 required
                 type="number"
-                step="0.01"
+                step="1"
                 min="0"
                 value={basePrice}
                 onChange={(e) => setBasePrice(e.target.value)}

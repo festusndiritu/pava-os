@@ -1,4 +1,4 @@
-import { ArrayMinSize, IsArray, IsIn, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsIn, IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 // Money only ever goes back the way it came in at this till.
@@ -8,8 +8,8 @@ export class ReturnItemDto {
   @IsString()
   documentItemId!: string;
 
-  @IsNumber()
-  @Min(0.001)
+  @IsInt()
+  @Min(1)
   qty!: number;
 }
 

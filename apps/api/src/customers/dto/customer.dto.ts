@@ -1,4 +1,6 @@
-import { IsBoolean, IsIn, IsNumber, IsOptional, IsString, Length, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString, Length, Min } from 'class-validator';
+import { IsMoney } from '../../common/validation/money.validator.js';
+import { OptionalKenyanPhone } from '../../common/validation/phone.validator.js';
 
 export class CreateCustomerDto {
   @IsString()
@@ -9,12 +11,10 @@ export class CreateCustomerDto {
   @IsString()
   businessName?: string;
 
-  @IsOptional()
-  @IsString()
+  @OptionalKenyanPhone()
   phone?: string;
 
-  @IsOptional()
-  @IsString()
+  @OptionalKenyanPhone()
   altPhone?: string;
 
   @IsOptional()
@@ -34,8 +34,7 @@ export class CreateCustomerDto {
   isCredit?: boolean;
 
   @IsOptional()
-  @IsNumber()
-  @Min(0)
+  @IsMoney()
   creditLimit?: number;
 }
 
@@ -49,12 +48,10 @@ export class UpdateCustomerDto {
   @IsString()
   businessName?: string;
 
-  @IsOptional()
-  @IsString()
+  @OptionalKenyanPhone()
   phone?: string;
 
-  @IsOptional()
-  @IsString()
+  @OptionalKenyanPhone()
   altPhone?: string;
 
   @IsOptional()
@@ -74,14 +71,13 @@ export class UpdateCustomerDto {
   isCredit?: boolean;
 
   @IsOptional()
-  @IsNumber()
-  @Min(0)
+  @IsMoney()
   creditLimit?: number;
 }
 
 export class RecordPaymentDto {
-  @IsNumber()
-  @Min(0.01)
+  @IsMoney()
+  @Min(1)
   amount!: number;
 
   @IsOptional()
@@ -92,7 +88,7 @@ export class RecordPaymentDto {
 const ADJUST_TYPES = ['ADJUSTMENT', 'OPENING', 'REFUND', 'WRITE_OFF'] as const;
 
 export class AdjustBalanceDto {
-  @IsNumber()
+  @IsMoney({ allowNegative: true })
   amount!: number; // signed
 
   @IsIn(ADJUST_TYPES)

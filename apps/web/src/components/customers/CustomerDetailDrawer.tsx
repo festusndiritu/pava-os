@@ -5,6 +5,7 @@ import { Drawer } from '../ui/Drawer';
 import { customersApi, type Customer, type CustomerLedgerEntry } from '../../lib/customers-api';
 import { ApiError } from '../../lib/api';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { useAuth } from '../../lib/auth-context';
 
 function fmtDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(iso));
@@ -39,7 +40,11 @@ export function CustomerDetailDrawer({
   const [action, setAction] = useState<'payment' | 'adjustment' | null>(null);
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const [confirmHardDelete, setConfirmHardDelete] = useState(false);
+  const [deletingForever, setDeletingForever] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN';
 
   async function load() {
     if (!customerId) return;
@@ -87,6 +92,23 @@ export function CustomerDetailDrawer({
     }
   }
 
+  async function hardDelete() {
+    if (!customer) return;
+    setDeletingForever(true);
+    setError(null);
+    try {
+      await customersApi.hardDelete(customer.id);
+      setConfirmHardDelete(false);
+      onChanged();
+      onClose();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not permanently delete this customer.');
+      setConfirmHardDelete(false);
+    } finally {
+      setDeletingForever(false);
+    }
+  }
+
   if (!customerId) return null;
 
   const overLimit = customer?.isCredit && customer.creditLimit != null && customer.creditBalance > customer.creditLimit;
@@ -130,6 +152,17 @@ export function CustomerDetailDrawer({
               >
                 {archiving ? 'Working…' : customer.active ? 'Archive customer' : 'Restore customer'}
               </button>
+              {isAdmin && !customer.active && (
+                <button
+                  type="button"
+                  onClick={() => setConfirmHardDelete(true)}
+                  disabled={deletingForever}
+                  className="rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-60"
+                  style={{ borderColor: 'var(--color-status-bad)', color: 'var(--color-status-bad)' }}
+                >
+                  Delete permanently
+                </button>
+              )}
             </div>
           )
         }
@@ -229,6 +262,17 @@ export function CustomerDetailDrawer({
           onConfirm={archive}
         />
       )}
+
+      {confirmHardDelete && customer && (
+        <ConfirmDialog
+          title="Delete this customer forever?"
+          description={`${customer.businessName || customer.name} will be permanently removed — this cannot be undone. It only succeeds if the customer has no sales, ledger, or lead history; if it does, delete will be refused and you'll see why.`}
+          confirmLabel="Delete permanently"
+          busy={deletingForever}
+          onCancel={() => setConfirmHardDelete(false)}
+          onConfirm={hardDelete}
+        />
+      )}
     </>
   );
 }
@@ -251,7 +295,7 @@ function LedgerActionDialog({
   const [saving, setSaving] = useState(false);
 
   async function submit() {
-    const value = Number(amount);
+    const value = Math.round(Number(amount));
     if (!value) return;
     setSaving(true);
     setError(null);

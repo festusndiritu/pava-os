@@ -228,7 +228,6 @@ model Product {
   name        String
   displayName String?
   spec        String?
-  imageUrl    String?
   brandId     String?
   brand       Brand?      @relation(fields: [brandId], references: [id])
   categoryId  String?
@@ -440,6 +439,9 @@ model Lead {
   assignedTo          User?      @relation("LeadAssignedTo", fields: [assignedToId], references: [id])
   convertedCustomerId String?
   convertedCustomer   Customer?  @relation(fields: [convertedCustomerId], references: [id])
+  // Soft delete, same convention as Customer/Product — archiving hides a
+  // lead from the pipeline without breaking convertedCustomer history.
+  active              Boolean    @default(true)
   createdById         String
   createdBy           User       @relation("LeadCreatedBy", fields: [createdById], references: [id])
   createdAt           DateTime   @default(now())
@@ -447,6 +449,7 @@ model Lead {
 
   @@index([stage])
   @@index([assignedToId])
+  @@index([active])
 }
 
 // Operational phone book: suppliers, drivers, technicians (brief §32)
@@ -460,9 +463,13 @@ model Contact {
   notes       String?
   tags        String[]  @default([])
   followUpAt  DateTime?
+  // Soft delete, same convention as Customer/Product/Lead.
+  active      Boolean   @default(true)
   createdById String
   createdBy   User      @relation("ContactCreatedBy", fields: [createdById], references: [id])
   createdAt   DateTime  @default(now())
+
+  @@index([active])
 }
 
 // Quote -> Invoice -> Receipt is ONE record; status tracks its lifecycle.

@@ -1,8 +1,10 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { PermissionsGuard } from '../auth/permissions.guard.js';
 import { Permissions } from '../auth/permissions.decorator.js';
-import { EmploymentStatus, Module } from '../../generated/prisma/client.js';
+import { RolesGuard } from '../auth/roles.guard.js';
+import { Roles } from '../auth/roles.decorator.js';
+import { EmploymentStatus, Module, Role } from '../../generated/prisma/client.js';
 import { HrService } from './hr.service.js';
 import { CreateEmployeeDto, UpdateEmployeeDto } from './dto/employee.dto.js';
 
@@ -32,5 +34,15 @@ export class HrController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() body: UpdateEmployeeDto, @Req() req: any) {
     return this.hr.update(id, req.user.sub, body);
+  }
+
+  // Permanent deletion is admin-only, same as every other hard-delete
+  // route in the system. The service enforces the employee is already
+  // Terminated and has no advance/payroll history.
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  @Delete(':id/permanent')
+  hardDelete(@Param('id') id: string, @Req() req: any) {
+    return this.hr.hardDelete(id, req.user.sub);
   }
 }

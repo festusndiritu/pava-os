@@ -17,6 +17,7 @@ export interface Lead {
   assignedToId: string | null;
   assignedTo: { id: string; name: string } | null;
   convertedCustomerId: string | null;
+  active: boolean;
   createdBy: { name: string };
   createdAt: string;
   updatedAt: string;
@@ -37,9 +38,14 @@ export interface LeadInput {
 }
 
 export const leadsApi = {
-  list: () => api.get<Lead[]>('/leads'),
+  list: (status?: 'active' | 'archived' | 'all') => api.get<Lead[]>(`/leads${status ? `?status=${status}` : ''}`),
   get: (id: string) => api.get<Lead>(`/leads/${id}`),
   create: (data: LeadInput) => api.post<Lead>('/leads', data),
   update: (id: string, data: Partial<LeadInput>) => api.patch<Lead>(`/leads/${id}`, data),
   convertToCustomer: (id: string) => api.post<{ lead: Lead; customer: { id: string; name: string } }>(`/leads/${id}/convert-to-customer`),
+  archive: (id: string) => api.delete<Lead>(`/leads/${id}`),
+  restore: (id: string) => api.post<Lead>(`/leads/${id}/restore`),
+  // Only succeeds on an already-archived lead that was never converted —
+  // the backend enforces both; this just surfaces the result.
+  hardDelete: (id: string) => api.delete<{ deleted: true }>(`/leads/${id}/permanent`),
 };

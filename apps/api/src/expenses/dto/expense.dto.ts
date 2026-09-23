@@ -1,4 +1,5 @@
-import { IsIn, IsISO8601, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsIn, IsISO8601, IsOptional, IsString, Min } from 'class-validator';
+import { IsMoney } from '../../common/validation/money.validator.js';
 
 const PAYMENT_METHODS = ['CASH', 'MPESA', 'CARD', 'CREDIT'] as const;
 const EXPENSE_STATUSES = ['PENDING', 'APPROVED', 'PAID'] as const;
@@ -12,8 +13,8 @@ export class CreateExpenseDto {
   @IsString()
   categoryName?: string; // create-on-the-fly if categoryId not supplied
 
-  @IsNumber()
-  @Min(0.01)
+  @IsMoney()
+  @Min(1)
   amount!: number;
 
   @IsOptional()
@@ -51,8 +52,8 @@ export class UpdateExpenseDto {
   categoryId?: string;
 
   @IsOptional()
-  @IsNumber()
-  @Min(0.01)
+  @IsMoney()
+  @Min(1)
   amount?: number;
 
   @IsOptional()

@@ -44,4 +44,8 @@ export const hrApi = {
   get: (id: string) => api.get<Employee>(`/employees/${id}`),
   create: (data: Partial<Employee>) => api.post<Employee>('/employees', data),
   update: (id: string, data: Partial<Employee>) => api.patch<Employee>(`/employees/${id}`, data),
+  // Only succeeds when the employee is already Terminated and has no
+  // advance/payroll history — the backend enforces both; this just
+  // surfaces the result.
+  hardDelete: (id: string) => api.delete<{ deleted: true }>(`/employees/${id}/permanent`),
 };
