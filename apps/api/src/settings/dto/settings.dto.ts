@@ -1,4 +1,4 @@
-import { IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { OptionalKenyanPhone } from '../../common/validation/phone.validator.js';
 
 export class UpdateSettingsDto {
@@ -30,12 +30,12 @@ export class UpdateSettingsDto {
   receiptPrefix?: string;
 
   @IsOptional()
-  @IsNumber()
+  @IsInt()
   @Min(1)
   roundingIncrement?: number;
 
   @IsOptional()
-  @IsNumber()
+  @IsInt()
   @Min(0)
   lowStockThreshold?: number;
 

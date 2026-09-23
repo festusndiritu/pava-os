@@ -29,12 +29,12 @@ export function normalizeKenyanPhone(value: unknown): unknown {
  * anything else are out of scope; every phone field in this system is a
  * mobile someone is actually called or M-Pesa'd on.
  */
-export function IsKenyanPhone(validationOptions?: ValidationOptions) {
-  return function (object: object, propertyName: string) {
+export function IsKenyanPhone(validationOptions?: ValidationOptions): PropertyDecorator {
+  return (target: object, propertyName: string | symbol) => {
     registerDecorator({
       name: 'isKenyanPhone',
-      target: object.constructor,
-      propertyName,
+      target: target.constructor,
+      propertyName: propertyName.toString(),
       options: {
         message: 'Enter a valid Kenyan phone number (10 digits, starting 07 or 01)',
         ...validationOptions,

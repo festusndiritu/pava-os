@@ -9,7 +9,7 @@ function fmtDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(iso));
 }
 function money(n: number) {
-  return `KSh ${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+  return `KSh ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 }
 
 const ADVANCE_LABEL: Record<AdvanceStatus, { label: string; fg: string; bg: string }> = {

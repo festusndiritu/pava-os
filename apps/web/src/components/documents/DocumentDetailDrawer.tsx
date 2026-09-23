@@ -23,7 +23,7 @@ function fmtDate(iso: string | null) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));
 }
 function money(n: number) {
-  return `KSh ${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+  return `KSh ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 }
 
 const STATUS_LABEL: Record<string, { label: string; bg: string; fg: string }> = {

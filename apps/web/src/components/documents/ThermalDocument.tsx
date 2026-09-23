@@ -3,10 +3,10 @@
 import type { DocumentViewModel } from '../../lib/document-view-model';
 
 function money(n: number) {
-  return `KSh ${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+  return `KSh ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 }
 function qty(n: number) {
-  return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
 }
 function fmtDateTime(iso: string) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));

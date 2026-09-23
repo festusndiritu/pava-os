@@ -48,7 +48,7 @@ interface CartLine {
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
 
 function money(n: number) {
-  return `KSh ${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+  return `KSh ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 }
 
 export default function PosPage() {

@@ -1,4 +1,4 @@
-import { ArrayMinSize, IsArray, IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { IsMoney } from '../../common/validation/money.validator.js';
 import { OptionalKenyanPhone } from '../../common/validation/phone.validator.js';
@@ -110,7 +110,7 @@ export class CreateDocumentDto {
   foldTransportIntoPrices?: boolean;
 
   @IsOptional()
-  @IsNumber()
+  @IsInt()
   @Min(1)
   roundingIncrement?: number;
 

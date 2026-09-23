@@ -4,7 +4,7 @@ import { AlertTriangle } from 'lucide-react';
 import type { StockShortfall } from '../../lib/pos-api';
 
 function qty(n: number) {
-  return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
 }
 
 /**

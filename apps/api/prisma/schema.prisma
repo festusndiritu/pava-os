@@ -234,14 +234,16 @@ model Product {
   category    Category?   @relation(fields: [categoryId], references: [id])
   unitId      String
   unit        Unit        @relation(fields: [unitId], references: [id])
-  basePrice   Float
+  basePrice   Int
   stockStatus StockStatus @default(IN_STOCK)
   active      Boolean     @default(true)
   updatedAt   DateTime    @updatedAt
   createdAt   DateTime    @default(now())
 
-  stockQuantity Float  @default(0)
-  lastCost      Float?
+  // Whole units only — PAVA doesn't sell or stock a fraction of a kilo
+  // or a fraction of a length — and whole shillings, no cents.
+  stockQuantity Int  @default(0)
+  lastCost      Int?
 
   shape       String?
   nominalSize String?
@@ -279,7 +281,7 @@ model ProductFamily {
   // matters. Families left false (most steel gauges, where each size
   // genuinely matters) keep the existing per-product check.
   aggregateLowStock Boolean @default(false)
-  lowStockThreshold Float?
+  lowStockThreshold Int?
   products Product[]
 }
 
@@ -298,8 +300,8 @@ model ProductPriceHistory {
   id          String   @id @default(cuid())
   productId   String
   product     Product  @relation(fields: [productId], references: [id])
-  oldPrice    Float
-  newPrice    Float
+  oldPrice    Int
+  newPrice    Int
   changedById String
   changedBy   User     @relation(fields: [changedById], references: [id])
   changedAt   DateTime @default(now())
@@ -340,9 +342,9 @@ model InventoryBatch {
   product           Product          @relation(fields: [productId], references: [id])
   receiptId         String
   receipt           InventoryReceipt @relation(fields: [receiptId], references: [id])
-  quantityReceived  Float
-  remainingQuantity Float
-  unitCost          Float
+  quantityReceived  Int
+  remainingQuantity Int
+  unitCost          Int
   createdAt         DateTime         @default(now())
 
   movements InventoryMovement[]
@@ -359,8 +361,8 @@ model InventoryMovement {
   batchId     String?
   batch       InventoryBatch? @relation(fields: [batchId], references: [id])
   type        MovementType
-  quantity    Float
-  unitCost    Float?
+  quantity    Int
+  unitCost    Int?
   note        String?
   createdById String
   createdBy   User            @relation(fields: [createdById], references: [id])
@@ -390,8 +392,8 @@ model Customer {
   address       String?
   notes         String?
   isCredit      Boolean  @default(false)
-  creditLimit   Float?
-  creditBalance Float    @default(0)
+  creditLimit   Int?
+  creditBalance Int      @default(0)
   // Soft delete, same convention as Product.active — a customer's documents
   // and ledger history must survive them being archived.
   active        Boolean  @default(true)
@@ -410,7 +412,7 @@ model CustomerLedgerEntry {
   customerId  String
   customer    Customer        @relation(fields: [customerId], references: [id])
   type        LedgerEntryType
-  amount      Float
+  amount      Int
   documentId  String?
   document    Document?       @relation(fields: [documentId], references: [id])
   note        String?
@@ -432,7 +434,7 @@ model Lead {
   location            String?
   source              String?
   stage               LeadStage  @default(NEW)
-  expectedValue       Float?
+  expectedValue       Int?
   notes               String?
   followUpAt          DateTime?
   assignedToId        String?
@@ -483,11 +485,11 @@ model Document {
   createdById        String
   createdBy          User           @relation("CreatedByUser", fields: [createdById], references: [id])
   transportMode      TransportMode  @default(NONE)
-  transportAmount    Float          @default(0)
-  roundingAdjustment Float          @default(0)
+  transportAmount    Int            @default(0)
+  roundingAdjustment Int            @default(0)
   paymentMethod      PaymentMethod?
-  subtotal           Float          @default(0)
-  total              Float          @default(0)
+  subtotal           Int            @default(0)
+  total              Int            @default(0)
   // Server-side assigned as each stage is reached (brief §53)
   quoteNumber        String?        @unique
   invoiceNumber      String?        @unique
@@ -532,13 +534,13 @@ model DocumentItem {
   productId          String?
   product            Product? @relation(fields: [productId], references: [id])
   description        String
-  qty                Float
-  basePrice          Float    @default(0)
-  unitPrice          Float
-  discount           Float    @default(0)
-  transportAllocated Float    @default(0)
-  roundingAdjustment Float    @default(0)
-  lineTotal          Float
+  qty                Int
+  basePrice          Int      @default(0)
+  unitPrice          Int
+  discount           Int      @default(0)
+  transportAllocated Int      @default(0)
+  roundingAdjustment Int      @default(0)
+  lineTotal          Int
 
   returnItems ReturnItem[]
 
@@ -554,7 +556,7 @@ model Return {
   returnNumber String         @unique
   documentId   String
   document     Document       @relation(fields: [documentId], references: [id])
-  total        Float
+  total        Int
   // How the money went back. Null for an account sale, where the refund is
   // posted to the customer's credit ledger instead of paid out at the till.
   refundMethod PaymentMethod?
@@ -578,9 +580,9 @@ model ReturnItem {
   productId      String?
   product        Product?     @relation(fields: [productId], references: [id])
   description    String
-  qty            Float
-  unitPrice      Float
-  lineTotal      Float
+  qty            Int
+  unitPrice      Int
+  lineTotal      Int
 
   @@index([returnId])
   @@index([documentItemId])
@@ -599,7 +601,7 @@ model Employee {
   department            String?
   employmentStartDate   DateTime?
   employmentStatus      EmploymentStatus @default(ACTIVE)
-  baseSalary            Float            @default(0)
+  baseSalary            Int              @default(0)
   notes                 String?
   createdById           String
   createdBy             User             @relation(fields: [createdById], references: [id])
@@ -616,7 +618,7 @@ model EmployeeAdvance {
   id            String        @id @default(cuid())
   employeeId    String
   employee      Employee      @relation(fields: [employeeId], references: [id])
-  amount        Float
+  amount        Int
   date          DateTime      @default(now())
   reason        String?
   status        AdvanceStatus @default(PENDING)
@@ -656,12 +658,12 @@ model PayrollItem {
   payrollRun       PayrollRun        @relation(fields: [payrollRunId], references: [id])
   employeeId       String
   employee         Employee          @relation(fields: [employeeId], references: [id])
-  baseSalary       Float
-  advancesDeducted Float             @default(0)
-  otherDeductions  Float             @default(0)
-  adjustments      Float             @default(0)
-  grossPay         Float
-  netPay           Float
+  baseSalary       Int
+  advancesDeducted Int               @default(0)
+  otherDeductions  Int               @default(0)
+  adjustments      Int               @default(0)
+  grossPay         Int
+  netPay           Int
   paymentStatus    PayrollItemStatus @default(PENDING)
   paymentDate      DateTime?
   notes            String?
@@ -683,7 +685,7 @@ model Expense {
   id            String           @id @default(cuid())
   categoryId    String?
   category      ExpenseCategory? @relation(fields: [categoryId], references: [id])
-  amount        Float
+  amount        Int
   date          DateTime         @default(now())
   description   String?
   vendor        String?
@@ -718,8 +720,8 @@ model BusinessSetting {
   nextReceiptSeq    Int      @default(1)
   nextDeliveryNoteSeq Int    @default(1)
   nextReturnSeq     Int      @default(1)
-  roundingIncrement Float    @default(5)
-  lowStockThreshold Float    @default(5)
+  roundingIncrement Int      @default(5)
+  lowStockThreshold Int      @default(5)
   documentFooter    String?
   // Bank/M-Pesa/till info shown on quotes and invoices so a customer knows
   // how to pay — brief step 6.

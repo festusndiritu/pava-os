@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsIn, IsNumber, IsOptional, IsString, Length, Min } from 'class-validator';
+import { IsArray, IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, Length, Min } from 'class-validator';
 import { IsMoney } from '../../common/validation/money.validator.js';
 
 export class CreateProductFamilyDto {
@@ -11,7 +11,7 @@ export class CreateProductFamilyDto {
   aggregateLowStock?: boolean;
 
   @IsOptional()
-  @IsNumber()
+  @IsInt()
   @Min(0)
   lowStockThreshold?: number;
 }
@@ -27,7 +27,7 @@ export class UpdateProductFamilyDto {
   aggregateLowStock?: boolean;
 
   @IsOptional()
-  @IsNumber()
+  @IsInt()
   @Min(0)
   lowStockThreshold?: number;
 }

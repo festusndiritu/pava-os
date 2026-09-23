@@ -4,10 +4,10 @@ import { BrandMark } from './brand-mark';
 import { ACCENT, HAIRLINE, INK, LABEL, LINE, MUTED, PANEL } from './theme';
 
 function money(n: number) {
-  return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
 }
 function qty(n: number) {
-  return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
 }
 function fmtDate(iso: string) {
   return new Intl.DateTimeFormat('en-GB', { dateStyle: 'long' }).format(new Date(iso));
