@@ -9,7 +9,6 @@ import {
   CalendarRange,
   ExternalLink,
   Package,
-  PackagePlus,
   Receipt,
   ShoppingCart,
   TrendingUp,
@@ -55,10 +54,7 @@ export default function DashboardPage() {
   const today = dayOverDay(data?.chart);
   const week = weekOverWeek(data?.chart);
   const lowStockCount = data?.lowStock?.length ?? 0;
-  // PAVA's only credit is same-day: goods go out, the invoice is settled
-  // before close. What matters on the dashboard is how many are still open,
-  // not a running debtor balance.
-  const unsettled = data?.recentSales?.filter((s) => s.status === 'INVOICED').length ?? 0;
+  // const unsettled = data?.recentSales?.filter((s) => s.status === 'INVOICED').length ?? 0;
 
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 p-4 sm:p-6">
@@ -66,11 +62,16 @@ export default function DashboardPage() {
         <div className="min-w-0 flex-1">
           <OverviewHeader userName={user.name} data={data} hasPermission={hasPermission} />
         </div>
+
         {hasPermission('INVENTORY') && (
           <Link
             href="/inventory"
             className="flex min-h-9 items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium"
-            style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)', backgroundColor: 'var(--color-surface)' }}
+            style={{
+              borderColor: 'var(--color-border)',
+              color: 'var(--color-ink-900)',
+              backgroundColor: 'var(--color-surface)',
+            }}
           >
             <Package size={15} strokeWidth={2} />
             Receive stock
@@ -81,15 +82,25 @@ export default function DashboardPage() {
       {!data && (
         <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 xl:grid-cols-4">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-28 animate-pulse rounded-lg" style={{ backgroundColor: 'var(--color-border)' }} />
+            <div
+              key={i}
+              className="h-28 animate-pulse rounded-lg"
+              style={{ backgroundColor: 'var(--color-border)' }}
+            />
           ))}
         </div>
       )}
 
       {nothingToShow && (
-        <div className="rounded-lg border p-8 text-center" style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
+        <div
+          className="rounded-lg border p-8 text-center"
+          style={{
+            backgroundColor: 'var(--color-surface)',
+            borderColor: 'var(--color-border)',
+          }}
+        >
           <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
-            Nothing to show here yet for your role — ask an administrator if you think you should have access to more.
+            Nothing to show here yet — ask an administrator if you think you should have access to more.
           </p>
         </div>
       )}
@@ -108,6 +119,7 @@ export default function DashboardPage() {
                 trend={today?.trend}
                 trendComparison="vs yesterday"
               />
+
               <StatCard
                 label="Last 7 days"
                 value={money(data.sales.week.total)}
@@ -117,6 +129,7 @@ export default function DashboardPage() {
                 trend={week?.trend}
                 trendComparison="vs previous 7 days"
               />
+
               <StatCard
                 label="Last 30 days"
                 value={money(data.sales.month.total)}
@@ -126,6 +139,7 @@ export default function DashboardPage() {
               />
             </>
           )}
+
           {data.lowStock && (
             <StatCard
               label="Low stock"
@@ -143,8 +157,15 @@ export default function DashboardPage() {
         (data.chart.length > 1 ? (
           <SalesTrendChart chart={data.chart} />
         ) : (
-          <SectionCard title="Sales trend" description="Paid sales per day, last 30 days" icon={TrendingUp}>
-            <EmptyState icon={TrendingUp} line="Not enough days with sales yet to draw a trend." />
+          <SectionCard
+            title="Sales trend"
+            description="Paid sales per day, last 30 days"
+            icon={TrendingUp}
+          >
+            <EmptyState
+              icon={TrendingUp}
+              line="Not enough days with sales yet to draw a trend."
+            />
           </SectionCard>
         ))}
 
@@ -154,15 +175,23 @@ export default function DashboardPage() {
             (data.topProducts.length > 0 ? (
               <TopProductsChart topProducts={data.topProducts} />
             ) : (
-              <SectionCard title="Revenue by product" description="Top sellers, last 30 days" icon={TrendingUp}>
-                <EmptyState icon={TrendingUp} line="Nothing sold in the last 30 days." />
+              <SectionCard
+                title="Revenue by product"
+                description="Top sellers, last 30 days"
+                icon={TrendingUp}
+              >
+                <EmptyState
+                  icon={TrendingUp}
+                  line="Nothing sold in the last 30 days."
+                />
               </SectionCard>
             ))}
+
           {data?.recentSales && <PaymentMixChart recentSales={data.recentSales} />}
         </div>
       )}
 
-      {/* Operational lists */}
+      {/* Operational overview */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {data?.lowStock && (
           <SectionCard
@@ -170,50 +199,41 @@ export default function DashboardPage() {
             description="At or below the reorder threshold"
             icon={AlertTriangle}
             iconTone="warn"
-            action={<IconAction href="/inventory" label="View inventory" icon={ExternalLink} />}
+            action={
+              <IconAction
+                href="/inventory"
+                label="View inventory"
+                icon={ExternalLink}
+              />
+            }
           >
             <div className="flex flex-col">
-              {data.lowStock.length === 0 && <EmptyState icon={Boxes} line="Every product is above its reorder threshold." />}
-              {data.lowStock.map((p) => (
-                <ListRow
-                  key={p.id}
-                  marker={<span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: 'var(--color-status-warn)' }} />}
-                  title={p.name}
-                  meta={p.kind === 'family' ? <Badge label="Family total" tone="neutral" /> : `Threshold ${p.threshold} ${p.unit}`}
-                  value={`${p.stockQuantity} ${p.unit}`}
-                  valueTone="var(--color-status-warn)"
-                  action={<IconAction href="/inventory" label="Open inventory to receive stock" icon={PackagePlus} />}
+              {data.lowStock.length === 0 && (
+                <EmptyState
+                  icon={Boxes}
+                  line="Every product is above its reorder threshold."
                 />
-              ))}
-            </div>
-          </SectionCard>
-        )}
+              )}
 
-        {data?.topProducts && (
-          <SectionCard
-            title="Top products"
-            description="By revenue, last 30 days"
-            icon={TrendingUp}
-            iconTone="ok"
-            action={hasPermission('PRODUCTS') ? <IconAction href="/products" label="View catalogue" icon={ExternalLink} /> : undefined}
-          >
-            <div className="flex flex-col">
-              {data.topProducts.length === 0 && <EmptyState icon={TrendingUp} line="No sales in the last 30 days yet." />}
-              {data.topProducts.map((p, i) => (
+              {data.lowStock.map((p) => (
                 <ListRow
                   key={p.id}
                   marker={
                     <span
-                      className="data-num flex h-6 w-6 shrink-0 items-center justify-center rounded text-xs font-semibold"
-                      style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-600)' }}
-                    >
-                      {i + 1}
-                    </span>
+                      className="h-2 w-2 shrink-0 rounded-full"
+                      style={{ backgroundColor: 'var(--color-status-warn)' }}
+                    />
                   }
                   title={p.name}
-                  meta={`${p.unitsSold} sold`}
-                  value={money(p.revenue)}
-                  action={hasPermission('PRODUCTS') ? <IconAction href="/products" label="Open product catalogue" icon={ExternalLink} /> : undefined}
+                  meta={
+                    p.kind === 'family' ? (
+                      <Badge label="Family total" tone="neutral" />
+                    ) : (
+                      `Threshold ${p.threshold} ${p.unit}`
+                    )
+                  }
+                  value={`${p.stockQuantity} ${p.unit}`}
+                  valueTone="var(--color-status-warn)"
                 />
               ))}
             </div>
@@ -226,19 +246,40 @@ export default function DashboardPage() {
             description="Latest invoiced and paid documents"
             icon={Receipt}
             iconTone="neutral"
-            action={hasPermission('INVOICES') ? <IconAction href="/invoices" label="View invoices" icon={ExternalLink} /> : undefined}
+            action={
+              hasPermission('INVOICES') ? (
+                <IconAction
+                  href="/invoices"
+                  label="View invoices"
+                  icon={ExternalLink}
+                />
+              ) : undefined
+            }
           >
             <div className="flex flex-col">
-              {data.recentSales.length === 0 && <EmptyState icon={Receipt} line="Sales will appear here as they are rung up." />}
+              {data.recentSales.length === 0 && (
+                <EmptyState
+                  icon={Receipt}
+                  line="Sales will appear here as they are rung up."
+                />
+              )}
+
               {data.recentSales.map((s) => {
                 const status = SALE_STATUS[s.status];
+
                 return (
                   <ListRow
                     key={s.id}
                     title={s.customerLabel}
                     meta={
                       <>
-                        {status && <Badge label={status.label} tone={status.tone} />}
+                        {status && (
+                          <Badge
+                            label={status.label}
+                            tone={status.tone}
+                          />
+                        )}
+
                         <span className="truncate">
                           {fmtDate(s.createdAt)}
                           {s.paymentMethod ? ` · ${s.paymentMethod}` : ''}
@@ -246,12 +287,14 @@ export default function DashboardPage() {
                       </>
                     }
                     value={money(s.total)}
-                    action={hasPermission('INVOICES') ? <IconAction href="/invoices" label="Open in invoices" icon={Receipt} /> : undefined}
                   />
                 );
               })}
             </div>
-            {hasPermission('INVOICES') && <SectionLink href="/invoices" label="All invoices" />}
+
+            {hasPermission('INVOICES') && (
+              <SectionLink href="/invoices" label="All invoices" />
+            )}
           </SectionCard>
         )}
       </div>
