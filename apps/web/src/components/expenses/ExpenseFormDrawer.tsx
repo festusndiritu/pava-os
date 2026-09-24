@@ -4,6 +4,8 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Drawer } from '../ui/Drawer';
 import { expensesApi, type Expense, type ExpenseCategory, type ExpenseStatus, type PaymentMethod } from '../../lib/expenses-api';
 import { ApiError } from '../../lib/api';
+import { NumericInput, PhoneInput, toNumber } from '../ui/inputs';
+import { todayLocalISO } from '../../lib/format';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
 const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase';
@@ -41,7 +43,7 @@ export function ExpenseFormDrawer({
     setCategoryId(expense?.categoryId ?? '');
     setNewCategory('');
     setAmount(expense?.amount != null ? String(expense.amount) : '');
-    setDate(expense?.date ? expense.date.slice(0, 10) : new Date().toISOString().slice(0, 10));
+    setDate(expense?.date ? expense.date.slice(0, 10) : todayLocalISO());
     setDescription(expense?.description ?? '');
     setVendor(expense?.vendor ?? '');
     setPaymentMethod(expense?.paymentMethod ?? '');
@@ -59,7 +61,7 @@ export function ExpenseFormDrawer({
       const payload = {
         categoryId: categoryId || undefined,
         categoryName: !categoryId && newCategory ? newCategory : undefined,
-        amount: Math.round(Number(amount)),
+        amount: toNumber(amount) ?? 0,
         date: date || undefined,
         description: description || undefined,
         vendor: vendor || undefined,
@@ -81,6 +83,7 @@ export function ExpenseFormDrawer({
 
   return (
     <Drawer
+      guardUnsaved
       open={open}
       onClose={onClose}
       title={isEdit ? 'Edit expense' : 'Add expense'}
@@ -103,7 +106,7 @@ export function ExpenseFormDrawer({
             <label className={labelClass} style={labelStyle}>
               Amount (KSh)
             </label>
-            <input required type="number" min="1" step="1" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)] data-num" style={inputStyle} />
+            <NumericInput required min={1} value={amount} onChange={setAmount} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)] data-num" style={inputStyle} />
           </div>
           <div>
             <label className={labelClass} style={labelStyle}>

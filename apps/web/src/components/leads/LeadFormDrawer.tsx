@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Drawer } from '../ui/Drawer';
 import { leadsApi, type Lead, type LeadStage } from '../../lib/leads-api';
 import { ApiError } from '../../lib/api';
+import { NumericInput, PhoneInput, toNumber } from '../ui/inputs';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
 const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase';
@@ -54,7 +55,7 @@ export function LeadFormDrawer({ open, onClose, onSaved, lead }: { open: boolean
         location: location || undefined,
         source: source || undefined,
         stage,
-        expectedValue: expectedValue ? Math.round(Number(expectedValue)) : undefined,
+        expectedValue: toNumber(expectedValue) ?? undefined,
         notes: notes || undefined,
         followUpAt: followUpAt || undefined,
       };
@@ -71,6 +72,7 @@ export function LeadFormDrawer({ open, onClose, onSaved, lead }: { open: boolean
 
   return (
     <Drawer
+      guardUnsaved
       open={open}
       onClose={onClose}
       title={isEdit ? 'Edit lead' : 'New lead'}
@@ -99,7 +101,7 @@ export function LeadFormDrawer({ open, onClose, onSaved, lead }: { open: boolean
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={labelClass} style={labelStyle}>Phone</label>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+            <PhoneInput value={phone} onChange={setPhone} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
           </div>
           <div>
             <label className={labelClass} style={labelStyle}>Email</label>
@@ -127,7 +129,7 @@ export function LeadFormDrawer({ open, onClose, onSaved, lead }: { open: boolean
           </div>
           <div>
             <label className={labelClass} style={labelStyle}>Expected value (KSh)</label>
-            <input type="number" min="0" value={expectedValue} onChange={(e) => setExpectedValue(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm data-num outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+            <NumericInput value={expectedValue} onChange={setExpectedValue} className="w-full rounded-md border px-3 py-2 text-sm data-num outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
           </div>
         </div>
         <div>

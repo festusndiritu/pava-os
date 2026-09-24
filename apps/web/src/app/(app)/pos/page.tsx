@@ -38,6 +38,7 @@ import { StockShortfallDialog } from '../../../components/documents/StockShortfa
 import { DeliveryLocationDialog } from '../../../components/documents/DeliveryLocationDialog';
 import { ApiError } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth-context';
+import { CommittedNumberInput } from '../../../components/ui/inputs';
 
 interface CartLine {
   product: Product;
@@ -440,12 +441,11 @@ export default function PosPage() {
                       <button type="button" aria-label="Less" onClick={() => updateLine(l.product.id, { qty: Math.max(1, l.qty - 1) })} className="flex h-10 w-10 items-center justify-center" style={{ color: 'var(--color-ink-600)' }}>
                         <Minus size={14} strokeWidth={2} />
                       </button>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        step={1}
+                      <CommittedNumberInput
+                        aria-label="Quantity"
+                        min={1}
                         value={l.qty}
-                        onChange={(e) => updateLine(l.product.id, { qty: Math.max(1, Math.round(Number(e.target.value) || 0)) })}
+                        onCommit={(n) => updateLine(l.product.id, { qty: n })}
                         className="data-num w-12 border-0 bg-transparent text-center text-sm outline-none"
                         style={{ color: 'var(--color-ink-900)' }}
                       />
@@ -453,13 +453,11 @@ export default function PosPage() {
                         <Plus size={14} strokeWidth={2} />
                       </button>
                     </div>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      step={1}
+                    <CommittedNumberInput
                       aria-label="Unit price"
+                      min={0}
                       value={l.unitPrice}
-                      onChange={(e) => updateLine(l.product.id, { unitPrice: Math.max(0, Math.round(Number(e.target.value) || 0)) })}
+                      onCommit={(n) => updateLine(l.product.id, { unitPrice: n })}
                       className="data-num min-h-10 w-24 rounded-md border px-2 text-sm"
                       style={inputStyle}
                     />

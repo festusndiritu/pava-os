@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useAuth } from '../../../lib/auth-context';
 import { settingsApi, type BusinessSettings } from '../../../lib/settings-api';
 import { ApiError } from '../../../lib/api';
+import { NumericInput, PhoneInput, toNumber } from '../../../components/ui/inputs';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
 const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase';
@@ -32,11 +33,16 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  // Held as text while editing so the fields can be emptied and retyped.
+  const [rounding, setRounding] = useState('');
+  const [lowStock, setLowStock] = useState('');
 
   useEffect(() => {
     settingsApi.get().then((s) => {
       setSettings(s);
       setForm(s);
+      setRounding(String(s.roundingIncrement));
+      setLowStock(String(s.lowStockThreshold));
     });
   }, []);
 
@@ -52,6 +58,16 @@ export default function SettingsPage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    const roundingIncrement = toNumber(rounding);
+    const lowStockThreshold = toNumber(lowStock);
+    if (roundingIncrement === null || roundingIncrement < 1) {
+      setError('Rounding increment must be at least KSh 1.');
+      return;
+    }
+    if (lowStockThreshold === null) {
+      setError('Enter a low-stock threshold (0 turns the warning off).');
+      return;
+    }
     setSaving(true);
     setError(null);
     setSaved(false);
@@ -64,13 +80,15 @@ export default function SettingsPage() {
         quotePrefix: form.quotePrefix,
         invoicePrefix: form.invoicePrefix,
         receiptPrefix: form.receiptPrefix,
-        roundingIncrement: form.roundingIncrement,
-        lowStockThreshold: form.lowStockThreshold,
+        roundingIncrement,
+        lowStockThreshold,
         documentFooter: form.documentFooter ?? undefined,
         paymentDetails: form.paymentDetails ?? undefined,
       });
       setSettings(updated);
       setForm(updated);
+      setRounding(String(updated.roundingIncrement));
+      setLowStock(String(updated.lowStockThreshold));
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
@@ -112,7 +130,7 @@ export default function SettingsPage() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelClass} style={labelStyle}>Phone</label>
-              <input value={form.phone ?? ''} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+              <PhoneInput value={form.phone ?? ''} onChange={(v) => setForm((f) => ({ ...f, phone: v }))} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
             </div>
             <div>
               <label className={labelClass} style={labelStyle}>Email</label>
@@ -145,12 +163,12 @@ export default function SettingsPage() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelClass} style={labelStyle}>Rounding increment (KSh)</label>
-              <input type="number" min="1" value={form.roundingIncrement ?? ''} onChange={(e) => setForm((f) => ({ ...f, roundingIncrement: Number(e.target.value) }))} className="w-full rounded-md border px-3 py-2 text-sm data-num outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+              <NumericInput min={1} required value={rounding} onChange={setRounding} className="w-full rounded-md border px-3 py-2 text-sm data-num outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
               <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>POS rounds customer-facing unit prices up to the nearest multiple of this.</p>
             </div>
             <div>
               <label className={labelClass} style={labelStyle}>Low-stock threshold</label>
-              <input type="number" min="0" value={form.lowStockThreshold ?? ''} onChange={(e) => setForm((f) => ({ ...f, lowStockThreshold: Number(e.target.value) }))} className="w-full rounded-md border px-3 py-2 text-sm data-num outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+              <NumericInput required value={lowStock} onChange={setLowStock} className="w-full rounded-md border px-3 py-2 text-sm data-num outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
               <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>Products at or below this quantity show on the dashboard's low-stock list.</p>
             </div>
           </div>

@@ -4,6 +4,37 @@ import { useEffect, useState } from 'react';
 import { Drawer } from '../ui/Drawer';
 import { payrollApi, type PayrollRun } from '../../lib/payroll-api';
 import { ApiError } from '../../lib/api';
+import { NumericInput, PhoneInput, toNumber } from '../ui/inputs';
+
+// One editable amount on a draft payslip. Edits stay local until the field
+// loses focus, and a request only goes out if the number actually changed —
+// tabbing through the fields no longer saves and reloads the run each time.
+function PayrollField({ value, allowNegative, disabled, onSave, style }: { value: number; allowNegative?: boolean; disabled?: boolean; onSave: (n: number) => void; style: React.CSSProperties }) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => setText(String(value)), [value]);
+
+  return (
+    <NumericInput
+      allowNegative={allowNegative}
+      disabled={disabled}
+      value={text}
+      onChange={setText}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur();
+      }}
+      onBlur={() => {
+        const n = toNumber(text) ?? 0;
+        if (n === value) {
+          setText(String(value));
+          return;
+        }
+        onSave(n);
+      }}
+      className="w-full rounded-md border px-2 py-1 text-sm data-num outline-none focus:border-[var(--color-accent)] disabled:opacity-60"
+      style={style}
+    />
+  );
+}
 
 function fmtDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(iso));
@@ -38,11 +69,11 @@ export function PayrollRunDetailDrawer({ runId, onClose, onChanged }: { runId: s
   const isDraft = run?.status === 'DRAFT';
   const totalNet = run?.items.reduce((s, i) => s + i.netPay, 0) ?? 0;
 
-  async function saveField(itemId: string, field: 'otherDeductions' | 'adjustments', value: string) {
+  async function saveField(itemId: string, field: 'otherDeductions' | 'adjustments', value: number) {
     if (!run) return;
     setBusyId(itemId);
     try {
-      await payrollApi.updateItem(run.id, itemId, { [field]: value === '' ? 0 : Math.round(Number(value)) });
+      await payrollApi.updateItem(run.id, itemId, { [field]: value });
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not save.');
@@ -172,13 +203,7 @@ export function PayrollRunDetailDrawer({ runId, onClose, onChanged }: { runId: s
                       Other deductions
                     </p>
                     {isDraft ? (
-                      <input
-                        type="number"
-                        defaultValue={item.otherDeductions}
-                        onBlur={(e) => saveField(item.id, 'otherDeductions', e.target.value)}
-                        className="w-full rounded-md border px-2 py-1 text-sm data-num outline-none focus:border-[var(--color-accent)]"
-                        style={inputStyle}
-                      />
+                      <PayrollField value={item.otherDeductions} disabled={busyId === item.id} onSave={(n) => saveField(item.id, 'otherDeductions', n)} style={inputStyle} />
                     ) : (
                       <p className="data-num" style={{ color: 'var(--color-ink-900)' }}>
                         {money(item.otherDeductions)}
@@ -190,13 +215,7 @@ export function PayrollRunDetailDrawer({ runId, onClose, onChanged }: { runId: s
                       Adjustments
                     </p>
                     {isDraft ? (
-                      <input
-                        type="number"
-                        defaultValue={item.adjustments}
-                        onBlur={(e) => saveField(item.id, 'adjustments', e.target.value)}
-                        className="w-full rounded-md border px-2 py-1 text-sm data-num outline-none focus:border-[var(--color-accent)]"
-                        style={inputStyle}
-                      />
+                      <PayrollField allowNegative value={item.adjustments} disabled={busyId === item.id} onSave={(n) => saveField(item.id, 'adjustments', n)} style={inputStyle} />
                     ) : (
                       <p className="data-num" style={{ color: 'var(--color-ink-900)' }}>
                         {item.adjustments >= 0 ? '+' : ''}

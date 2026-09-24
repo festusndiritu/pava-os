@@ -1,11 +1,13 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
-import { Plus, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { Drawer } from '../ui/Drawer';
+import { InlineAddSelect } from '../ui/InlineAddSelect';
 import { productsApi, type Brand, type Category, type Product, type ProductFamily, type Unit } from '../../lib/products-api';
 import { SHAPES, shapeConfig } from '../../lib/shape-config';
 import { ApiError } from '../../lib/api';
+import { NumericInput, PhoneInput, toNumber } from '../ui/inputs';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
 const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase';
@@ -85,8 +87,8 @@ export function ProductFormDrawer({
   categories: Category[];
   units: Unit[];
   families: ProductFamily[];
-  onCreateBrand: (name: string) => Promise<void>;
-  onCreateCategory: (name: string) => Promise<void>;
+  onCreateBrand: (name: string) => Promise<Brand>;
+  onCreateCategory: (name: string) => Promise<Category>;
 }) {
   const isEdit = !!product;
 
@@ -110,8 +112,6 @@ export function ProductFormDrawer({
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [newBrandName, setNewBrandName] = useState<string | null>(null);
-  const [newCategoryName, setNewCategoryName] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -170,12 +170,12 @@ export function ProductFormDrawer({
         brandId: brandId || undefined,
         categoryId: categoryId || undefined,
         unitId,
-        basePrice: Math.round(Number(basePrice)),
+        basePrice: toNumber(basePrice) ?? 0,
         stockStatus,
         shape: shape || undefined,
         nominalSize: nominalSize || undefined,
-        widthMm: widthMm ? Number(widthMm) : undefined,
-        heightMm: heightMm ? Number(heightMm) : undefined,
+        widthMm: toNumber(widthMm) ?? undefined,
+        heightMm: toNumber(heightMm) ?? undefined,
         thicknessMm: thicknessMm ?? undefined,
         gauge: gaugeOption?.gauge,
         material: material || undefined,
@@ -199,6 +199,7 @@ export function ProductFormDrawer({
 
   return (
     <Drawer
+      guardUnsaved
       open={open}
       onClose={onClose}
       title={isEdit ? 'Edit product' : 'Add product'}
@@ -251,101 +252,9 @@ export function ProductFormDrawer({
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelClass} style={labelStyle}>
-                Brand
-              </label>
-              {newBrandName === null ? (
-                <div className="flex gap-1.5">
-                  <select
-                    value={brandId}
-                    onChange={(e) => setBrandId(e.target.value)}
-                    className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]"
-                    style={inputStyle}
-                  >
-                    <option value="">—</option>
-                    {brands.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button type="button" onClick={() => setNewBrandName('')} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-600)' }}>
-                    <Plus size={15} strokeWidth={2} />
-                  </button>
-                </div>
-              ) : (
-                <div className="flex gap-1.5">
-                  <input
-                    autoFocus
-                    value={newBrandName}
-                    onChange={(e) => setNewBrandName(e.target.value)}
-                    placeholder="New brand name"
-                    className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]"
-                    style={inputStyle}
-                  />
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (newBrandName.trim()) await onCreateBrand(newBrandName.trim());
-                      setNewBrandName(null);
-                    }}
-                    className="shrink-0 rounded-md px-2.5 text-sm font-medium text-white"
-                    style={{ backgroundColor: 'var(--color-accent)' }}
-                  >
-                    Add
-                  </button>
-                </div>
-              )}
-            </div>
+            <InlineAddSelect label="Brand" noun="brand" items={brands} value={brandId} onChange={setBrandId} onCreate={onCreateBrand} labelClass={labelClass} labelStyle={labelStyle} />
 
-            <div>
-              <label className={labelClass} style={labelStyle}>
-                Category
-              </label>
-              {newCategoryName === null ? (
-                <div className="flex gap-1.5">
-                  <select
-                    value={categoryId}
-                    onChange={(e) => setCategoryId(e.target.value)}
-                    className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]"
-                    style={inputStyle}
-                  >
-                    <option value="">—</option>
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button type="button" onClick={() => setNewCategoryName('')} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-600)' }}>
-                    <Plus size={15} strokeWidth={2} />
-                  </button>
-                </div>
-              ) : (
-                <div className="flex gap-1.5">
-                  <input
-                    autoFocus
-                    value={newCategoryName}
-                    onChange={(e) => setNewCategoryName(e.target.value)}
-                    placeholder="New category name"
-                    className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]"
-                    style={inputStyle}
-                  />
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (newCategoryName.trim()) await onCreateCategory(newCategoryName.trim());
-                      setNewCategoryName(null);
-                    }}
-                    className="shrink-0 rounded-md px-2.5 text-sm font-medium text-white"
-                    style={{ backgroundColor: 'var(--color-accent)' }}
-                  >
-                    Add
-                  </button>
-                </div>
-              )}
-            </div>
+            <InlineAddSelect label="Category" noun="category" items={categories} value={categoryId} onChange={setCategoryId} onCreate={onCreateCategory} labelClass={labelClass} labelStyle={labelStyle} />
           </div>
 
           <div>
@@ -413,11 +322,11 @@ export function ProductFormDrawer({
                 <label className={labelClass} style={labelStyle}>
                   Width (mm)
                 </label>
-                <input
-                  type="number"
-                  step="0.1"
+                <NumericInput
+                  allowDecimal
+                  step={0.1}
                   value={widthMm}
-                  onChange={(e) => setWidthMm(e.target.value)}
+                  onChange={setWidthMm}
                   className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)] data-num"
                   style={inputStyle}
                 />
@@ -426,11 +335,11 @@ export function ProductFormDrawer({
                 <label className={labelClass} style={labelStyle}>
                   Height (mm)
                 </label>
-                <input
-                  type="number"
-                  step="0.1"
+                <NumericInput
+                  allowDecimal
+                  step={0.1}
                   value={heightMm}
-                  onChange={(e) => setHeightMm(e.target.value)}
+                  onChange={setHeightMm}
                   className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)] data-num"
                   style={inputStyle}
                 />
@@ -528,13 +437,10 @@ export function ProductFormDrawer({
               <label className={labelClass} style={labelStyle}>
                 Base selling price (KSh)
               </label>
-              <input
+              <NumericInput
                 required
-                type="number"
-                step="1"
-                min="0"
                 value={basePrice}
-                onChange={(e) => setBasePrice(e.target.value)}
+                onChange={setBasePrice}
                 className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)] data-num"
                 style={inputStyle}
               />

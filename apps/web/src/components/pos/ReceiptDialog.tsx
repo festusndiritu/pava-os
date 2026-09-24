@@ -7,6 +7,7 @@ import { settingsApi, type BusinessSettings } from '../../lib/settings-api';
 import { buildPosReceiptViewModel } from '../../lib/document-view-model';
 import { shareViewModelAsPdf } from '../../lib/pdf/document-pdf';
 import { ThermalDocument } from '../documents/ThermalDocument';
+import { Modal } from '../ui/Modal';
 
 export function ReceiptDialog({
   sale,
@@ -54,12 +55,8 @@ export function ReceiptDialog({
           browser Print button still uses it. */}
       <ThermalDocument vm={vm} variant="print" />
 
-      <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:px-4 print:hidden">
-        <div className="absolute inset-0" style={{ backgroundColor: 'rgba(16, 24, 40, 0.5)' }} onClick={onClose} />
-        <div
-          className="relative flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-xl border sm:max-w-sm sm:rounded-lg"
-          style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', boxShadow: 'var(--shadow-card)' }}
-        >
+      <div className="print:hidden">
+        <Modal onClose={onClose} label="Sale receipt" className="flex max-h-[92vh] flex-col overflow-hidden sm:max-w-sm">
           <div className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: 'var(--color-border)' }}>
             <div className="min-w-0">
               <p className="text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>
@@ -124,7 +121,7 @@ export function ReceiptDialog({
               </button>
             )}
           </div>
-        </div>
+        </Modal>
       </div>
     </>
   );

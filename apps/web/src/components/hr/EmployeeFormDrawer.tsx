@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Drawer } from '../ui/Drawer';
 import { hrApi, type Employee, type EmploymentStatus } from '../../lib/hr-api';
 import { ApiError } from '../../lib/api';
+import { NumericInput, PhoneInput, toNumber } from '../ui/inputs';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
 const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase';
@@ -61,7 +62,7 @@ export function EmployeeFormDrawer({
         department: department || undefined,
         employmentStartDate: employmentStartDate || undefined,
         employmentStatus,
-        baseSalary: baseSalary ? Math.round(Number(baseSalary)) : undefined,
+        baseSalary: toNumber(baseSalary) ?? undefined,
         emergencyContactName: emergencyContactName || undefined,
         emergencyContactPhone: emergencyContactPhone || undefined,
         notes: notes || undefined,
@@ -79,6 +80,7 @@ export function EmployeeFormDrawer({
 
   return (
     <Drawer
+      guardUnsaved
       open={open}
       onClose={onClose}
       title={isEdit ? 'Edit employee' : 'Add employee'}
@@ -121,7 +123,7 @@ export function EmployeeFormDrawer({
             <label className={labelClass} style={labelStyle}>
               Phone
             </label>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+            <PhoneInput value={phone} onChange={setPhone} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
           </div>
           <div>
             <label className={labelClass} style={labelStyle}>
@@ -135,7 +137,7 @@ export function EmployeeFormDrawer({
             <label className={labelClass} style={labelStyle}>
               Base salary (KSh/month)
             </label>
-            <input type="number" min="0" value={baseSalary} onChange={(e) => setBaseSalary(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)] data-num" style={inputStyle} />
+            <NumericInput value={baseSalary} onChange={setBaseSalary} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)] data-num" style={inputStyle} />
           </div>
           <div>
             <label className={labelClass} style={labelStyle}>
@@ -159,7 +161,7 @@ export function EmployeeFormDrawer({
             <label className={labelClass} style={labelStyle}>
               Emergency phone
             </label>
-            <input value={emergencyContactPhone} onChange={(e) => setEmergencyContactPhone(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+            <PhoneInput value={emergencyContactPhone} onChange={setEmergencyContactPhone} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
           </div>
         </div>
         <div>

@@ -2,6 +2,7 @@
 
 import { AlertTriangle } from 'lucide-react';
 import type { StockShortfall } from '../../lib/pos-api';
+import { Modal } from '../ui/Modal';
 
 function qty(n: number) {
   return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
@@ -35,15 +36,7 @@ export function StockShortfallDialog({
   const single = shortfalls.length === 1;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
-      <div className="absolute inset-0" style={{ backgroundColor: 'rgba(16, 24, 40, 0.5)' }} onClick={onCancel} />
-      <div
-        role="alertdialog"
-        aria-modal="true"
-        aria-label="Insufficient stock"
-        className="relative flex max-h-[90vh] w-full flex-col overflow-hidden rounded-t-xl border sm:max-w-md sm:rounded-lg"
-        style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', boxShadow: 'var(--shadow-card)' }}
-      >
+    <Modal onClose={onCancel} role="alertdialog" label="Insufficient stock" className="flex max-h-[90vh] flex-col overflow-hidden sm:max-w-md">
         <div className="flex items-start gap-3 px-5 pt-5">
           <span
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md"
@@ -129,7 +122,6 @@ export function StockShortfallDialog({
             </button>
           )}
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

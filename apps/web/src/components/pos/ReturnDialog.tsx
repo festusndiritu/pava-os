@@ -5,6 +5,8 @@ import { CheckCircle2, Minus, Plus, Receipt, RotateCcw, Search, X } from 'lucide
 import { ApiError } from '../../lib/api';
 import { documentsApi, type SaleDocument } from '../../lib/documents-api';
 import { posApi, type ReturnableSale, type SaleReturn } from '../../lib/pos-api';
+import { NumericInput, PhoneInput, toNumber } from '../ui/inputs';
+import { Modal } from '../ui/Modal';
 
 function money(n: number) {
   return `KSh ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
@@ -96,12 +98,7 @@ export function ReturnDialog({ onClose, onCompleted }: { onClose: () => void; on
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:px-4">
-      <div className="absolute inset-0" style={{ backgroundColor: 'rgba(16, 24, 40, 0.5)' }} onClick={onClose} />
-      <div
-        className="relative flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-xl border sm:max-w-lg sm:rounded-lg"
-        style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', boxShadow: 'var(--shadow-card)' }}
-      >
+    <Modal onClose={onClose} dismissOnBackdrop={false} label="Return items" className="flex max-h-[92vh] flex-col overflow-hidden sm:max-w-lg">
         <div className="flex items-start justify-between gap-3 border-b px-5 py-4" style={{ borderColor: 'var(--color-border)' }}>
           <div className="min-w-0">
             <h2 className="text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>
@@ -219,13 +216,11 @@ export function ReturnDialog({ onClose, onCompleted }: { onClose: () => void; on
                             >
                               <Minus size={14} strokeWidth={2} />
                             </button>
-                            <input
-                              type="number"
-                              inputMode="numeric"
-                              step={1}
-                              value={picked || ''}
+                            <NumericInput
+                              aria-label="Quantity to return"
+                              value={picked ? String(picked) : ''}
                               placeholder="0"
-                              onChange={(e) => setQty(item.documentItemId, Number(e.target.value) || 0, item.qtyReturnable)}
+                              onChange={(v) => setQty(item.documentItemId, toNumber(v) ?? 0, item.qtyReturnable)}
                               className="data-num w-12 border-0 bg-transparent text-center text-sm outline-none"
                               style={{ color: 'var(--color-ink-900)' }}
                             />
@@ -323,7 +318,6 @@ export function ReturnDialog({ onClose, onCompleted }: { onClose: () => void; on
             </p>
           )}
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

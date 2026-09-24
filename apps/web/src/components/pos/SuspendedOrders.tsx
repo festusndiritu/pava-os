@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Clock, PauseCircle, Trash2, X } from 'lucide-react';
 import { posApi, type SuspendedOrder } from '../../lib/pos-api';
 import { ApiError } from '../../lib/api';
+import { Modal } from '../ui/Modal';
 
 function money(n: number) {
   return `KSh ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
@@ -18,12 +19,7 @@ function since(iso: string) {
 
 function Shell({ title, subtitle, onClose, children, footer }: { title: string; subtitle?: string; onClose: () => void; children: React.ReactNode; footer?: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:px-4">
-      <div className="absolute inset-0" style={{ backgroundColor: 'rgba(16, 24, 40, 0.5)' }} onClick={onClose} />
-      <div
-        className="relative flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-xl border sm:max-w-md sm:rounded-lg"
-        style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', boxShadow: 'var(--shadow-card)' }}
-      >
+    <Modal onClose={onClose} label={title} className="flex max-h-[92vh] flex-col overflow-hidden sm:max-w-md">
         <div className="flex items-start justify-between gap-3 border-b px-5 py-4" style={{ borderColor: 'var(--color-border)' }}>
           <div className="min-w-0">
             <h2 className="text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>
@@ -45,8 +41,7 @@ function Shell({ title, subtitle, onClose, children, footer }: { title: string; 
             {footer}
           </div>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }
 

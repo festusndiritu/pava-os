@@ -9,6 +9,7 @@ import { documentsApi } from '../../lib/documents-api';
 import type { Product } from '../../lib/products-api';
 import { ApiError } from '../../lib/api';
 import { TransportDialog, type TransportSettings } from '../pos/TransportDialog';
+import { NumericInput, PhoneInput, toNumber } from '../ui/inputs';
 
 interface Line {
   product: Product;
@@ -74,8 +75,8 @@ export function QuoteFormDrawer({ open, onClose, onCreated }: { open: boolean; o
         customerName: customerMode === 'walkin' ? walkinName || undefined : undefined,
         items: lines.map((l) => ({
           productId: l.product.id,
-          qty: Math.round(Number(l.qty)) || 0,
-          unitPrice: Math.round(Number(l.unitPrice)) || 0,
+          qty: toNumber(l.qty) ?? 0,
+          unitPrice: toNumber(l.unitPrice) ?? 0,
         })),
         transportAmount: transport?.amount || undefined,
         transportAllocation: transport?.allocation,
@@ -95,6 +96,7 @@ export function QuoteFormDrawer({ open, onClose, onCreated }: { open: boolean; o
 
   return (
     <Drawer
+      guardUnsaved
       open={open}
       onClose={onClose}
       title="New quote"
@@ -188,15 +190,13 @@ export function QuoteFormDrawer({ open, onClose, onCreated }: { open: boolean; o
                   <tr key={line.product.id} className="border-b last:border-0" style={{ borderColor: 'var(--color-border)' }}>
                     <td className="px-3 py-2" style={{ color: 'var(--color-ink-900)' }}>{line.product.displayName ?? line.product.name}</td>
                     <td className="px-3 py-2">
-                      <input type="number" step="1" min="1" value={line.qty} onChange={(e) => setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, qty: e.target.value } : l)))} className="w-16 rounded border px-2 py-1 text-sm data-num" style={inputStyle} />
+                      <NumericInput min={1} aria-label="Quantity" value={line.qty} onChange={(v) => setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, qty: v } : l)))} className="w-16 rounded border px-2 py-1 text-sm data-num" style={inputStyle} />
                     </td>
                     <td className="px-3 py-2">
-                      <input
-                        type="number"
-                        step="1"
-                        min="0"
+                      <NumericInput
+                        aria-label="Unit price"
                         value={line.unitPrice}
-                        onChange={(e) => setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, unitPrice: e.target.value } : l)))}
+                        onChange={(v) => setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, unitPrice: v } : l)))}
                         className="w-24 rounded border px-2 py-1 text-sm data-num"
                         style={inputStyle}
                         title="Edit directly to the price you negotiated — this is the final price, not a list price to discount from."

@@ -6,6 +6,7 @@ import { Drawer } from '../ui/Drawer';
 import { ProductPicker } from '../products/ProductPicker';
 import { inventoryApi, productsApi, type Product, type ReceiveLineResult } from '../../lib/products-api';
 import { ApiError } from '../../lib/api';
+import { NumericInput, PhoneInput, toNumber } from '../ui/inputs';
 
 interface Line {
   product: Product;
@@ -47,7 +48,7 @@ export function ReceiveInventoryDrawer({ open, onClose, onDone }: { open: boolea
         supplier,
         reference: reference || undefined,
         notes: notes || undefined,
-        lines: lines.map((l) => ({ productId: l.product.id, quantity: Math.round(Number(l.quantity)), unitCost: Math.round(Number(l.unitCost)) })),
+        lines: lines.map((l) => ({ productId: l.product.id, quantity: toNumber(l.quantity) ?? 0, unitCost: toNumber(l.unitCost) ?? 0 })),
       });
       // Only worth asking about products whose suggested price actually differs from the current one.
       const worthAsking = result.lines.filter((l) => l.suggestedPrice !== l.currentPrice);
@@ -67,6 +68,7 @@ export function ReceiveInventoryDrawer({ open, onClose, onDone }: { open: boolea
   return (
     <>
       <Drawer
+        guardUnsaved
         open={open}
         onClose={onClose}
         title="Receive inventory"
@@ -158,25 +160,22 @@ export function ReceiveInventoryDrawer({ open, onClose, onDone }: { open: boolea
                         {line.product.displayName ?? line.product.name}
                       </td>
                       <td className="px-3 py-2">
-                        <input
-                          type="number"
-                          step="1"
-                          min="0"
+                        <NumericInput
+                          min={1}
                           required
+                          aria-label="Quantity"
                           value={line.quantity}
-                          onChange={(e) => setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, quantity: e.target.value } : l)))}
+                          onChange={(v) => setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, quantity: v } : l)))}
                           className="w-20 rounded border px-2 py-1 text-sm data-num"
                           style={inputStyle}
                         />
                       </td>
                       <td className="px-3 py-2">
-                        <input
-                          type="number"
-                          step="1"
-                          min="0"
+                        <NumericInput
                           required
+                          aria-label="Unit cost"
                           value={line.unitCost}
-                          onChange={(e) => setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, unitCost: e.target.value } : l)))}
+                          onChange={(v) => setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, unitCost: v } : l)))}
                           className="w-24 rounded border px-2 py-1 text-sm data-num"
                           style={inputStyle}
                         />

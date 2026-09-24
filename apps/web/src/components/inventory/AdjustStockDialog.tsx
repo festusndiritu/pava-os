@@ -5,6 +5,8 @@ import { AlertTriangle } from 'lucide-react';
 import { inventoryApi } from '../../lib/products-api';
 import type { Product } from '../../lib/products-api';
 import { ApiError } from '../../lib/api';
+import { NumericInput, PhoneInput, toNumber } from '../ui/inputs';
+import { Modal } from '../ui/Modal';
 
 interface NegativeStock {
   current: number;
@@ -34,8 +36,11 @@ export function AdjustStockDialog({ product, onClose, onDone }: { product: Produ
   const [saving, setSaving] = useState(false);
 
   async function submit(allowNegative = false) {
-    const qty = Math.round(Number(quantity));
-    if (!qty) return;
+    const qty = toNumber(quantity);
+    if (!qty) {
+      setError('Enter a quantity — use a negative number to reduce stock.');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -51,12 +56,7 @@ export function AdjustStockDialog({ product, onClose, onDone }: { product: Produ
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:px-4">
-      <div className="absolute inset-0" style={{ backgroundColor: 'rgba(16, 24, 40, 0.5)' }} onClick={onClose} />
-      <div
-        className="relative w-full rounded-t-xl border p-5 sm:max-w-sm sm:rounded-lg"
-        style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', boxShadow: 'var(--shadow-card)' }}
-      >
+    <Modal onClose={onClose} dismissOnBackdrop={false} label={`Adjust stock — ${product.displayName ?? product.name}`} className="p-5 sm:max-w-sm">
         <h3 className="text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>
           Adjust stock — {product.displayName ?? product.name}
         </h3>
@@ -113,12 +113,10 @@ export function AdjustStockDialog({ product, onClose, onDone }: { product: Produ
               <option value="CORRECTION">Correction</option>
               <option value="RETURN">Customer return</option>
             </select>
-            <input
-              type="number"
-              inputMode="numeric"
-              step={1}
+            <NumericInput
+              allowNegative
               value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
+              onChange={setQuantity}
               placeholder="Quantity (use a negative number to reduce)"
               className="w-full rounded-md border px-3 py-2 text-sm data-num"
               style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}
@@ -153,7 +151,6 @@ export function AdjustStockDialog({ product, onClose, onDone }: { product: Produ
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }

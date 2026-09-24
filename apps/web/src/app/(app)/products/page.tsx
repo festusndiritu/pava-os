@@ -402,11 +402,13 @@ export default function ProductsPage() {
         families={families}
         onCreateBrand={async (name) => {
           const b = await productsApi.createBrand(name);
-          setBrands((prev) => [...prev, b]);
+          setBrands((prev) => [...prev, b].sort((x, y) => x.name.localeCompare(y.name)));
+          return b;
         }}
         onCreateCategory={async (name) => {
           const c = await productsApi.createCategory(name);
-          setCategories((prev) => [...prev, c]);
+          setCategories((prev) => [...prev, c].sort((x, y) => x.name.localeCompare(y.name)));
+          return c;
         }}
       />
 

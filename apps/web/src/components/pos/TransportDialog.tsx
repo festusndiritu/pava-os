@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import type { TransportAllocation } from '../../lib/pos-api';
+import { NumericInput, PhoneInput, toNumber } from '../ui/inputs';
+import { Modal } from '../ui/Modal';
 
 export interface CartLine {
   product: { id: string; name: string; displayName: string | null };
@@ -40,12 +42,12 @@ export function TransportDialog({
   const manualSum = Object.values(manual).reduce((s, v) => s + (Number(v) || 0), 0);
 
   function apply() {
-    const amt = Math.round(Number(amount) || 0);
+    const amt = toNumber(amount) ?? 0;
     onApply({
       amount: amt,
       allocation,
       applyTo: [...applyTo],
-      manualAllocations: Object.fromEntries(Object.entries(manual).map(([k, v]) => [k, Math.round(Number(v)) || 0])),
+      manualAllocations: Object.fromEntries(Object.entries(manual).map(([k, v]) => [k, toNumber(v) ?? 0])),
       fold,
     });
     onClose();
@@ -57,9 +59,7 @@ export function TransportDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-      <div className="absolute inset-0" style={{ backgroundColor: 'rgba(16, 24, 40, 0.5)' }} onClick={onClose} />
-      <div className="relative w-full max-w-sm rounded-lg border p-5" style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', boxShadow: 'var(--shadow-card)' }}>
+    <Modal onClose={onClose} placement="center" dismissOnBackdrop={false} label="Transport" className="max-w-sm p-5">
         <h3 className="text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>
           Transport
         </h3>
@@ -69,11 +69,9 @@ export function TransportDialog({
             <label className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
               Amount (KSh)
             </label>
-            <input
-              type="number"
-              min="0"
+            <NumericInput
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={setAmount}
               className="w-full rounded-md border px-3 py-2 text-sm data-num"
               style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}
             />
@@ -126,11 +124,10 @@ export function TransportDialog({
                     <span className="truncate text-sm" style={{ color: 'var(--color-ink-900)' }}>
                       {l.product.displayName ?? l.product.name}
                     </span>
-                    <input
-                      type="number"
-                      min="0"
+                    <NumericInput
+                      aria-label={`Transport for ${l.product.displayName ?? l.product.name}`}
                       value={manual[l.product.id] ?? ''}
-                      onChange={(e) => setManual((prev) => ({ ...prev, [l.product.id]: e.target.value }))}
+                      onChange={(v) => setManual((prev) => ({ ...prev, [l.product.id]: v }))}
                       className="w-24 rounded-md border px-2 py-1 text-sm data-num"
                       style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}
                     />
@@ -156,7 +153,6 @@ export function TransportDialog({
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

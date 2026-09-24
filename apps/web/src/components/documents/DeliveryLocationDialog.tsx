@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { Truck } from 'lucide-react';
+import { PhoneInput } from '../ui/inputs';
+import { Modal } from '../ui/Modal';
 
 /**
  * Captures the delivery/site address before a delivery note is created.
@@ -28,15 +30,7 @@ export function DeliveryLocationDialog({
   const [phone, setPhone] = useState('');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
-      <div className="absolute inset-0" style={{ backgroundColor: 'rgba(16, 24, 40, 0.5)' }} onClick={onCancel} />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Delivery location"
-        className="relative flex w-full flex-col overflow-hidden rounded-t-xl border sm:max-w-sm sm:rounded-lg"
-        style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', boxShadow: 'var(--shadow-card)' }}
-      >
+    <Modal onClose={onCancel} dismissOnBackdrop={false} label="Delivery location" className="flex flex-col overflow-hidden sm:max-w-sm">
         <div className="flex items-start gap-3 px-5 pt-5">
           <span
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md"
@@ -65,10 +59,9 @@ export function DeliveryLocationDialog({
             style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}
           />
           <div>
-            <input
-              type="tel"
+            <PhoneInput
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={setPhone}
               placeholder={customerPhone ?? 'e.g. site contact number'}
               className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]"
               style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}
@@ -99,7 +92,6 @@ export function DeliveryLocationDialog({
             {busy ? 'Creating…' : 'Create delivery note'}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

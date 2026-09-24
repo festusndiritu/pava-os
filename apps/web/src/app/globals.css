@@ -196,3 +196,54 @@ body {
 .animate-shake {
   animation: pava-shake 0.4s ease-in-out;
 }
+
+/* iOS Safari zooms the whole page when a focused text field is smaller than
+   16px, and doesn't zoom back out. Every field here is text-sm (14px), so on
+   touch devices bump them to 16px. Unlayered on purpose: it has to win over
+   Tailwind's `text-sm` utility, which lives in a cascade layer. */
+@media (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+
+/* Overlay motion — short and subtle; dropped entirely for people who ask for
+   reduced motion. */
+@keyframes pava-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes pava-slide-in-right {
+  from { transform: translateX(28px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes pava-slide-in-left {
+  from { transform: translateX(-28px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes pava-rise {
+  from { transform: translateY(14px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+.pava-fade-in { animation: pava-fade-in 0.15s ease-out; }
+.pava-slide-in-right { animation: pava-slide-in-right 0.18s ease-out; }
+.pava-slide-in-left { animation: pava-slide-in-left 0.18s ease-out; }
+.pava-rise { animation: pava-rise 0.18s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .pava-fade-in,
+  .pava-slide-in-right,
+  .pava-slide-in-left,
+  .pava-rise {
+    animation: none;
+  }
+}
+
+/* A visible keyboard focus ring on buttons and links. Text fields already
+   switch their border to the accent colour on focus, so they're left alone. */
+:where(a, button, summary, [role='button'], [tabindex]:not([tabindex='-1'])):focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}

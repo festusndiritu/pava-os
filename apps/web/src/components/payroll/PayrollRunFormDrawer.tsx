@@ -67,6 +67,7 @@ export function PayrollRunFormDrawer({ open, onClose, onSaved }: { open: boolean
 
   return (
     <Drawer
+      guardUnsaved
       open={open}
       onClose={onClose}
       title="New payroll run"

@@ -6,6 +6,8 @@ import { customersApi, type Customer, type CustomerLedgerEntry } from '../../lib
 import { ApiError } from '../../lib/api';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useAuth } from '../../lib/auth-context';
+import { NumericInput, PhoneInput, toNumber } from '../ui/inputs';
+import { Modal } from '../ui/Modal';
 
 function fmtDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(iso));
@@ -295,8 +297,11 @@ function LedgerActionDialog({
   const [saving, setSaving] = useState(false);
 
   async function submit() {
-    const value = Math.round(Number(amount));
-    if (!value) return;
+    const value = toNumber(amount);
+    if (!value) {
+      setError(mode === 'adjustment' ? 'Enter an amount — a negative number reduces the balance.' : 'Enter the amount received.');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -314,9 +319,7 @@ function LedgerActionDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-      <div className="absolute inset-0" style={{ backgroundColor: 'rgba(16, 24, 40, 0.5)' }} onClick={onClose} />
-      <div className="relative w-full max-w-sm rounded-lg border p-5" style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', boxShadow: 'var(--shadow-card)' }}>
+    <Modal onClose={onClose} placement="center" dismissOnBackdrop={false} label={mode === 'payment' ? 'Record payment' : 'Adjust balance'} className="max-w-sm p-5">
         <h3 className="text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>
           {mode === 'payment' ? `Record payment — ${customer.name}` : `Adjust balance — ${customer.name}`}
         </h3>
@@ -333,10 +336,10 @@ function LedgerActionDialog({
               <option value="WRITE_OFF">Write-off</option>
             </select>
           )}
-          <input
-            type="number"
+          <NumericInput
+            allowNegative={mode === 'adjustment'}
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onChange={setAmount}
             placeholder={mode === 'adjustment' ? 'Amount (negative reduces balance)' : 'Amount received'}
             className="w-full rounded-md border px-3 py-2 text-sm data-num"
             style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}
@@ -364,7 +367,6 @@ function LedgerActionDialog({
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

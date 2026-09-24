@@ -5,6 +5,7 @@ import { Plus } from 'lucide-react';
 import { Drawer } from '../ui/Drawer';
 import { productsApi, type ProductFamily } from '../../lib/products-api';
 import { ApiError } from '../../lib/api';
+import { NumericInput, PhoneInput, toNumber } from '../ui/inputs';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
 const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase';
@@ -23,7 +24,7 @@ function FamilyRow({ family, onSaved }: { family: ProductFamily; onSaved: (f: Pr
     try {
       const updated = await productsApi.updateFamily(family.id, {
         aggregateLowStock: aggregate,
-        lowStockThreshold: threshold === '' ? null : Number(threshold),
+        lowStockThreshold: toNumber(threshold),
       });
       onSaved(updated);
     } catch (err) {
@@ -47,11 +48,9 @@ function FamilyRow({ family, onSaved }: { family: ProductFamily; onSaved: (f: Pr
           <label className={labelClass} style={labelStyle}>
             Family low-stock threshold (blank = use the global default)
           </label>
-          <input
-            type="number"
-            min={0}
+          <NumericInput
             value={threshold}
-            onChange={(e) => setThreshold(e.target.value)}
+            onChange={setThreshold}
             className="w-32 rounded-md border px-3 py-2 text-sm data-num outline-none focus:border-[var(--color-accent)]"
             style={inputStyle}
           />

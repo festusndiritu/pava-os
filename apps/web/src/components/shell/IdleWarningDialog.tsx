@@ -2,6 +2,7 @@
 
 import { Clock } from 'lucide-react';
 import { useAuth } from '../../lib/auth-context';
+import { Modal } from '../ui/Modal';
 
 export function IdleWarningDialog() {
   const { idleWarning, dismissIdleWarning, logout } = useAuth();
@@ -9,17 +10,8 @@ export function IdleWarningDialog() {
   if (!idleWarning) return null;
 
   return (
-    <div
-      role="alertdialog"
-      aria-modal="true"
-      aria-labelledby="idle-warning-title"
-      className="fixed inset-0 z-50 flex items-center justify-center px-4"
-      style={{ backgroundColor: 'rgba(16, 24, 40, 0.45)' }}
-    >
-      <div
-        className="w-full max-w-sm rounded-lg border p-6"
-        style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', boxShadow: 'var(--shadow-card)' }}
-      >
+    // Escape means "keep me signed in", never "sign out".
+    <Modal onClose={dismissIdleWarning} role="alertdialog" placement="center" dismissOnBackdrop={false} labelledBy="idle-warning-title" className="max-w-sm p-6">
         <div
           className="flex h-10 w-10 items-center justify-center rounded-full"
           style={{ backgroundColor: 'var(--color-status-warnSoft)', color: 'var(--color-status-warn)' }}
@@ -50,7 +42,6 @@ export function IdleWarningDialog() {
             Continue session
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

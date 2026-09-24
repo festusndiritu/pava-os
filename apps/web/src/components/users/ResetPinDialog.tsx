@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { usersApi, type StaffUser } from '../../lib/users-api';
 import { ApiError } from '../../lib/api';
+import { Modal } from '../ui/Modal';
 
 export function ResetPinDialog({ user, onClose, onDone }: { user: StaffUser; onClose: () => void; onDone: () => void }) {
   const [pin, setPin] = useState('');
@@ -27,9 +28,7 @@ export function ResetPinDialog({ user, onClose, onDone }: { user: StaffUser; onC
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-      <div className="absolute inset-0" style={{ backgroundColor: 'rgba(16, 24, 40, 0.5)' }} onClick={onClose} />
-      <div className="relative w-full max-w-sm rounded-lg border p-5" style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', boxShadow: 'var(--shadow-card)' }}>
+    <Modal onClose={onClose} placement="center" dismissOnBackdrop={false} label={`Reset PIN for ${user.name}`} className="max-w-sm p-5">
         <h3 className="text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>
           Reset PIN — {user.name}
         </h3>
@@ -61,7 +60,6 @@ export function ResetPinDialog({ user, onClose, onDone }: { user: StaffUser; onC
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
