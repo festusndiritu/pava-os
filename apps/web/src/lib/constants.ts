@@ -86,6 +86,7 @@ export const NAV_SECTIONS: { label: string; pinned?: boolean; items: { module: M
   },
   {
     label: 'Catalogue',
+    pinned: true,
     items: [
       { module: 'PRODUCTS', label: 'Products', href: '/products' },
       // Shares the PRODUCTS permission — brands, categories, units and
