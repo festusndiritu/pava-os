@@ -8,7 +8,7 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 const mono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono-custom', weight: ['400', '500', '600'] });
 
 export const metadata: Metadata = {
-  title: "Pava OS",
+  title: "Pava OS - dev",
   description: 'Internal quotes, invoices, receipts and stock reference',
 };
 
