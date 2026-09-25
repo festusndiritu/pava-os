@@ -23,6 +23,20 @@ export function normalizeKenyanPhone(value: unknown): unknown {
 }
 
 /**
+ * For search boxes: turns what someone types or pastes while looking a number
+ * up ("+254 712 345", "0712-345") into the local form phones are stored in,
+ * so a partial match on "0712345" finds it. Anything that isn't shaped like
+ * a phone number (a name, a business) is returned unchanged.
+ */
+export function normalizePhoneSearch(term: string): string {
+  const t = term.trim();
+  if (!/^[+\d\s\-()]+$/.test(t)) return t;
+  const digits = t.replace(/[\s\-()]/g, '');
+  const withCountryCode = digits.match(/^\+?254(\d*)$/);
+  return withCountryCode ? `0${withCountryCode[1]}` : digits;
+}
+
+/**
  * Kenyan mobile number: exactly 10 digits, starting 07 or 01 — Safaricom,
  * Airtel and Telkom ranges all fall under 07, and the newer numbering
  * (Faiba, additional Safaricom/Airtel blocks) under 01. Landlines and

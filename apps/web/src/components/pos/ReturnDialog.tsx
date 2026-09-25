@@ -5,12 +5,10 @@ import { CheckCircle2, Minus, Plus, Receipt, RotateCcw, Search, X } from 'lucide
 import { ApiError } from '../../lib/api';
 import { documentsApi, type SaleDocument } from '../../lib/documents-api';
 import { posApi, type ReturnableSale, type SaleReturn } from '../../lib/pos-api';
-import { NumericInput, PhoneInput, toNumber } from '../ui/inputs';
+import { NumericInput, toNumber } from '../ui/inputs';
 import { Modal } from '../ui/Modal';
+import { money } from '../../lib/format';
 
-function money(n: number) {
-  return `KSh ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-}
 function fmtDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(iso));
 }

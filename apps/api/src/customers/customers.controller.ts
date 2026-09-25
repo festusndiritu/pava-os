@@ -7,6 +7,7 @@ import { RolesGuard } from '../auth/roles.guard.js';
 import { Roles } from '../auth/roles.decorator.js';
 import { Module, Role } from '../../generated/prisma/client.js';
 import { AdjustBalanceDto, CreateCustomerDto, RecordPaymentDto, UpdateCustomerDto } from './dto/customer.dto.js';
+import { parsePaging } from '../common/paging.js';
 
 @UseGuards(JwtAuthGuard)
 @Controller('customers')
@@ -19,8 +20,8 @@ export class CustomersController {
   @UseGuards(PermissionsGuard)
   @Permissions(Module.CUSTOMERS, Module.POS, Module.QUOTES, Module.INVOICES)
   @Get()
-  findAll(@Query('search') search?: string, @Query('status') status?: 'active' | 'archived' | 'all') {
-    return this.customers.findAll({ search, status });
+  findAll(@Query('search') search?: string, @Query('status') status?: 'active' | 'archived' | 'all', @Query('limit') limit?: string, @Query('offset') offset?: string) {
+    return this.customers.findAll({ search, status, ...parsePaging(limit, offset) });
   }
 
   @UseGuards(PermissionsGuard)

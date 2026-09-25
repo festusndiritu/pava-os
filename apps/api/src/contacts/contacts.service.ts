@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuditService } from '../audit/audit.service.js';
+import { normalizePhoneSearch } from '../common/validation/phone.validator.js';
 
 interface ContactInput {
   name: string;
@@ -20,7 +21,7 @@ export class ContactsService {
     private audit: AuditService,
   ) {}
 
-  findAll(search?: string, status: 'active' | 'archived' | 'all' = 'active') {
+  findAll(search?: string, status: 'active' | 'archived' | 'all' = 'active', paging: { limit?: number; offset?: number } = {}) {
     return this.prisma.contact.findMany({
       where: {
         ...(status === 'all' ? {} : { active: status === 'archived' ? false : true }),
@@ -30,12 +31,13 @@ export class ContactsService {
                 { name: { contains: search, mode: 'insensitive' } },
                 { company: { contains: search, mode: 'insensitive' } },
                 { role: { contains: search, mode: 'insensitive' } },
-                { phone: { contains: search } },
+                { phone: { contains: normalizePhoneSearch(search) } },
               ],
             }
           : {}),
       },
-      orderBy: { name: 'asc' },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      ...(paging.limit ? { take: paging.limit, skip: paging.offset ?? 0 } : {}),
     });
   }
 

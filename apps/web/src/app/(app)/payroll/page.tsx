@@ -6,12 +6,11 @@ import { payrollApi, type PayrollRun, type PayrollStatus } from '../../../lib/pa
 import { PayrollRunFormDrawer } from '../../../components/payroll/PayrollRunFormDrawer';
 import { PayrollRunDetailDrawer } from '../../../components/payroll/PayrollRunDetailDrawer';
 import { AdvancesTab } from '../../../components/payroll/AdvancesTab';
+import { money } from '../../../lib/format';
+import { activateOnKey } from '../../../lib/a11y';
 
 function fmtDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(iso));
-}
-function money(n: number) {
-  return `KSh ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 }
 
 const STATUS_STYLE: Record<PayrollStatus, { label: string; fg: string; bg: string }> = {
@@ -92,7 +91,7 @@ function RunsTab() {
             {runs?.map((r) => {
               const total = r.items.reduce((s, i) => s + i.netPay, 0);
               return (
-                <tr key={r.id} onClick={() => setDetailId(r.id)} className="cursor-pointer border-b transition-colors last:border-0 hover:bg-[var(--color-bg)]" style={{ borderColor: 'var(--color-border)' }}>
+                <tr key={r.id} onClick={() => setDetailId(r.id)} onKeyDown={activateOnKey(() => setDetailId(r.id))} tabIndex={0} className="cursor-pointer border-b transition-colors last:border-0 hover:bg-[var(--color-bg)]" style={{ borderColor: 'var(--color-border)' }}>
                   <td className="px-4 py-3 font-medium" style={{ color: 'var(--color-ink-900)' }}>
                     {fmtDate(r.periodStart)} – {fmtDate(r.periodEnd)}
                   </td>

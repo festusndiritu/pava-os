@@ -1,27 +1,25 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Plus, Search, UserSquare2 } from 'lucide-react';
 import { contactsApi, type Contact } from '../../../lib/contacts-api';
 import { ContactFormDrawer } from '../../../components/contacts/ContactFormDrawer';
+import { activateOnKey } from '../../../lib/a11y';
+import { usePagedList, useDebounced } from '../../../lib/use-paged-list';
+import { ListFooter } from '../../../components/ui/ListFooter';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)', color: 'var(--color-ink-900)' };
 
 export default function ContactsPage() {
-  const [contacts, setContacts] = useState<Contact[] | null>(null);
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Contact | null>(null);
 
-  async function load() {
-    setContacts(await contactsApi.list(search || undefined));
-  }
-
-  useEffect(() => {
-    const t = setTimeout(load, search ? 250 : 0);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search]);
+  const debouncedSearch = useDebounced(search);
+  const { items: contacts, hasMore, loadingMore, error: listError, loadMore, reload: load } = usePagedList(
+    (offset, limit) => contactsApi.list(debouncedSearch || undefined, undefined, { offset, limit }),
+    [debouncedSearch],
+  );
 
   return (
     <div className="p-6">
@@ -87,7 +85,7 @@ export default function ContactsPage() {
               </tr>
             )}
             {contacts?.map((c) => (
-              <tr key={c.id} onClick={() => { setEditing(c); setFormOpen(true); }} className="cursor-pointer border-b transition-colors last:border-0 hover:bg-[var(--color-bg)]" style={{ borderColor: 'var(--color-border)' }}>
+              <tr key={c.id} onClick={() => { setEditing(c); setFormOpen(true); }} onKeyDown={activateOnKey(() => { setEditing(c); setFormOpen(true); })} tabIndex={0} className="cursor-pointer border-b transition-colors last:border-0 hover:bg-[var(--color-bg)]" style={{ borderColor: 'var(--color-border)' }}>
                 <td className="px-4 py-3">
                   <p className="font-medium" style={{ color: 'var(--color-ink-900)' }}>{c.name}</p>
                   {c.company && <p className="text-xs" style={{ color: 'var(--color-ink-600)' }}>{c.company}</p>}
@@ -126,6 +124,7 @@ export default function ContactsPage() {
             </button>
           ))}
         </div>
+        <ListFooter hasMore={hasMore} loadingMore={loadingMore} error={listError} onMore={loadMore} onRetry={load} />
       </div>
 
       <ContactFormDrawer open={formOpen} onClose={() => setFormOpen(false)} onSaved={load} contact={editing} />

@@ -32,10 +32,14 @@ export interface CustomerLedgerEntry {
 export type CustomerStatus = 'active' | 'archived' | 'all';
 
 export const customersApi = {
-  list: (search?: string, status: CustomerStatus = 'active') => {
+  list: (search?: string, status: CustomerStatus = 'active', page?: { offset: number; limit: number }) => {
     const qs = new URLSearchParams();
     if (search) qs.set('search', search);
     qs.set('status', status);
+    if (page) {
+      qs.set('limit', String(page.limit));
+      qs.set('offset', String(page.offset));
+    }
     return api.get<Customer[]>(`/customers?${qs.toString()}`);
   },
   get: (id: string) => api.get<Customer>(`/customers/${id}`),

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Archive, Eye, Layers, Package, PackagePlus, Pencil, Plus, RotateCcw, Search } from 'lucide-react';
+import { Archive, Eye, Package, PackagePlus, Pencil, Plus, RotateCcw, Search } from 'lucide-react';
 import { productsApi, type Brand, type CatalogueStatus, type Category, type Product, type ProductFamily, type Unit } from '../../../lib/products-api';
 import { AdjustStockDialog } from '../../../components/inventory/AdjustStockDialog';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
@@ -9,8 +9,8 @@ import { ApiError } from '../../../lib/api';
 import { thicknessLabel } from '../../../lib/shape-config';
 import { ProductFormDrawer } from '../../../components/products/ProductFormDrawer';
 import { ProductDetailDrawer } from '../../../components/products/ProductDetailDrawer';
-import { FamilyManagerDrawer } from '../../../components/products/FamilyManagerDrawer';
-import { useAuth } from '../../../lib/auth-context';
+import { fmtNumber } from '../../../lib/format';
+import { activateOnKey } from '../../../lib/a11y';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)', color: 'var(--color-ink-900)' };
 
@@ -47,8 +47,6 @@ export default function ProductsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [familyManagerOpen, setFamilyManagerOpen] = useState(false);
-  const { user } = useAuth();
 
   async function loadLookups() {
     const [b, c, u, f] = await Promise.all([productsApi.brands(), productsApi.categories(), productsApi.units(), productsApi.families()]);
@@ -121,20 +119,6 @@ export default function ProductsPage() {
           Add product
         </button>
       </div>
-
-      {user?.role === 'ADMIN' && (
-        <div className="mt-3 flex justify-end">
-          <button
-            type="button"
-            onClick={() => setFamilyManagerOpen(true)}
-            className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium"
-            style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}
-          >
-            <Layers size={13} strokeWidth={2} />
-            Manage families
-          </button>
-        </div>
-      )}
 
       <div className="mt-4 flex gap-1.5">
         {(['active', 'archived'] as const).map((s) => (
@@ -261,7 +245,7 @@ export default function ProductsPage() {
                     {[p.nominalSize, gauge].filter(Boolean).join(' · ') || '—'}
                   </td>
                   <td className="px-4 py-3 text-right font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>
-                    KSh {p.basePrice.toLocaleString()}
+                    KSh {fmtNumber(p.basePrice)}
                   </td>
                   <td className="px-4 py-3 text-right data-num" style={{ color: 'var(--color-ink-900)' }}>
                     {p.stockQuantity} {p.unit.symbol}
@@ -331,7 +315,7 @@ export default function ProductsPage() {
           {products?.map((p) => {
             const gauge = thicknessLabel(p.shape, p.thicknessMm);
             return (
-              <div key={p.id} onClick={() => setDetailId(p.id)} className="flex w-full flex-col gap-1.5 p-4 text-left transition-colors active:bg-[var(--color-bg)]">
+              <div key={p.id} onClick={() => setDetailId(p.id)} onKeyDown={activateOnKey(() => setDetailId(p.id))} tabIndex={0} role="button" className="flex w-full flex-col gap-1.5 p-4 text-left transition-colors active:bg-[var(--color-bg)]">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="truncate font-medium" style={{ color: 'var(--color-ink-900)' }}>
@@ -344,7 +328,7 @@ export default function ProductsPage() {
                     )}
                   </div>
                   <p className="shrink-0 font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>
-                    KSh {p.basePrice.toLocaleString()}
+                    KSh {fmtNumber(p.basePrice)}
                   </p>
                 </div>
                 <div className="flex items-center justify-between text-sm">
@@ -421,13 +405,6 @@ export default function ProductsPage() {
           setFormOpen(true);
         }}
         onChanged={loadProducts}
-      />
-
-      <FamilyManagerDrawer
-        open={familyManagerOpen}
-        onClose={() => setFamilyManagerOpen(false)}
-        families={families}
-        onChanged={setFamilies}
       />
 
       {adjusting && (

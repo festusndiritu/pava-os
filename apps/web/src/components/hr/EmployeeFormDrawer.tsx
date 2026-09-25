@@ -5,6 +5,7 @@ import { Drawer } from '../ui/Drawer';
 import { hrApi, type Employee, type EmploymentStatus } from '../../lib/hr-api';
 import { ApiError } from '../../lib/api';
 import { NumericInput, PhoneInput, toNumber } from '../ui/inputs';
+import { toast } from '../ui/Toast';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
 const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase';
@@ -69,6 +70,7 @@ export function EmployeeFormDrawer({
       };
       if (isEdit && employee) await hrApi.update(employee.id, payload);
       else await hrApi.create(payload);
+      toast.success('Employee saved');
       onSaved();
       onClose();
     } catch (err) {
@@ -99,51 +101,51 @@ export function EmployeeFormDrawer({
     >
       <form id="employee-form" onSubmit={handleSubmit} className="flex flex-col gap-3.5">
         <div>
-          <label className={labelClass} style={labelStyle}>
+          <label htmlFor="employeeformdrawer-full-name" className={labelClass} style={labelStyle}>
             Full name
           </label>
-          <input required value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+          <input id="employeeformdrawer-full-name" required value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <label htmlFor="employeeformdrawer-job-title" className={labelClass} style={labelStyle}>
               Job title
             </label>
-            <input value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+            <input id="employeeformdrawer-job-title" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
           </div>
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <label htmlFor="employeeformdrawer-department" className={labelClass} style={labelStyle}>
               Department
             </label>
-            <input value={department} onChange={(e) => setDepartment(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+            <input id="employeeformdrawer-department" value={department} onChange={(e) => setDepartment(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <label htmlFor="employeeformdrawer-phone" className={labelClass} style={labelStyle}>
               Phone
             </label>
-            <PhoneInput value={phone} onChange={setPhone} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+            <PhoneInput id="employeeformdrawer-phone" value={phone} onChange={setPhone} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
           </div>
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <label htmlFor="employeeformdrawer-start-date" className={labelClass} style={labelStyle}>
               Start date
             </label>
-            <input type="date" value={employmentStartDate} onChange={(e) => setEmploymentStartDate(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+            <input id="employeeformdrawer-start-date" type="date" value={employmentStartDate} onChange={(e) => setEmploymentStartDate(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <label htmlFor="employeeformdrawer-base-salary-ksh-month" className={labelClass} style={labelStyle}>
               Base salary (KSh/month)
             </label>
-            <NumericInput value={baseSalary} onChange={setBaseSalary} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)] data-num" style={inputStyle} />
+            <NumericInput id="employeeformdrawer-base-salary-ksh-month" value={baseSalary} onChange={setBaseSalary} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)] data-num" style={inputStyle} />
           </div>
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <label htmlFor="employeeformdrawer-status" className={labelClass} style={labelStyle}>
               Status
             </label>
-            <select value={employmentStatus} onChange={(e) => setEmploymentStatus(e.target.value as EmploymentStatus)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle}>
+            <select id="employeeformdrawer-status" value={employmentStatus} onChange={(e) => setEmploymentStatus(e.target.value as EmploymentStatus)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle}>
               <option value="ACTIVE">Active</option>
               <option value="ON_LEAVE">On leave</option>
               <option value="TERMINATED">Terminated</option>
@@ -152,23 +154,23 @@ export function EmployeeFormDrawer({
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <label htmlFor="employeeformdrawer-emergency-contact" className={labelClass} style={labelStyle}>
               Emergency contact
             </label>
-            <input value={emergencyContactName} onChange={(e) => setEmergencyContactName(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+            <input id="employeeformdrawer-emergency-contact" value={emergencyContactName} onChange={(e) => setEmergencyContactName(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
           </div>
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <label htmlFor="employeeformdrawer-emergency-phone" className={labelClass} style={labelStyle}>
               Emergency phone
             </label>
-            <PhoneInput value={emergencyContactPhone} onChange={setEmergencyContactPhone} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+            <PhoneInput id="employeeformdrawer-emergency-phone" value={emergencyContactPhone} onChange={setEmergencyContactPhone} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
           </div>
         </div>
         <div>
-          <label className={labelClass} style={labelStyle}>
+          <label htmlFor="employeeformdrawer-notes" className={labelClass} style={labelStyle}>
             Notes
           </label>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+          <textarea id="employeeformdrawer-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
         </div>
       </form>
     </Drawer>

@@ -8,6 +8,7 @@ import { ReceiveInventoryDrawer } from '../../../components/inventory/ReceiveInv
 import { StockLevelsTable } from '../../../components/inventory/StockLevelsTable';
 import { ProductDetailDrawer } from '../../../components/products/ProductDetailDrawer';
 import { useAuth } from '../../../lib/auth-context';
+import { fmtNumber } from '../../../lib/format';
 
 function fmtDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(iso));
@@ -162,7 +163,7 @@ export default function InventoryPage() {
                     </td>
                     {showCost && (
                       <td className="px-4 py-3 text-right font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>
-                        KSh {total.toLocaleString()}
+                        KSh {fmtNumber(total)}
                       </td>
                     )}
                   </tr>
@@ -174,7 +175,7 @@ export default function InventoryPage() {
                             <div key={b.id} className="flex items-center justify-between text-xs">
                               <span style={{ color: 'var(--color-ink-900)' }}>{b.product.displayName ?? b.product.name}</span>
                               <span className="data-num" style={{ color: 'var(--color-ink-600)' }}>
-                                {showCost ? `${b.quantityReceived} × KSh ${b.unitCost.toLocaleString()}` : `${b.quantityReceived} received`}
+                                {showCost ? `${b.quantityReceived} × KSh ${fmtNumber(b.unitCost)}` : `${b.quantityReceived} received`}
                               </span>
                             </div>
                           ))}
@@ -221,7 +222,7 @@ export default function InventoryPage() {
                     </p>
                     {showCost && (
                       <p className="shrink-0 font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>
-                        KSh {total.toLocaleString()}
+                        KSh {fmtNumber(total)}
                       </p>
                     )}
                   </div>
@@ -235,7 +236,7 @@ export default function InventoryPage() {
                       <div key={b.id} className="flex items-center justify-between text-xs pt-2">
                         <span style={{ color: 'var(--color-ink-900)' }}>{b.product.displayName ?? b.product.name}</span>
                         <span className="data-num" style={{ color: 'var(--color-ink-600)' }}>
-                          {showCost ? `${b.quantityReceived} × KSh ${b.unitCost.toLocaleString()}` : `${b.quantityReceived} received`}
+                          {showCost ? `${b.quantityReceived} × KSh ${fmtNumber(b.unitCost)}` : `${b.quantityReceived} received`}
                         </span>
                       </div>
                     ))}

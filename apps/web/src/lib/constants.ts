@@ -81,6 +81,9 @@ export const NAV_SECTIONS: { label: string; items: { module: ModuleKey; label: s
     label: 'Catalogue',
     items: [
       { module: 'PRODUCTS', label: 'Products', href: '/products' },
+      // Shares the PRODUCTS permission — brands, categories, units and
+      // families are all product metadata, not a separately gated module.
+      { module: 'PRODUCTS', label: 'Catalogue setup', href: '/products/setup' },
       { module: 'INVENTORY', label: 'Inventory', href: '/inventory' },
     ],
   },

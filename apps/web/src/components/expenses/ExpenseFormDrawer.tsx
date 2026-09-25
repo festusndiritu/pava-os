@@ -4,8 +4,9 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Drawer } from '../ui/Drawer';
 import { expensesApi, type Expense, type ExpenseCategory, type ExpenseStatus, type PaymentMethod } from '../../lib/expenses-api';
 import { ApiError } from '../../lib/api';
-import { NumericInput, PhoneInput, toNumber } from '../ui/inputs';
+import { NumericInput, toNumber } from '../ui/inputs';
 import { todayLocalISO } from '../../lib/format';
+import { toast } from '../ui/Toast';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
 const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase';
@@ -72,6 +73,7 @@ export function ExpenseFormDrawer({
       };
       if (isEdit && expense) await expensesApi.update(expense.id, payload);
       else await expensesApi.create(payload);
+      toast.success('Expense saved');
       onSaved();
       onClose();
     } catch (err) {
@@ -103,24 +105,24 @@ export function ExpenseFormDrawer({
       <form id="expense-form" onSubmit={handleSubmit} className="flex flex-col gap-3.5">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <label htmlFor="expenseformdrawer-amount-ksh" className={labelClass} style={labelStyle}>
               Amount (KSh)
             </label>
-            <NumericInput required min={1} value={amount} onChange={setAmount} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)] data-num" style={inputStyle} />
+            <NumericInput id="expenseformdrawer-amount-ksh" required min={1} value={amount} onChange={setAmount} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)] data-num" style={inputStyle} />
           </div>
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <label htmlFor="expenseformdrawer-date" className={labelClass} style={labelStyle}>
               Date
             </label>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+            <input id="expenseformdrawer-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
           </div>
         </div>
 
         <div>
-          <label className={labelClass} style={labelStyle}>
+          <label htmlFor="expenseformdrawer-category" className={labelClass} style={labelStyle}>
             Category
           </label>
-          <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle}>
+          <select id="expenseformdrawer-category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle}>
             <option value="">
               {newCategory ? `New: ${newCategory}` : 'Select or type new below'}
             </option>
@@ -142,24 +144,24 @@ export function ExpenseFormDrawer({
         </div>
 
         <div>
-          <label className={labelClass} style={labelStyle}>
+          <label htmlFor="expenseformdrawer-description" className={labelClass} style={labelStyle}>
             Description
           </label>
-          <input value={description} onChange={(e) => setDescription(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+          <input id="expenseformdrawer-description" value={description} onChange={(e) => setDescription(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <label htmlFor="expenseformdrawer-vendor-payee" className={labelClass} style={labelStyle}>
               Vendor / payee
             </label>
-            <input value={vendor} onChange={(e) => setVendor(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+            <input id="expenseformdrawer-vendor-payee" value={vendor} onChange={(e) => setVendor(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
           </div>
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <label htmlFor="expenseformdrawer-payment-method" className={labelClass} style={labelStyle}>
               Payment method
             </label>
-            <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod | '')} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle}>
+            <select id="expenseformdrawer-payment-method" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod | '')} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle}>
               <option value="">—</option>
               <option value="CASH">Cash</option>
               <option value="MPESA">M-Pesa</option>
@@ -171,16 +173,16 @@ export function ExpenseFormDrawer({
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <label htmlFor="expenseformdrawer-reference" className={labelClass} style={labelStyle}>
               Reference
             </label>
-            <input value={reference} onChange={(e) => setReference(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+            <input id="expenseformdrawer-reference" value={reference} onChange={(e) => setReference(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
           </div>
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <label htmlFor="expenseformdrawer-status" className={labelClass} style={labelStyle}>
               Status
             </label>
-            <select value={status} onChange={(e) => setStatus(e.target.value as ExpenseStatus)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle}>
+            <select id="expenseformdrawer-status" value={status} onChange={(e) => setStatus(e.target.value as ExpenseStatus)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle}>
               <option value="PENDING">Pending</option>
               <option value="APPROVED">Approved</option>
               <option value="PAID">Paid</option>
@@ -189,10 +191,10 @@ export function ExpenseFormDrawer({
         </div>
 
         <div>
-          <label className={labelClass} style={labelStyle}>
+          <label htmlFor="expenseformdrawer-notes" className={labelClass} style={labelStyle}>
             Notes
           </label>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+          <textarea id="expenseformdrawer-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
         </div>
       </form>
     </Drawer>

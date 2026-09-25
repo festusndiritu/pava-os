@@ -6,6 +6,7 @@ import { productsApi, type Category, type Product } from '../../lib/products-api
 import { settingsApi } from '../../lib/settings-api';
 import { ProductIcon } from '../pos/ProductIcon';
 import { AdjustStockDialog } from './AdjustStockDialog';
+import { activateOnKey } from '../../lib/a11y';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)', color: 'var(--color-ink-900)' };
 
@@ -122,7 +123,7 @@ export function StockLevelsTable({ onOpenProduct }: { onOpenProduct: (id: string
             {visible.map((p) => {
               const tone = stockTone(p.stockQuantity, threshold);
               return (
-                <tr key={p.id} onClick={() => onOpenProduct(p.id)} className="cursor-pointer border-b transition-colors last:border-0 hover:bg-[var(--color-bg)]" style={{ borderColor: 'var(--color-border)' }}>
+                <tr key={p.id} onClick={() => onOpenProduct(p.id)} onKeyDown={activateOnKey(() => onOpenProduct(p.id))} tabIndex={0} className="cursor-pointer border-b transition-colors last:border-0 hover:bg-[var(--color-bg)]" style={{ borderColor: 'var(--color-border)' }}>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5">
                       <ProductIcon product={p} size={32} />
@@ -185,7 +186,7 @@ export function StockLevelsTable({ onOpenProduct }: { onOpenProduct: (id: string
           {visible.map((p) => {
             const tone = stockTone(p.stockQuantity, threshold);
             return (
-              <div key={p.id} onClick={() => onOpenProduct(p.id)} className="flex w-full flex-col gap-2 p-4 text-left active:bg-[var(--color-bg)]">
+              <div key={p.id} onClick={() => onOpenProduct(p.id)} onKeyDown={activateOnKey(() => onOpenProduct(p.id))} tabIndex={0} role="button" className="flex w-full flex-col gap-2 p-4 text-left active:bg-[var(--color-bg)]">
                 <div className="flex items-center gap-2.5">
                   <ProductIcon product={p} size={36} />
                   <div className="min-w-0 flex-1">

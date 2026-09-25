@@ -6,14 +6,13 @@ import { customersApi, type Customer, type CustomerLedgerEntry } from '../../lib
 import { ApiError } from '../../lib/api';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useAuth } from '../../lib/auth-context';
-import { NumericInput, PhoneInput, toNumber } from '../ui/inputs';
+import { NumericInput, toNumber } from '../ui/inputs';
 import { Modal } from '../ui/Modal';
+import { toast } from '../ui/Toast';
+import { fmtNumber, money } from '../../lib/format';
 
 function fmtDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(iso));
-}
-function money(n: number) {
-  return `KSh ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 }
 
 const ENTRY_LABEL: Record<CustomerLedgerEntry['type'], string> = {
@@ -256,7 +255,7 @@ export function CustomerDetailDrawer({
         <ConfirmDialog
           title="Archive this customer?"
           description={`${customer.businessName || customer.name} will drop off the customer list and the POS. Their documents and ledger history are unaffected, and they can be restored any time.${
-            customer.isCredit && customer.creditBalance > 0 ? ` They currently owe KSh ${customer.creditBalance.toLocaleString()}.` : ''
+            customer.isCredit && customer.creditBalance > 0 ? ` They currently owe KSh ${fmtNumber(customer.creditBalance)}.` : ''
           }`}
           confirmLabel="Archive"
           busy={archiving}
@@ -310,6 +309,7 @@ function LedgerActionDialog({
       } else {
         await customersApi.adjustBalance(customer.id, value, type, note || undefined);
       }
+      toast.success(mode === 'payment' ? 'Payment recorded' : 'Balance adjusted');
       onDone();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not save.');

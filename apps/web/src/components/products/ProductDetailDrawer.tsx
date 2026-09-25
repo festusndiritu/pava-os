@@ -8,12 +8,10 @@ import { thicknessLabel } from '../../lib/shape-config';
 import { ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { money } from '../../lib/format';
 
 function fmtDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(iso));
-}
-function money(n: number) {
-  return `KSh ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 }
 
 function Tab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {

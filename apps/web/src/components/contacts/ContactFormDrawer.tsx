@@ -4,7 +4,8 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Drawer } from '../ui/Drawer';
 import { contactsApi, type Contact } from '../../lib/contacts-api';
 import { ApiError } from '../../lib/api';
-import { NumericInput, PhoneInput, toNumber } from '../ui/inputs';
+import { PhoneInput } from '../ui/inputs';
+import { toast } from '../ui/Toast';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
 const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase';
@@ -53,6 +54,7 @@ export function ContactFormDrawer({ open, onClose, onSaved, contact }: { open: b
       };
       if (isEdit && contact) await contactsApi.update(contact.id, payload);
       else await contactsApi.create(payload);
+      toast.success('Contact saved');
       onSaved();
       onClose();
     } catch (err) {
@@ -83,40 +85,40 @@ export function ContactFormDrawer({ open, onClose, onSaved, contact }: { open: b
     >
       <form id="contact-form" onSubmit={handleSubmit} className="flex flex-col gap-3.5">
         <div>
-          <label className={labelClass} style={labelStyle}>Name</label>
-          <input required value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+          <label htmlFor="contactformdrawer-name" className={labelClass} style={labelStyle}>Name</label>
+          <input id="contactformdrawer-name" required value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelClass} style={labelStyle}>Company</label>
-            <input value={company} onChange={(e) => setCompany(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+            <label htmlFor="contactformdrawer-company" className={labelClass} style={labelStyle}>Company</label>
+            <input id="contactformdrawer-company" value={company} onChange={(e) => setCompany(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
           </div>
           <div>
-            <label className={labelClass} style={labelStyle}>Role / type</label>
-            <input value={role} onChange={(e) => setRole(e.target.value)} placeholder="e.g. Supplier, Driver, Technician" className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+            <label htmlFor="contactformdrawer-role-type" className={labelClass} style={labelStyle}>Role / type</label>
+            <input id="contactformdrawer-role-type" value={role} onChange={(e) => setRole(e.target.value)} placeholder="e.g. Supplier, Driver, Technician" className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelClass} style={labelStyle}>Phone</label>
-            <PhoneInput value={phone} onChange={setPhone} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+            <label htmlFor="contactformdrawer-phone" className={labelClass} style={labelStyle}>Phone</label>
+            <PhoneInput id="contactformdrawer-phone" value={phone} onChange={setPhone} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
           </div>
           <div>
-            <label className={labelClass} style={labelStyle}>Alternate phone</label>
-            <PhoneInput value={altPhone} onChange={setAltPhone} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+            <label htmlFor="contactformdrawer-alternate-phone" className={labelClass} style={labelStyle}>Alternate phone</label>
+            <PhoneInput id="contactformdrawer-alternate-phone" value={altPhone} onChange={setAltPhone} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
           </div>
         </div>
         <div>
-          <label className={labelClass} style={labelStyle}>Tags (comma-separated)</label>
-          <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="e.g. reliable, cash-only" className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+          <label htmlFor="contactformdrawer-tags-comma-separated" className={labelClass} style={labelStyle}>Tags (comma-separated)</label>
+          <input id="contactformdrawer-tags-comma-separated" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="e.g. reliable, cash-only" className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
         </div>
         <div>
-          <label className={labelClass} style={labelStyle}>Follow-up date</label>
-          <input type="date" value={followUpAt} onChange={(e) => setFollowUpAt(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+          <label htmlFor="contactformdrawer-follow-up-date" className={labelClass} style={labelStyle}>Follow-up date</label>
+          <input id="contactformdrawer-follow-up-date" type="date" value={followUpAt} onChange={(e) => setFollowUpAt(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
         </div>
         <div>
-          <label className={labelClass} style={labelStyle}>Notes</label>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+          <label htmlFor="contactformdrawer-notes" className={labelClass} style={labelStyle}>Notes</label>
+          <textarea id="contactformdrawer-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
         </div>
       </form>
     </Drawer>

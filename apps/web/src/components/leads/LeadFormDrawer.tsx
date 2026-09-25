@@ -5,6 +5,7 @@ import { Drawer } from '../ui/Drawer';
 import { leadsApi, type Lead, type LeadStage } from '../../lib/leads-api';
 import { ApiError } from '../../lib/api';
 import { NumericInput, PhoneInput, toNumber } from '../ui/inputs';
+import { toast } from '../ui/Toast';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
 const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase';
@@ -61,6 +62,7 @@ export function LeadFormDrawer({ open, onClose, onSaved, lead }: { open: boolean
       };
       if (isEdit && lead) await leadsApi.update(lead.id, payload);
       else await leadsApi.create(payload);
+      toast.success('Lead saved');
       onSaved();
       onClose();
     } catch (err) {
@@ -91,54 +93,54 @@ export function LeadFormDrawer({ open, onClose, onSaved, lead }: { open: boolean
     >
       <form id="lead-form" onSubmit={handleSubmit} className="flex flex-col gap-3.5">
         <div>
-          <label className={labelClass} style={labelStyle}>Name</label>
-          <input required value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+          <label htmlFor="leadformdrawer-name" className={labelClass} style={labelStyle}>Name</label>
+          <input id="leadformdrawer-name" required value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
         </div>
         <div>
-          <label className={labelClass} style={labelStyle}>Company</label>
-          <input value={company} onChange={(e) => setCompany(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+          <label htmlFor="leadformdrawer-company" className={labelClass} style={labelStyle}>Company</label>
+          <input id="leadformdrawer-company" value={company} onChange={(e) => setCompany(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelClass} style={labelStyle}>Phone</label>
-            <PhoneInput value={phone} onChange={setPhone} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+            <label htmlFor="leadformdrawer-phone" className={labelClass} style={labelStyle}>Phone</label>
+            <PhoneInput id="leadformdrawer-phone" value={phone} onChange={setPhone} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
           </div>
           <div>
-            <label className={labelClass} style={labelStyle}>Email</label>
-            <input value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={labelClass} style={labelStyle}>Location</label>
-            <input value={location} onChange={(e) => setLocation(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
-          </div>
-          <div>
-            <label className={labelClass} style={labelStyle}>Source</label>
-            <input value={source} onChange={(e) => setSource(e.target.value)} placeholder="e.g. Referral, Walk-in" className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+            <label htmlFor="leadformdrawer-email" className={labelClass} style={labelStyle}>Email</label>
+            <input id="leadformdrawer-email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelClass} style={labelStyle}>Stage</label>
-            <select value={stage} onChange={(e) => setStage(e.target.value as LeadStage)} className="w-full rounded-md border px-3 py-2 text-sm" style={inputStyle}>
+            <label htmlFor="leadformdrawer-location" className={labelClass} style={labelStyle}>Location</label>
+            <input id="leadformdrawer-location" value={location} onChange={(e) => setLocation(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+          </div>
+          <div>
+            <label htmlFor="leadformdrawer-source" className={labelClass} style={labelStyle}>Source</label>
+            <input id="leadformdrawer-source" value={source} onChange={(e) => setSource(e.target.value)} placeholder="e.g. Referral, Walk-in" className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="leadformdrawer-stage" className={labelClass} style={labelStyle}>Stage</label>
+            <select id="leadformdrawer-stage" value={stage} onChange={(e) => setStage(e.target.value as LeadStage)} className="w-full rounded-md border px-3 py-2 text-sm" style={inputStyle}>
               {STAGES.map((s) => (
                 <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className={labelClass} style={labelStyle}>Expected value (KSh)</label>
-            <NumericInput value={expectedValue} onChange={setExpectedValue} className="w-full rounded-md border px-3 py-2 text-sm data-num outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+            <label htmlFor="leadformdrawer-expected-value-ksh" className={labelClass} style={labelStyle}>Expected value (KSh)</label>
+            <NumericInput id="leadformdrawer-expected-value-ksh" value={expectedValue} onChange={setExpectedValue} className="w-full rounded-md border px-3 py-2 text-sm data-num outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
           </div>
         </div>
         <div>
-          <label className={labelClass} style={labelStyle}>Follow-up date</label>
-          <input type="date" value={followUpAt} onChange={(e) => setFollowUpAt(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+          <label htmlFor="leadformdrawer-follow-up-date" className={labelClass} style={labelStyle}>Follow-up date</label>
+          <input id="leadformdrawer-follow-up-date" type="date" value={followUpAt} onChange={(e) => setFollowUpAt(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
         </div>
         <div>
-          <label className={labelClass} style={labelStyle}>Notes</label>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+          <label htmlFor="leadformdrawer-notes" className={labelClass} style={labelStyle}>Notes</label>
+          <textarea id="leadformdrawer-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
         </div>
       </form>
     </Drawer>

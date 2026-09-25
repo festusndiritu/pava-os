@@ -70,9 +70,14 @@ export const documentsApi = {
   // `from`/`to` are YYYY-MM-DD calendar days, inclusive at both ends — the
   // backend widens `to` to the end of that day. The API has always accepted
   // them; Reports is the first caller to need them.
-  list: (params: { status?: DocumentStatus; type?: DocumentType; search?: string; from?: string; to?: string } = {}) => {
+  // `status` may be several (`['INVOICED', 'PAID']`) so a screen that shows
+  // them together can page through one ordered list. No limit = everything,
+  // which is what Reports needs.
+  list: (params: { status?: DocumentStatus | DocumentStatus[]; type?: DocumentType; search?: string; from?: string; to?: string; limit?: number; offset?: number } = {}) => {
     const qs = new URLSearchParams();
-    if (params.status) qs.set('status', params.status);
+    if (params.status) qs.set('status', Array.isArray(params.status) ? params.status.join(',') : params.status);
+    if (params.limit) qs.set('limit', String(params.limit));
+    if (params.offset) qs.set('offset', String(params.offset));
     if (params.type) qs.set('type', params.type);
     if (params.search) qs.set('search', params.search);
     if (params.from) qs.set('from', params.from);

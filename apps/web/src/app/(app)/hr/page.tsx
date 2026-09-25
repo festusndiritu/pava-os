@@ -6,6 +6,8 @@ import { hrApi, type Employee, type EmploymentStatus } from '../../../lib/hr-api
 import { Avatar } from '../../../components/Avatar';
 import { EmployeeFormDrawer } from '../../../components/hr/EmployeeFormDrawer';
 import { EmployeeDetailDrawer } from '../../../components/hr/EmployeeDetailDrawer';
+import { fmtNumber } from '../../../lib/format';
+import { activateOnKey } from '../../../lib/a11y';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)', color: 'var(--color-ink-900)' };
 
@@ -142,7 +144,7 @@ export default function HrPage() {
             )}
 
             {employees?.map((e) => (
-              <tr key={e.id} onClick={() => setDetailId(e.id)} className="cursor-pointer border-b transition-colors last:border-0 hover:bg-[var(--color-bg)]" style={{ borderColor: 'var(--color-border)' }}>
+              <tr key={e.id} onClick={() => setDetailId(e.id)} onKeyDown={activateOnKey(() => setDetailId(e.id))} tabIndex={0} className="cursor-pointer border-b transition-colors last:border-0 hover:bg-[var(--color-bg)]" style={{ borderColor: 'var(--color-border)' }}>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2.5">
                     <Avatar name={e.displayName} avatar={e.avatar} size={30} />
@@ -165,7 +167,7 @@ export default function HrPage() {
                   <StatusBadge status={e.employmentStatus} />
                 </td>
                 <td className="px-4 py-3 text-right font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>
-                  KSh {e.baseSalary.toLocaleString()}
+                  KSh {fmtNumber(e.baseSalary)}
                 </td>
               </tr>
             ))}
@@ -200,7 +202,7 @@ export default function HrPage() {
                   <StatusBadge status={e.employmentStatus} />
                 </div>
                 <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
-                  {e.jobTitle ?? '—'} · KSh {e.baseSalary.toLocaleString()}
+                  {e.jobTitle ?? '—'} · KSh {fmtNumber(e.baseSalary)}
                 </p>
               </div>
             </button>

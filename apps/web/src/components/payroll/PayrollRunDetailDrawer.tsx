@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { Drawer } from '../ui/Drawer';
 import { payrollApi, type PayrollRun } from '../../lib/payroll-api';
 import { ApiError } from '../../lib/api';
-import { NumericInput, PhoneInput, toNumber } from '../ui/inputs';
+import { NumericInput, toNumber } from '../ui/inputs';
+import { money } from '../../lib/format';
 
 // One editable amount on a draft payslip. Edits stay local until the field
 // loses focus, and a request only goes out if the number actually changed —
@@ -38,9 +39,6 @@ function PayrollField({ value, allowNegative, disabled, onSave, style }: { value
 
 function fmtDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(iso));
-}
-function money(n: number) {
-  return `KSh ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 }
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };

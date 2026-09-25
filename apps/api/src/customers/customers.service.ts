@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { LedgerEntryType } from '../../generated/prisma/client.js';
+import { normalizePhoneSearch } from '../common/validation/phone.validator.js';
 
 interface CustomerInput {
   name: string;
@@ -22,8 +23,8 @@ export class CustomersService {
     private audit: AuditService,
   ) {}
 
-  findAll(params: { search?: string; status?: 'active' | 'archived' | 'all' } = {}) {
-    const { search, status = 'active' } = params;
+  findAll(params: { search?: string; status?: 'active' | 'archived' | 'all'; limit?: number; offset?: number } = {}) {
+    const { search, status = 'active', limit, offset } = params;
     return this.prisma.customer.findMany({
       where: {
         ...(status === 'all' ? {} : { active: status === 'archived' ? false : true }),
@@ -32,12 +33,14 @@ export class CustomersService {
               OR: [
                 { name: { contains: search, mode: 'insensitive' as const } },
                 { businessName: { contains: search, mode: 'insensitive' as const } },
-                { phone: { contains: search } },
+                { phone: { contains: normalizePhoneSearch(search) } },
               ],
             }
           : {}),
       },
-      orderBy: { name: 'asc' },
+      // id breaks ties so paging by offset never skips or repeats a row.
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      ...(limit ? { take: limit, skip: offset ?? 0 } : {}),
     });
   }
 

@@ -5,10 +5,8 @@ import { Clock, PauseCircle, Trash2, X } from 'lucide-react';
 import { posApi, type SuspendedOrder } from '../../lib/pos-api';
 import { ApiError } from '../../lib/api';
 import { Modal } from '../ui/Modal';
+import { money } from '../../lib/format';
 
-function money(n: number) {
-  return `KSh ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-}
 function since(iso: string) {
   const minutes = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
   if (minutes < 1) return 'just now';
@@ -65,10 +63,10 @@ export function SuspendOrderDialog({
 
   return (
     <Shell title="Suspend this order" subtitle={`${itemCount} item${itemCount === 1 ? '' : 's'} · ${money(total)}`} onClose={onCancel}>
-      <label className="text-xs font-medium" style={{ color: 'var(--color-ink-600)' }}>
+      <label htmlFor="suspendedorders-label-optional" className="text-xs font-medium" style={{ color: 'var(--color-ink-600)' }}>
         Label (optional)
       </label>
-      <input
+      <input id="suspendedorders-label-optional"
         autoFocus
         value={label}
         onChange={(e) => setLabel(e.target.value)}

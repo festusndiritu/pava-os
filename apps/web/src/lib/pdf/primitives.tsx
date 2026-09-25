@@ -2,12 +2,13 @@ import { View, Text, StyleSheet } from '@react-pdf/renderer';
 import type { DocumentViewModel } from '../document-view-model';
 import { BrandMark } from './brand-mark';
 import { ACCENT, HAIRLINE, INK, LABEL, LINE, MUTED, PANEL } from './theme';
+import { fmtNumber } from '../format';
 
 function money(n: number) {
-  return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  return fmtNumber(n);
 }
 function qty(n: number) {
-  return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  return fmtNumber(n);
 }
 function fmtDate(iso: string) {
   return new Intl.DateTimeFormat('en-GB', { dateStyle: 'long' }).format(new Date(iso));

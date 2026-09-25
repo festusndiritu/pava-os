@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Search } from 'lucide-react';
 import { productsApi, type Product } from '../../lib/products-api';
 import { thicknessLabel } from '../../lib/shape-config';
+import { fmtNumber } from '../../lib/format';
 
 export function ProductPicker({ onSelect, placeholder = 'Search products…' }: { onSelect: (p: Product) => void; placeholder?: string }) {
   const [query, setQuery] = useState('');
@@ -24,17 +25,28 @@ export function ProductPicker({ onSelect, placeholder = 'Search products…' }: 
   useEffect(() => {
     if (query.trim().length < 1) {
       setResults([]);
+      setLoading(false);
       return;
     }
     setLoading(true);
+    let stale = false;
     const t = setTimeout(() => {
       productsApi
         .list({ search: query })
-        .then((r) => setResults(r.slice(0, 8)))
-        .catch(() => setResults([]))
-        .finally(() => setLoading(false));
+        .then((r) => {
+          if (!stale) setResults(r.slice(0, 8));
+        })
+        .catch(() => {
+          if (!stale) setResults([]);
+        })
+        .finally(() => {
+          if (!stale) setLoading(false);
+        });
     }, 250);
-    return () => clearTimeout(t);
+    return () => {
+      stale = true;
+      clearTimeout(t);
+    };
   }, [query]);
 
   return (
@@ -94,7 +106,7 @@ export function ProductPicker({ onSelect, placeholder = 'Search products…' }: 
                     </p>
                   </div>
                   <span className="shrink-0 text-sm font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>
-                    KSh {p.basePrice.toLocaleString()}
+                    KSh {fmtNumber(p.basePrice)}
                   </span>
                 </button>
               );

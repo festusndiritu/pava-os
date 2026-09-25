@@ -1,12 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Archive, Eye, Pencil, Plus, RotateCcw, Search, Users } from 'lucide-react';
 import { customersApi, type Customer, type CustomerStatus } from '../../../lib/customers-api';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { ApiError } from '../../../lib/api';
 import { CustomerFormDrawer } from '../../../components/customers/CustomerFormDrawer';
 import { CustomerDetailDrawer } from '../../../components/customers/CustomerDetailDrawer';
+import { fmtNumber } from '../../../lib/format';
+import { activateOnKey } from '../../../lib/a11y';
+import { usePagedList, useDebounced } from '../../../lib/use-paged-list';
+import { ListFooter } from '../../../components/ui/ListFooter';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)', color: 'var(--color-ink-900)' };
 
@@ -30,7 +34,6 @@ function CreditBadge({ customer }: { customer: Customer }) {
 }
 
 export default function CustomersPage() {
-  const [customers, setCustomers] = useState<Customer[] | null>(null);
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Customer | null>(null);
@@ -40,15 +43,11 @@ export default function CustomersPage() {
   const [confirmArchive, setConfirmArchive] = useState<Customer | null>(null);
   const [archiveBusy, setArchiveBusy] = useState(false);
 
-  async function load() {
-    setCustomers(await customersApi.list(search || undefined, status));
-  }
-
-  useEffect(() => {
-    const t = setTimeout(load, search ? 250 : 0);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, status]);
+  const debouncedSearch = useDebounced(search);
+  const { items: customers, hasMore, loadingMore, error: listError, loadMore, reload: load } = usePagedList(
+    (offset, limit) => customersApi.list(debouncedSearch || undefined, status, { offset, limit }),
+    [debouncedSearch, status],
+  );
 
   async function archiveCustomer(c: Customer) {
     setArchiveBusy(true);
@@ -181,7 +180,7 @@ export default function CustomersPage() {
             )}
 
             {customers?.map((c) => (
-              <tr key={c.id} onClick={() => setDetailId(c.id)} className="cursor-pointer border-b transition-colors last:border-0 hover:bg-[var(--color-bg)]" style={{ borderColor: 'var(--color-border)' }}>
+              <tr key={c.id} onClick={() => setDetailId(c.id)} onKeyDown={activateOnKey(() => setDetailId(c.id))} tabIndex={0} className="cursor-pointer border-b transition-colors last:border-0 hover:bg-[var(--color-bg)]" style={{ borderColor: 'var(--color-border)' }}>
                 <td className="px-4 py-3">
                   <p className="font-medium" style={{ color: 'var(--color-ink-900)' }}>
                     {c.name}
@@ -199,7 +198,7 @@ export default function CustomersPage() {
                   <CreditBadge customer={c} />
                 </td>
                 <td className="px-4 py-3 text-right font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>
-                  {c.isCredit ? `KSh ${c.creditBalance.toLocaleString()}` : '—'}
+                  {c.isCredit ? `KSh ${fmtNumber(c.creditBalance)}` : '—'}
                 </td>
                 <td className="px-2 py-2">
                   <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
@@ -257,7 +256,7 @@ export default function CustomersPage() {
           )}
 
           {customers?.map((c) => (
-            <div key={c.id} onClick={() => setDetailId(c.id)} className="flex w-full flex-col gap-1.5 p-4 text-left transition-colors active:bg-[var(--color-bg)]">
+            <div key={c.id} onClick={() => setDetailId(c.id)} onKeyDown={activateOnKey(() => setDetailId(c.id))} tabIndex={0} role="button" className="flex w-full flex-col gap-1.5 p-4 text-left transition-colors active:bg-[var(--color-bg)]">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="truncate font-medium" style={{ color: 'var(--color-ink-900)' }}>
@@ -271,7 +270,7 @@ export default function CustomersPage() {
                 </div>
                 {c.isCredit && (
                   <p className="shrink-0 font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>
-                    KSh {c.creditBalance.toLocaleString()}
+                    KSh {fmtNumber(c.creditBalance)}
                   </p>
                 )}
               </div>
@@ -305,6 +304,7 @@ export default function CustomersPage() {
             </div>
           ))}
         </div>
+        <ListFooter hasMore={hasMore} loadingMore={loadingMore} error={listError} onMore={loadMore} onRetry={load} />
       </div>
 
       <CustomerFormDrawer open={formOpen} onClose={() => setFormOpen(false)} onSaved={load} customer={editing} />
@@ -323,7 +323,7 @@ export default function CustomersPage() {
         <ConfirmDialog
           title="Archive this customer?"
           description={`${confirmArchive.businessName || confirmArchive.name} will drop off the customer list and the POS. Their documents and ledger history are unaffected, and they can be restored any time.${
-            confirmArchive.isCredit && confirmArchive.creditBalance > 0 ? ` They currently owe KSh ${confirmArchive.creditBalance.toLocaleString()}.` : ''
+            confirmArchive.isCredit && confirmArchive.creditBalance > 0 ? ` They currently owe KSh ${fmtNumber(confirmArchive.creditBalance)}.` : ''
           }`}
           confirmLabel="Archive"
           busy={archiveBusy}

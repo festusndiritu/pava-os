@@ -3,9 +3,7 @@ import type { DashboardSummary } from '../../lib/dashboard-api';
 
 export type ChartPoint = { date: string; total: number };
 
-export function money(n: number) {
-  return `KSh ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-}
+export { money } from '../../lib/format';
 
 export function fmtDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' }).format(new Date(iso));

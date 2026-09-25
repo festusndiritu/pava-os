@@ -6,6 +6,8 @@ import { Avatar } from '../Avatar';
 import { hrApi, type Employee } from '../../lib/hr-api';
 import { payrollApi } from '../../lib/payroll-api';
 import { ApiError } from '../../lib/api';
+import { toast } from '../ui/Toast';
+import { fmtNumber } from '../../lib/format';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
 const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase';
@@ -56,6 +58,7 @@ export function PayrollRunFormDrawer({ open, onClose, onSaved }: { open: boolean
         employeeIds: [...selected],
         notes: notes || undefined,
       });
+      toast.success('Payroll run created');
       onSaved();
       onClose();
     } catch (err) {
@@ -88,23 +91,23 @@ export function PayrollRunFormDrawer({ open, onClose, onSaved }: { open: boolean
       <form id="payroll-run-form" onSubmit={handleSubmit} className="flex flex-col gap-3.5">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <label htmlFor="payrollrunformdrawer-period-start" className={labelClass} style={labelStyle}>
               Period start
             </label>
-            <input required type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+            <input id="payrollrunformdrawer-period-start" required type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
           </div>
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <label htmlFor="payrollrunformdrawer-period-end" className={labelClass} style={labelStyle}>
               Period end
             </label>
-            <input required type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+            <input id="payrollrunformdrawer-period-end" required type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
           </div>
         </div>
         <div>
-          <label className={labelClass} style={labelStyle}>
+          <label htmlFor="payrollrunformdrawer-notes" className={labelClass} style={labelStyle}>
             Notes
           </label>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+          <textarea id="payrollrunformdrawer-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
         </div>
 
         <div>
@@ -132,7 +135,7 @@ export function PayrollRunFormDrawer({ open, onClose, onSaved }: { open: boolean
                   </p>
                 </div>
                 <p className="text-xs data-num" style={{ color: 'var(--color-ink-600)' }}>
-                  KSh {e.baseSalary.toLocaleString()}
+                  KSh {fmtNumber(e.baseSalary)}
                 </p>
               </label>
             ))}

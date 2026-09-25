@@ -8,6 +8,7 @@ import { AVATAR_KEYS, avatarColor, type ModuleKey } from '../../lib/constants';
 import { PermissionEditor } from './PermissionEditor';
 import { ApiError } from '../../lib/api';
 import { NumericInput, PhoneInput, toNumber } from '../ui/inputs';
+import { toast } from '../ui/Toast';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
 const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase';
@@ -67,6 +68,7 @@ export function UserFormDrawer({
         }
         await usersApi.create({ name, avatar, phone: phone || undefined, pin, permissions, maxDiscountPercent: discount, canViewCost, canInvoiceWithoutStock });
       }
+      toast.success('User saved');
       onSaved();
       onClose();
     } catch (err) {
@@ -99,25 +101,25 @@ export function UserFormDrawer({
       <form id="user-form" onSubmit={handleSubmit} className="flex flex-col gap-5">
         <div className="flex flex-col gap-3.5">
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <label htmlFor="userformdrawer-display-name" className={labelClass} style={labelStyle}>
               Display name
             </label>
-            <input required value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+            <input id="userformdrawer-display-name" required value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
           </div>
 
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <label htmlFor="userformdrawer-phone" className={labelClass} style={labelStyle}>
               Phone
             </label>
-            <PhoneInput value={phone} onChange={setPhone} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+            <PhoneInput id="userformdrawer-phone" value={phone} onChange={setPhone} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
           </div>
 
           {!isEdit && (
             <div>
-              <label className={labelClass} style={labelStyle}>
+              <label htmlFor="userformdrawer-4-digit-pin" className={labelClass} style={labelStyle}>
                 4-digit PIN
               </label>
-              <input
+              <input id="userformdrawer-4-digit-pin"
                 required
                 inputMode="numeric"
                 maxLength={4}
@@ -181,11 +183,12 @@ export function UserFormDrawer({
           </p>
           <div className="flex flex-col gap-3.5">
             <div>
-              <label className={labelClass} style={labelStyle}>
+              <label htmlFor="userformdrawer-max-discount" className={labelClass} style={labelStyle}>
                 Maximum discount they can apply
               </label>
               <div className="flex items-center gap-1.5">
                 <NumericInput
+                  id="userformdrawer-max-discount"
                   allowDecimal
                   maxDecimals={1}
                   min={0}

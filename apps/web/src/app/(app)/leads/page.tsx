@@ -5,6 +5,7 @@ import { Plus, Target } from 'lucide-react';
 import { leadsApi, type Lead, type LeadStage } from '../../../lib/leads-api';
 import { LeadFormDrawer } from '../../../components/leads/LeadFormDrawer';
 import { ApiError } from '../../../lib/api';
+import { fmtNumber } from '../../../lib/format';
 
 const STAGES: { key: LeadStage; label: string }[] = [
   { key: 'NEW', label: 'New' },
@@ -130,7 +131,7 @@ export default function LeadsPage() {
                           )}
                           {lead.expectedValue != null && (
                             <p className="mt-1 text-xs font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>
-                              KSh {lead.expectedValue.toLocaleString()}
+                              KSh {fmtNumber(lead.expectedValue)}
                             </p>
                           )}
                           {lead.followUpAt && (

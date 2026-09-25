@@ -1,11 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { FileText, Plus } from 'lucide-react';
-import { documentsApi, type SaleDocument } from '../../../lib/documents-api';
+import { documentsApi } from '../../../lib/documents-api';
 import { QuoteFormDrawer } from '../../../components/documents/QuoteFormDrawer';
 import { DocumentDetailDrawer } from '../../../components/documents/DocumentDetailDrawer';
 import { DocumentRowActions } from '../../../components/documents/DocumentRowActions';
+import { fmtNumber } from '../../../lib/format';
+import { activateOnKey } from '../../../lib/a11y';
+import { usePagedList } from '../../../lib/use-paged-list';
+import { ListFooter } from '../../../components/ui/ListFooter';
 
 function fmtDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(iso));
@@ -17,19 +21,14 @@ const STATUS_BADGE: Record<string, { bg: string; fg: string }> = {
 };
 
 export default function QuotesPage() {
-  const [docs, setDocs] = useState<SaleDocument[] | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function load() {
-    const [quoted, cancelled] = await Promise.all([documentsApi.list({ status: 'QUOTED' }), documentsApi.list({ status: 'CANCELLED' })]);
-    setDocs([...quoted, ...cancelled.filter((d) => d.type === 'QUOTE')].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)));
-  }
-
-  useEffect(() => {
-    load();
-  }, []);
+  const { items: docs, hasMore, loadingMore, error: listError, loadMore, reload: load } = usePagedList(
+    (offset, limit) => documentsApi.list({ type: 'QUOTE', status: ['QUOTED', 'CANCELLED'], offset, limit }),
+    [],
+  );
 
   return (
     <div className="p-6">
@@ -86,14 +85,14 @@ export default function QuotesPage() {
             {docs?.map((d) => {
               const badge = STATUS_BADGE[d.status] ?? STATUS_BADGE.QUOTED;
               return (
-                <tr key={d.id} onClick={() => setDetailId(d.id)} className="cursor-pointer border-b transition-colors last:border-0 hover:bg-[var(--color-bg)]" style={{ borderColor: 'var(--color-border)' }}>
+                <tr key={d.id} onClick={() => setDetailId(d.id)} onKeyDown={activateOnKey(() => setDetailId(d.id))} tabIndex={0} className="cursor-pointer border-b transition-colors last:border-0 hover:bg-[var(--color-bg)]" style={{ borderColor: 'var(--color-border)' }}>
                   <td className="px-4 py-3 data-num" style={{ color: 'var(--color-ink-600)' }}>{d.quoteNumber ?? '—'}</td>
                   <td className="px-4 py-3 font-medium" style={{ color: 'var(--color-ink-900)' }}>{d.customer?.businessName || d.customer?.name || d.customerName || 'Walk-in'}</td>
                   <td className="px-4 py-3" style={{ color: 'var(--color-ink-600)' }}>{fmtDate(d.createdAt)}</td>
                   <td className="px-4 py-3">
                     <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: badge.bg, color: badge.fg }}>{d.status === 'CANCELLED' ? 'Cancelled' : 'Quote'}</span>
                   </td>
-                  <td className="px-4 py-3 text-right font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>KSh {d.total.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>KSh {fmtNumber(d.total)}</td>
                   <td className="px-2 py-2">
                     <DocumentRowActions doc={d} onOpen={setDetailId} onChanged={load} onError={setError} />
                   </td>
@@ -119,10 +118,10 @@ export default function QuotesPage() {
           {docs?.map((d) => {
             const badge = STATUS_BADGE[d.status] ?? STATUS_BADGE.QUOTED;
             return (
-              <div key={d.id} onClick={() => setDetailId(d.id)} className="flex w-full flex-col gap-1 p-4 text-left active:bg-[var(--color-bg)]">
+              <div key={d.id} onClick={() => setDetailId(d.id)} onKeyDown={activateOnKey(() => setDetailId(d.id))} tabIndex={0} role="button" className="flex w-full flex-col gap-1 p-4 text-left active:bg-[var(--color-bg)]">
                 <div className="flex items-start justify-between gap-3">
                   <p className="font-medium" style={{ color: 'var(--color-ink-900)' }}>{d.customer?.businessName || d.customer?.name || d.customerName || 'Walk-in'}</p>
-                  <p className="shrink-0 font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>KSh {d.total.toLocaleString()}</p>
+                  <p className="shrink-0 font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>KSh {fmtNumber(d.total)}</p>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span style={{ color: 'var(--color-ink-600)' }}>{d.quoteNumber ?? fmtDate(d.createdAt)}</span>
@@ -135,6 +134,7 @@ export default function QuotesPage() {
             );
           })}
         </div>
+        <ListFooter hasMore={hasMore} loadingMore={loadingMore} error={listError} onMore={loadMore} onRetry={load} />
       </div>
 
       <QuoteFormDrawer open={formOpen} onClose={() => setFormOpen(false)} onCreated={(id) => { load(); setDetailId(id); }} />

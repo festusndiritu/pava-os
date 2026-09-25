@@ -1,13 +1,15 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { X } from 'lucide-react';
 import { Drawer } from '../ui/Drawer';
 import { InlineAddSelect } from '../ui/InlineAddSelect';
 import { productsApi, type Brand, type Category, type Product, type ProductFamily, type Unit } from '../../lib/products-api';
 import { SHAPES, shapeConfig } from '../../lib/shape-config';
 import { ApiError } from '../../lib/api';
-import { NumericInput, PhoneInput, toNumber } from '../ui/inputs';
+import { NumericInput, toNumber } from '../ui/inputs';
+import { toast } from '../ui/Toast';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
 const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase';
@@ -188,6 +190,7 @@ export function ProductFormDrawer({
       } else {
         await productsApi.create(payload);
       }
+      toast.success('Product saved');
       onSaved();
       onClose();
     } catch (err) {
@@ -226,10 +229,10 @@ export function ProductFormDrawer({
       <form id="product-form" onSubmit={handleSubmit}>
         <Section title="Technical identity">
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <label htmlFor="productformdrawer-technical-name" className={labelClass} style={labelStyle}>
               Technical name
             </label>
-            <input
+            <input id="productformdrawer-technical-name"
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -239,10 +242,10 @@ export function ProductFormDrawer({
             />
           </div>
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <label htmlFor="productformdrawer-spec-grade-note" className={labelClass} style={labelStyle}>
               Spec / grade note
             </label>
-            <input
+            <input id="productformdrawer-spec-grade-note"
               value={spec}
               onChange={(e) => setSpec(e.target.value)}
               placeholder="e.g. Y12, 3mm x 6m"
@@ -258,10 +261,10 @@ export function ProductFormDrawer({
           </div>
 
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <label htmlFor="productformdrawer-unit" className={labelClass} style={labelStyle}>
               Unit
             </label>
-            <select
+            <select id="productformdrawer-unit"
               required
               value={unitId}
               onChange={(e) => setUnitId(e.target.value)}
@@ -277,15 +280,24 @@ export function ProductFormDrawer({
                 </option>
               ))}
             </select>
+            {units.length === 0 && (
+              <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>
+                No units exist yet.{' '}
+                <Link href="/products/setup" className="font-medium underline" style={{ color: 'var(--color-accent)' }}>
+                  Add some in Catalogue setup
+                </Link>{' '}
+                first.
+              </p>
+            )}
           </div>
         </Section>
 
         <Section title="Shape & dimensions">
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <label htmlFor="productformdrawer-shape" className={labelClass} style={labelStyle}>
               Shape
             </label>
-            <select
+            <select id="productformdrawer-shape"
               value={shape}
               onChange={(e) => {
                 setShape(e.target.value);
@@ -304,10 +316,10 @@ export function ProductFormDrawer({
           </div>
 
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <label htmlFor="productformdrawer-nominal-size" className={labelClass} style={labelStyle}>
               Nominal size
             </label>
-            <input
+            <input id="productformdrawer-nominal-size"
               value={nominalSize}
               onChange={(e) => setNominalSize(e.target.value)}
               placeholder='e.g. 1.5 inch, Y12, R8'
@@ -319,10 +331,10 @@ export function ProductFormDrawer({
           {cfg?.hasWidthHeight && (
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={labelClass} style={labelStyle}>
+                <label htmlFor="productformdrawer-width-mm" className={labelClass} style={labelStyle}>
                   Width (mm)
                 </label>
-                <NumericInput
+                <NumericInput id="productformdrawer-width-mm"
                   allowDecimal
                   step={0.1}
                   value={widthMm}
@@ -332,10 +344,10 @@ export function ProductFormDrawer({
                 />
               </div>
               <div>
-                <label className={labelClass} style={labelStyle}>
+                <label htmlFor="productformdrawer-height-mm" className={labelClass} style={labelStyle}>
                   Height (mm)
                 </label>
-                <NumericInput
+                <NumericInput id="productformdrawer-height-mm"
                   allowDecimal
                   step={0.1}
                   value={heightMm}
@@ -377,10 +389,10 @@ export function ProductFormDrawer({
           )}
 
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <label htmlFor="productformdrawer-material" className={labelClass} style={labelStyle}>
               Material
             </label>
-            <input
+            <input id="productformdrawer-material"
               value={material}
               onChange={(e) => setMaterial(e.target.value)}
               className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]"
@@ -390,10 +402,10 @@ export function ProductFormDrawer({
 
           {families.length > 0 && (
             <div>
-              <label className={labelClass} style={labelStyle}>
+              <label htmlFor="productformdrawer-product-family-optional" className={labelClass} style={labelStyle}>
                 Product family (optional)
               </label>
-              <select
+              <select id="productformdrawer-product-family-optional"
                 value={familyId}
                 onChange={(e) => setFamilyId(e.target.value)}
                 className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]"
@@ -412,10 +424,10 @@ export function ProductFormDrawer({
 
         <Section title="Customer-facing">
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <label htmlFor="productformdrawer-display-name" className={labelClass} style={labelStyle}>
               Display name
             </label>
-            <input
+            <input id="productformdrawer-display-name"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               placeholder='e.g. Square Pipe 1.5" — 16G'
@@ -434,10 +446,10 @@ export function ProductFormDrawer({
         <Section title="Commercial">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelClass} style={labelStyle}>
+              <label htmlFor="productformdrawer-base-selling-price-ksh" className={labelClass} style={labelStyle}>
                 Base selling price (KSh)
               </label>
-              <NumericInput
+              <NumericInput id="productformdrawer-base-selling-price-ksh"
                 required
                 value={basePrice}
                 onChange={setBasePrice}
@@ -446,10 +458,10 @@ export function ProductFormDrawer({
               />
             </div>
             <div>
-              <label className={labelClass} style={labelStyle}>
+              <label htmlFor="productformdrawer-stock-status" className={labelClass} style={labelStyle}>
                 Stock status
               </label>
-              <select
+              <select id="productformdrawer-stock-status"
                 value={stockStatus}
                 onChange={(e) => setStockStatus(e.target.value as typeof stockStatus)}
                 className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]"

@@ -1,10 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Receipt } from 'lucide-react';
-import { documentsApi, type SaleDocument } from '../../../lib/documents-api';
+import { documentsApi } from '../../../lib/documents-api';
 import { DocumentDetailDrawer } from '../../../components/documents/DocumentDetailDrawer';
 import { DocumentRowActions } from '../../../components/documents/DocumentRowActions';
+import { fmtNumber } from '../../../lib/format';
+import { activateOnKey } from '../../../lib/a11y';
+import { usePagedList } from '../../../lib/use-paged-list';
+import { ListFooter } from '../../../components/ui/ListFooter';
 
 function fmtDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(iso));
@@ -19,25 +23,18 @@ const STATUS_BADGE: Record<string, { label: string; bg: string; fg: string }> = 
 
 export default function InvoicesPage() {
   const [tab, setTab] = useState<'invoices' | 'delivery-notes'>('invoices');
-  const [docs, setDocs] = useState<SaleDocument[] | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function load() {
-    setDocs(null);
-    if (tab === 'delivery-notes') {
-      const notes = await documentsApi.list({ type: 'DELIVERY_NOTE' });
-      setDocs(notes.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)));
-      return;
-    }
-    const [invoiced, paid] = await Promise.all([documentsApi.list({ status: 'INVOICED' }), documentsApi.list({ status: 'PAID' })]);
-    setDocs([...invoiced, ...paid].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)));
-  }
-
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
+  // Newest first, a page at a time — the server orders and pages one combined
+  // list rather than the browser merging two full ones.
+  const { items: docs, hasMore, loadingMore, error: listError, loadMore, reload: load } = usePagedList(
+    (offset, limit) =>
+      tab === 'delivery-notes'
+        ? documentsApi.list({ type: 'DELIVERY_NOTE', offset, limit })
+        : documentsApi.list({ status: ['INVOICED', 'PAID'], offset, limit }),
+    [tab],
+  );
 
   return (
     <div className="p-6">
@@ -100,7 +97,7 @@ export default function InvoicesPage() {
             {docs?.map((d) => {
               const badge = STATUS_BADGE[d.status] ?? STATUS_BADGE.DRAFT;
               return (
-                <tr key={d.id} onClick={() => setDetailId(d.id)} className="cursor-pointer border-b transition-colors last:border-0 hover:bg-[var(--color-bg)]" style={{ borderColor: 'var(--color-border)' }}>
+                <tr key={d.id} onClick={() => setDetailId(d.id)} onKeyDown={activateOnKey(() => setDetailId(d.id))} tabIndex={0} className="cursor-pointer border-b transition-colors last:border-0 hover:bg-[var(--color-bg)]" style={{ borderColor: 'var(--color-border)' }}>
                   <td className="px-4 py-3 data-num" style={{ color: 'var(--color-ink-600)' }}>{d.deliveryNoteNumber ?? d.receiptNumber ?? d.invoiceNumber ?? '—'}</td>
                   <td className="px-4 py-3 font-medium" style={{ color: 'var(--color-ink-900)' }}>{d.customer?.businessName || d.customer?.name || d.customerName || 'Walk-in'}</td>
                   <td className="px-4 py-3" style={{ color: 'var(--color-ink-600)' }}>{fmtDate(d.invoicedAt ?? d.createdAt)}</td>
@@ -109,7 +106,7 @@ export default function InvoicesPage() {
                   </td>
                   {/* A delivery note carries no pricing anywhere, list views included. */}
                   <td className="px-4 py-3 text-right font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>
-                    {d.type === 'DELIVERY_NOTE' ? <span style={{ color: 'var(--color-ink-600)' }}>{d.items.length} item{d.items.length === 1 ? '' : 's'}</span> : `KSh ${d.total.toLocaleString()}`}
+                    {d.type === 'DELIVERY_NOTE' ? <span style={{ color: 'var(--color-ink-600)' }}>{d.items.length} item{d.items.length === 1 ? '' : 's'}</span> : `KSh ${fmtNumber(d.total)}`}
                   </td>
                   <td className="px-2 py-2">
                     <DocumentRowActions doc={d} onOpen={setDetailId} onChanged={load} onError={setError} />
@@ -136,11 +133,11 @@ export default function InvoicesPage() {
           {docs?.map((d) => {
             const badge = STATUS_BADGE[d.status] ?? STATUS_BADGE.DRAFT;
             return (
-              <div key={d.id} onClick={() => setDetailId(d.id)} className="flex w-full flex-col gap-1 p-4 text-left active:bg-[var(--color-bg)]">
+              <div key={d.id} onClick={() => setDetailId(d.id)} onKeyDown={activateOnKey(() => setDetailId(d.id))} tabIndex={0} role="button" className="flex w-full flex-col gap-1 p-4 text-left active:bg-[var(--color-bg)]">
                 <div className="flex items-start justify-between gap-3">
                   <p className="font-medium" style={{ color: 'var(--color-ink-900)' }}>{d.customer?.businessName || d.customer?.name || d.customerName || 'Walk-in'}</p>
                   <p className="shrink-0 font-medium data-num" style={{ color: d.type === 'DELIVERY_NOTE' ? 'var(--color-ink-600)' : 'var(--color-ink-900)' }}>
-                    {d.type === 'DELIVERY_NOTE' ? `${d.items.length} item${d.items.length === 1 ? '' : 's'}` : `KSh ${d.total.toLocaleString()}`}
+                    {d.type === 'DELIVERY_NOTE' ? `${d.items.length} item${d.items.length === 1 ? '' : 's'}` : `KSh ${fmtNumber(d.total)}`}
                   </p>
                 </div>
                 <div className="flex items-center justify-between text-sm">
@@ -154,6 +151,7 @@ export default function InvoicesPage() {
             );
           })}
         </div>
+        <ListFooter hasMore={hasMore} loadingMore={loadingMore} error={listError} onMore={loadMore} onRetry={load} />
       </div>
 
       <DocumentDetailDrawer documentId={detailId} onClose={() => setDetailId(null)} onChanged={load} onNavigate={setDetailId} />

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import { ApiError } from '../../lib/api';
 
@@ -35,6 +35,7 @@ export function InlineAddSelect({
   labelClass: string;
   labelStyle: React.CSSProperties;
 }) {
+  const fieldId = useId();
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -73,12 +74,12 @@ export function InlineAddSelect({
 
   return (
     <div>
-      <label className={labelClass} style={labelStyle}>
+      <label htmlFor={fieldId} className={labelClass} style={labelStyle}>
         {label}
       </label>
       {!adding ? (
         <div className="flex gap-1.5">
-          <select value={value} onChange={(e) => onChange(e.target.value)} className={fieldClass} style={inputStyle}>
+          <select id={fieldId} value={value} onChange={(e) => onChange(e.target.value)} className={fieldClass} style={inputStyle}>
             <option value="">—</option>
             {items.map((i) => (
               <option key={i.id} value={i.id}>
@@ -100,6 +101,7 @@ export function InlineAddSelect({
       ) : (
         <div className="flex gap-1.5">
           <input
+            id={fieldId}
             autoFocus
             value={name}
             onChange={(e) => setName(e.target.value)}

@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import type { TransportAllocation } from '../../lib/pos-api';
-import { NumericInput, PhoneInput, toNumber } from '../ui/inputs';
+import { NumericInput, toNumber } from '../ui/inputs';
 import { Modal } from '../ui/Modal';
+import { fmtNumber } from '../../lib/format';
 
 export interface CartLine {
   product: { id: string; name: string; displayName: string | null };
@@ -66,10 +67,10 @@ export function TransportDialog({
 
         <div className="mt-4 flex flex-col gap-4">
           <div>
-            <label className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+            <label htmlFor="transportdialog-amount-ksh" className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
               Amount (KSh)
             </label>
-            <NumericInput
+            <NumericInput id="transportdialog-amount-ksh"
               value={amount}
               onChange={setAmount}
               className="w-full rounded-md border px-3 py-2 text-sm data-num"
@@ -134,7 +135,7 @@ export function TransportDialog({
                   </div>
                 ))}
               <p className="text-xs" style={{ color: manualSum === Number(amount) ? 'var(--color-ink-600)' : 'var(--color-status-bad)' }}>
-                Allocated: KSh {manualSum.toLocaleString()} of KSh {Number(amount || 0).toLocaleString()}
+                Allocated: KSh {fmtNumber(manualSum)} of KSh {fmtNumber(Number(amount || 0))}
               </p>
             </div>
           )}

@@ -3,15 +3,27 @@ import { api } from './api';
 export interface Brand {
   id: string;
   name: string;
+  // Present on the list/create/rename responses; how many products use it.
+  _count?: { products: number };
 }
 export interface Category {
   id: string;
   name: string;
+  _count?: { products: number };
+}
+export interface SubUnit {
+  id: string;
+  unitId: string;
+  name: string;
+  // How much of the base measure one of these is — "50kg bag" under Bag is 50.
+  factor: number;
 }
 export interface Unit {
   id: string;
   name: string;
   symbol: string;
+  subUnits?: SubUnit[];
+  _count?: { products: number };
 }
 export interface ProductAlias {
   id: string;
@@ -126,9 +138,19 @@ export const productsApi = {
   priceHistory: (id: string) => api.get<ProductPriceHistoryEntry[]>(`/products/${id}/price-history`),
   brands: () => api.get<Brand[]>('/brands'),
   createBrand: (name: string) => api.post<Brand>('/brands', { name }),
+  renameBrand: (id: string, name: string) => api.patch<Brand>(`/brands/${id}`, { name }),
+  deleteBrand: (id: string) => api.delete<{ deleted: true }>(`/brands/${id}`),
   categories: () => api.get<Category[]>('/categories'),
   createCategory: (name: string) => api.post<Category>('/categories', { name }),
+  renameCategory: (id: string, name: string) => api.patch<Category>(`/categories/${id}`, { name }),
+  deleteCategory: (id: string) => api.delete<{ deleted: true }>(`/categories/${id}`),
   units: () => api.get<Unit[]>('/units'),
+  createUnit: (data: { name: string; symbol: string }) => api.post<Unit>('/units', data),
+  updateUnit: (id: string, data: { name?: string; symbol?: string }) => api.patch<Unit>(`/units/${id}`, data),
+  deleteUnit: (id: string) => api.delete<{ deleted: true }>(`/units/${id}`),
+  addSubUnit: (unitId: string, data: { name: string; factor: number }) => api.post<SubUnit>(`/units/${unitId}/sub-units`, data),
+  updateSubUnit: (unitId: string, subId: string, data: { name?: string; factor?: number }) => api.patch<SubUnit>(`/units/${unitId}/sub-units/${subId}`, data),
+  deleteSubUnit: (unitId: string, subId: string) => api.delete<{ deleted: true }>(`/units/${unitId}/sub-units/${subId}`),
   families: () => api.get<ProductFamily[]>('/products/families'),
   createFamily: (data: { name: string; aggregateLowStock?: boolean; lowStockThreshold?: number }) =>
     api.post<ProductFamily>('/products/families', data),

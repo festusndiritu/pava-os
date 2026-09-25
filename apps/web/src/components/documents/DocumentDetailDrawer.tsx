@@ -13,6 +13,7 @@ import { shareDocumentAsPdf } from '../../lib/pdf/document-pdf';
 import { StockShortfallDialog } from './StockShortfallDialog';
 import { DeliveryLocationDialog } from './DeliveryLocationDialog';
 import { readStockShortfalls, type StockShortfall } from '../../lib/pos-api';
+import { money } from '../../lib/format';
 
 function docTypeLabel(type: string) {
   return type === 'QUOTE' ? 'Quote' : type === 'INVOICE' ? 'Invoice' : type === 'DELIVERY_NOTE' ? 'Delivery note' : 'Receipt';
@@ -21,9 +22,6 @@ function docTypeLabel(type: string) {
 function fmtDate(iso: string | null) {
   if (!iso) return '—';
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));
-}
-function money(n: number) {
-  return `KSh ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 }
 
 const STATUS_LABEL: Record<string, { label: string; bg: string; fg: string }> = {

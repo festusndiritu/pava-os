@@ -39,6 +39,7 @@ import { DeliveryLocationDialog } from '../../../components/documents/DeliveryLo
 import { ApiError } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth-context';
 import { CommittedNumberInput } from '../../../components/ui/inputs';
+import { money } from '../../../lib/format';
 
 interface CartLine {
   product: Product;
@@ -48,9 +49,6 @@ interface CartLine {
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
 
-function money(n: number) {
-  return `KSh ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-}
 
 export default function PosPage() {
   const [query, setQuery] = useState('');
@@ -152,7 +150,15 @@ export default function PosPage() {
   }, [refreshHeldCount]);
 
   useEffect(() => {
-    productsApi.list({ categoryId: activeCategory || undefined }).then((r) => setBrowseProducts(r.slice(0, 60)));
+    // `stale` drops a slow response that arrives after a newer request was made —
+    // otherwise tapping through categories quickly can end on the wrong list.
+    let stale = false;
+    productsApi.list({ categoryId: activeCategory || undefined }).then((r) => {
+      if (!stale) setBrowseProducts(r.slice(0, 60));
+    });
+    return () => {
+      stale = true;
+    };
   }, [activeCategory]);
 
   useEffect(() => {
@@ -161,13 +167,18 @@ export default function PosPage() {
       setHighlighted(0);
       return;
     }
+    let stale = false;
     const t = setTimeout(() => {
       productsApi.list({ search: query }).then((r) => {
+        if (stale) return;
         setResults(r.slice(0, 24));
         setHighlighted(0);
       });
     }, 250);
-    return () => clearTimeout(t);
+    return () => {
+      stale = true;
+      clearTimeout(t);
+    };
   }, [query]);
 
   useEffect(() => {
@@ -175,10 +186,16 @@ export default function PosPage() {
       setCustomerResults([]);
       return;
     }
+    let stale = false;
     const t = setTimeout(() => {
-      customersApi.list(customerQuery).then((r) => setCustomerResults(r.slice(0, 8)));
+      customersApi.list(customerQuery).then((r) => {
+        if (!stale) setCustomerResults(r.slice(0, 8));
+      });
     }, 250);
-    return () => clearTimeout(t);
+    return () => {
+      stale = true;
+      clearTimeout(t);
+    };
   }, [customerQuery, customerMode]);
 
   // "/" jumps back to the search box from anywhere on the till — the fastest

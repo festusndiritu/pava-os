@@ -4,12 +4,10 @@ import { useEffect, useState } from 'react';
 import { Plus, Receipt } from 'lucide-react';
 import { expensesApi, type Expense, type ExpenseCategory, type ExpenseStatus } from '../../../lib/expenses-api';
 import { ExpenseFormDrawer } from '../../../components/expenses/ExpenseFormDrawer';
+import { money } from '../../../lib/format';
 
 function fmtDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(iso));
-}
-function money(n: number) {
-  return `KSh ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 }
 
 const STATUS_STYLE: Record<ExpenseStatus, { label: string; fg: string; bg: string }> = {

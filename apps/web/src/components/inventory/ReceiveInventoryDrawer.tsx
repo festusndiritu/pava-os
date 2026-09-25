@@ -6,7 +6,9 @@ import { Drawer } from '../ui/Drawer';
 import { ProductPicker } from '../products/ProductPicker';
 import { inventoryApi, productsApi, type Product, type ReceiveLineResult } from '../../lib/products-api';
 import { ApiError } from '../../lib/api';
-import { NumericInput, PhoneInput, toNumber } from '../ui/inputs';
+import { NumericInput, toNumber } from '../ui/inputs';
+import { toast } from '../ui/Toast';
+import { fmtNumber } from '../../lib/format';
 
 interface Line {
   product: Product;
@@ -50,6 +52,7 @@ export function ReceiveInventoryDrawer({ open, onClose, onDone }: { open: boolea
         notes: notes || undefined,
         lines: lines.map((l) => ({ productId: l.product.id, quantity: toNumber(l.quantity) ?? 0, unitCost: toNumber(l.unitCost) ?? 0 })),
       });
+      toast.success('Stock received');
       // Only worth asking about products whose suggested price actually differs from the current one.
       const worthAsking = result.lines.filter((l) => l.suggestedPrice !== l.currentPrice);
       if (worthAsking.length > 0) {
@@ -77,7 +80,7 @@ export function ReceiveInventoryDrawer({ open, onClose, onDone }: { open: boolea
         footer={
           <div className="flex items-center justify-between">
             <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
-              Total: <span className="font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>KSh {total.toLocaleString()}</span>
+              Total: <span className="font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>KSh {fmtNumber(total)}</span>
             </p>
             <div className="flex items-center gap-3">
               {error && (
@@ -101,24 +104,24 @@ export function ReceiveInventoryDrawer({ open, onClose, onDone }: { open: boolea
         <form id="receive-form" onSubmit={handleSubmit} className="flex flex-col gap-5">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+              <label htmlFor="receiveinventorydrawer-supplier" className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
                 Supplier
               </label>
-              <input required value={supplier} onChange={(e) => setSupplier(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+              <input id="receiveinventorydrawer-supplier" required value={supplier} onChange={(e) => setSupplier(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
             </div>
             <div>
-              <label className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+              <label htmlFor="receiveinventorydrawer-reference" className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
                 Reference
               </label>
-              <input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="e.g. INV-10392" className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+              <input id="receiveinventorydrawer-reference" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="e.g. INV-10392" className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
             </div>
           </div>
 
           <div>
-            <label className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+            <label htmlFor="receiveinventorydrawer-notes" className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
               Notes
             </label>
-            <input value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+            <input id="receiveinventorydrawer-notes" value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
           </div>
 
           <div>
@@ -181,7 +184,7 @@ export function ReceiveInventoryDrawer({ open, onClose, onDone }: { open: boolea
                         />
                       </td>
                       <td className="px-3 py-2 text-right data-num" style={{ color: 'var(--color-ink-900)' }}>
-                        KSh {((Number(line.quantity) || 0) * (Number(line.unitCost) || 0)).toLocaleString()}
+                        KSh {fmtNumber((toNumber(line.quantity) ?? 0) * (toNumber(line.unitCost) ?? 0))}
                       </td>
                       <td className="px-3 py-2">
                         <button type="button" onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))} style={{ color: 'var(--color-status-bad)' }}>
@@ -242,7 +245,7 @@ function PriceSuggestionDialog({ suggestions, onClose }: { suggestions: ReceiveL
                 {s.productName}
               </p>
               <p className="mt-0.5 text-sm data-num" style={{ color: 'var(--color-ink-600)' }}>
-                Currently KSh {s.currentPrice.toLocaleString()} · Suggested KSh {s.suggestedPrice.toLocaleString()}
+                Currently KSh {fmtNumber(s.currentPrice)} · Suggested KSh {fmtNumber(s.suggestedPrice)}
               </p>
               {decided[s.productId] ? (
                 <p className="mt-2 text-xs font-medium" style={{ color: 'var(--color-status-ok)' }}>
@@ -256,7 +259,7 @@ function PriceSuggestionDialog({ suggestions, onClose }: { suggestions: ReceiveL
                     className="flex-1 rounded-md border px-3 py-1.5 text-xs font-medium"
                     style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}
                   >
-                    Keep KSh {s.currentPrice.toLocaleString()}
+                    Keep KSh {fmtNumber(s.currentPrice)}
                   </button>
                   <button
                     type="button"
@@ -264,7 +267,7 @@ function PriceSuggestionDialog({ suggestions, onClose }: { suggestions: ReceiveL
                     className="flex-1 rounded-md px-3 py-1.5 text-xs font-medium text-white"
                     style={{ backgroundColor: 'var(--color-accent)' }}
                   >
-                    Update to KSh {s.suggestedPrice.toLocaleString()}
+                    Update to KSh {fmtNumber(s.suggestedPrice)}
                   </button>
                 </div>
               )}

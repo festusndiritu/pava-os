@@ -6,6 +6,7 @@ import { productsApi, type Product } from '../../../lib/products-api';
 import { thicknessLabel } from '../../../lib/shape-config';
 import { settingsApi, type BusinessSettings } from '../../../lib/settings-api';
 import { sharePricelistAsPdf } from '../../../lib/pdf/document-pdf';
+import { fmtNumber } from '../../../lib/format';
 
 export default function MarketingPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -74,7 +75,7 @@ export default function MarketingPage() {
       for (const p of items) {
         const gauge = thicknessLabel(p.shape, p.thicknessMm);
         const label = [p.displayName ?? p.name, [p.nominalSize, gauge].filter(Boolean).join(' ')].filter(Boolean).join(' — ');
-        lines.push(`${label}    KSh ${p.basePrice.toLocaleString()}`);
+        lines.push(`${label}    KSh ${fmtNumber(p.basePrice)}`);
       }
       lines.push('');
     }
@@ -157,7 +158,7 @@ export default function MarketingPage() {
                               {gauge ? <span style={{ color: 'var(--color-ink-600)' }}> · {gauge}</span> : null}
                             </span>
                           </span>
-                          <span className="data-num shrink-0" style={{ color: 'var(--color-ink-600)' }}>KSh {p.basePrice.toLocaleString()}</span>
+                          <span className="data-num shrink-0" style={{ color: 'var(--color-ink-600)' }}>KSh {fmtNumber(p.basePrice)}</span>
                         </label>
                       );
                     })}
@@ -224,7 +225,7 @@ export default function MarketingPage() {
               return (
                 <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '1mm 0' }}>
                   <span>{label}</span>
-                  <span style={{ fontWeight: 600 }}>KSh {p.basePrice.toLocaleString()}</span>
+                  <span style={{ fontWeight: 600 }}>KSh {fmtNumber(p.basePrice)}</span>
                 </div>
               );
             })}

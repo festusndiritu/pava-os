@@ -120,21 +120,21 @@ export default function SettingsPage() {
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         <Section title="Business identity" description="Shown on printed quotes, invoices, and receipts.">
           <div>
-            <label className={labelClass} style={labelStyle}>Business name</label>
-            <input value={form.businessName ?? ''} onChange={(e) => setForm((f) => ({ ...f, businessName: e.target.value }))} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+            <label htmlFor="settings-business-name" className={labelClass} style={labelStyle}>Business name</label>
+            <input id="settings-business-name" value={form.businessName ?? ''} onChange={(e) => setForm((f) => ({ ...f, businessName: e.target.value }))} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
           </div>
           <div>
-            <label className={labelClass} style={labelStyle}>Address</label>
-            <input value={form.address ?? ''} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+            <label htmlFor="settings-address" className={labelClass} style={labelStyle}>Address</label>
+            <input id="settings-address" value={form.address ?? ''} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelClass} style={labelStyle}>Phone</label>
-              <PhoneInput value={form.phone ?? ''} onChange={(v) => setForm((f) => ({ ...f, phone: v }))} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+              <label htmlFor="settings-phone" className={labelClass} style={labelStyle}>Phone</label>
+              <PhoneInput id="settings-phone" value={form.phone ?? ''} onChange={(v) => setForm((f) => ({ ...f, phone: v }))} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
             </div>
             <div>
-              <label className={labelClass} style={labelStyle}>Email</label>
-              <input value={form.email ?? ''} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+              <label htmlFor="settings-email" className={labelClass} style={labelStyle}>Email</label>
+              <input id="settings-email" value={form.email ?? ''} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
             </div>
           </div>
         </Section>
@@ -142,18 +142,18 @@ export default function SettingsPage() {
         <Section title="Document numbering" description="Prefixes for new quotes/invoices/receipts. The next number is shown for reference and increments automatically — it isn't editable here to avoid ever issuing a duplicate.">
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className={labelClass} style={labelStyle}>Quote prefix</label>
-              <input value={form.quotePrefix ?? ''} onChange={(e) => setForm((f) => ({ ...f, quotePrefix: e.target.value }))} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+              <label htmlFor="settings-quote-prefix" className={labelClass} style={labelStyle}>Quote prefix</label>
+              <input id="settings-quote-prefix" value={form.quotePrefix ?? ''} onChange={(e) => setForm((f) => ({ ...f, quotePrefix: e.target.value }))} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
               <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>Next: {settings.quotePrefix}-{new Date().getFullYear()}-{String(settings.nextQuoteSeq).padStart(6, '0')}</p>
             </div>
             <div>
-              <label className={labelClass} style={labelStyle}>Invoice prefix</label>
-              <input value={form.invoicePrefix ?? ''} onChange={(e) => setForm((f) => ({ ...f, invoicePrefix: e.target.value }))} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+              <label htmlFor="settings-invoice-prefix" className={labelClass} style={labelStyle}>Invoice prefix</label>
+              <input id="settings-invoice-prefix" value={form.invoicePrefix ?? ''} onChange={(e) => setForm((f) => ({ ...f, invoicePrefix: e.target.value }))} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
               <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>Next: {settings.invoicePrefix}-{new Date().getFullYear()}-{String(settings.nextInvoiceSeq).padStart(6, '0')}</p>
             </div>
             <div>
-              <label className={labelClass} style={labelStyle}>Receipt prefix</label>
-              <input value={form.receiptPrefix ?? ''} onChange={(e) => setForm((f) => ({ ...f, receiptPrefix: e.target.value }))} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+              <label htmlFor="settings-receipt-prefix" className={labelClass} style={labelStyle}>Receipt prefix</label>
+              <input id="settings-receipt-prefix" value={form.receiptPrefix ?? ''} onChange={(e) => setForm((f) => ({ ...f, receiptPrefix: e.target.value }))} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
               <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>Next: {settings.receiptPrefix}-{new Date().getFullYear()}-{String(settings.nextReceiptSeq).padStart(6, '0')}</p>
             </div>
           </div>
@@ -162,13 +162,13 @@ export default function SettingsPage() {
         <Section title="Commercial defaults">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelClass} style={labelStyle}>Rounding increment (KSh)</label>
-              <NumericInput min={1} required value={rounding} onChange={setRounding} className="w-full rounded-md border px-3 py-2 text-sm data-num outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+              <label htmlFor="settings-rounding-increment-ksh" className={labelClass} style={labelStyle}>Rounding increment (KSh)</label>
+              <NumericInput id="settings-rounding-increment-ksh" min={1} required value={rounding} onChange={setRounding} className="w-full rounded-md border px-3 py-2 text-sm data-num outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
               <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>POS rounds customer-facing unit prices up to the nearest multiple of this.</p>
             </div>
             <div>
-              <label className={labelClass} style={labelStyle}>Low-stock threshold</label>
-              <NumericInput required value={lowStock} onChange={setLowStock} className="w-full rounded-md border px-3 py-2 text-sm data-num outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+              <label htmlFor="settings-low-stock-threshold" className={labelClass} style={labelStyle}>Low-stock threshold</label>
+              <NumericInput id="settings-low-stock-threshold" required value={lowStock} onChange={setLowStock} className="w-full rounded-md border px-3 py-2 text-sm data-num outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
               <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>Products at or below this quantity show on the dashboard's low-stock list.</p>
             </div>
           </div>

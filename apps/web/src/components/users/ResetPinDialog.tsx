@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { usersApi, type StaffUser } from '../../lib/users-api';
 import { ApiError } from '../../lib/api';
 import { Modal } from '../ui/Modal';
+import { toast } from '../ui/Toast';
 
 export function ResetPinDialog({ user, onClose, onDone }: { user: StaffUser; onClose: () => void; onDone: () => void }) {
   const [pin, setPin] = useState('');
@@ -19,6 +20,7 @@ export function ResetPinDialog({ user, onClose, onDone }: { user: StaffUser; onC
     setError(null);
     try {
       await usersApi.resetPin(user.id, pin);
+      toast.success('PIN reset');
       onDone();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not reset PIN.');

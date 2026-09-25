@@ -3,9 +3,10 @@
 import { AlertTriangle } from 'lucide-react';
 import type { StockShortfall } from '../../lib/pos-api';
 import { Modal } from '../ui/Modal';
+import { fmtNumber } from '../../lib/format';
 
 function qty(n: number) {
-  return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  return fmtNumber(n);
 }
 
 /**

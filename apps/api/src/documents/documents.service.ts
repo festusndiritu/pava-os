@@ -364,14 +364,14 @@ export class DocumentsService {
     return doc;
   }
 
-  findAll(params: { status?: DocumentStatus; type?: DocumentType; from?: string; to?: string; search?: string }) {
-    const { status, type, from, to, search } = params;
+  findAll(params: { statuses?: DocumentStatus[]; type?: DocumentType; from?: string; to?: string; search?: string; limit?: number; offset?: number }) {
+    const { statuses, type, from, to, search, limit, offset } = params;
     const term = search?.trim();
     return this.prisma.document.findMany({
       where: {
         // Suspended orders are parked carts, not documents — they only ever
         // surface through the POS "on hold" list, never in quotes/invoices.
-        ...(status ? { status } : { status: { not: DocumentStatus.SUSPENDED } }),
+        ...(statuses && statuses.length > 0 ? { status: statuses.length === 1 ? statuses[0] : { in: statuses } } : { status: { not: DocumentStatus.SUSPENDED } }),
         ...(type ? { type } : {}),
         ...(term
           ? {
@@ -399,7 +399,8 @@ export class DocumentsService {
           : {}),
       },
       include: { customer: true, createdBy: { select: { name: true } }, items: true },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      ...(limit ? { take: limit, skip: offset ?? 0 } : {}),
     });
   }
 

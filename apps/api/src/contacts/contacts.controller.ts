@@ -7,6 +7,7 @@ import { RolesGuard } from '../auth/roles.guard.js';
 import { Roles } from '../auth/roles.decorator.js';
 import { Module, Role } from '../../generated/prisma/client.js';
 import { CreateContactDto, UpdateContactDto } from './dto/contact.dto.js';
+import { parsePaging } from '../common/paging.js';
 
 @UseGuards(JwtAuthGuard)
 @Controller('contacts')
@@ -19,8 +20,8 @@ export class ContactsController {
   @UseGuards(PermissionsGuard)
   @Permissions(Module.CONTACTS)
   @Get()
-  findAll(@Query('search') search?: string, @Query('status') status?: 'active' | 'archived' | 'all') {
-    return this.contacts.findAll(search, status);
+  findAll(@Query('search') search?: string, @Query('status') status?: 'active' | 'archived' | 'all', @Query('limit') limit?: string, @Query('offset') offset?: string) {
+    return this.contacts.findAll(search, status, parsePaging(limit, offset));
   }
 
   @UseGuards(PermissionsGuard)

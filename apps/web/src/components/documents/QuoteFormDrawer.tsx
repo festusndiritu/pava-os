@@ -9,7 +9,8 @@ import { documentsApi } from '../../lib/documents-api';
 import type { Product } from '../../lib/products-api';
 import { ApiError } from '../../lib/api';
 import { TransportDialog, type TransportSettings } from '../pos/TransportDialog';
-import { NumericInput, PhoneInput, toNumber } from '../ui/inputs';
+import { NumericInput, toNumber } from '../ui/inputs';
+import { fmtNumber } from '../../lib/format';
 
 interface Line {
   product: Product;
@@ -52,8 +53,18 @@ export function QuoteFormDrawer({ open, onClose, onCreated }: { open: boolean; o
       setCustomerResults([]);
       return;
     }
-    const t = setTimeout(() => customersApi.list(customerQuery).then((r) => setCustomerResults(r.slice(0, 8))), 250);
-    return () => clearTimeout(t);
+    let stale = false;
+    const t = setTimeout(
+      () =>
+        customersApi.list(customerQuery).then((r) => {
+          if (!stale) setCustomerResults(r.slice(0, 8));
+        }),
+      250,
+    );
+    return () => {
+      stale = true;
+      clearTimeout(t);
+    };
   }, [customerQuery, customerMode]);
 
   // Approximate for the footer — the server computes the precise, correctly-rounded total.
@@ -104,7 +115,7 @@ export function QuoteFormDrawer({ open, onClose, onCreated }: { open: boolean; o
       footer={
         <div className="flex items-center justify-between">
           <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
-            Total: <span className="font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>KSh {total.toLocaleString()}</span>
+            Total: <span className="font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>KSh {fmtNumber(total)}</span>
           </p>
           <div className="flex items-center gap-3">
             {error && (
@@ -203,7 +214,7 @@ export function QuoteFormDrawer({ open, onClose, onCreated }: { open: boolean; o
                       />
                     </td>
                     <td className="px-3 py-2 text-right data-num" style={{ color: 'var(--color-ink-900)' }}>
-                      KSh {((Number(line.qty) || 0) * (Number(line.unitPrice) || 0)).toLocaleString()}
+                      KSh {fmtNumber((toNumber(line.qty) ?? 0) * (toNumber(line.unitPrice) ?? 0))}
                     </td>
                     <td className="px-3 py-2">
                       <button type="button" onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))} style={{ color: 'var(--color-status-bad)' }}>
@@ -230,17 +241,17 @@ export function QuoteFormDrawer({ open, onClose, onCreated }: { open: boolean; o
           >
             <span className="flex items-center gap-1.5">
               <Truck size={14} strokeWidth={2} />
-              {transport ? `KSh ${transport.amount.toLocaleString()}${transport.fold ? ' (folded into prices)' : ' (shown separately)'}` : 'No transport'}
+              {transport ? `KSh ${fmtNumber(transport.amount)}${transport.fold ? ' (folded into prices)' : ' (shown separately)'}` : 'No transport'}
             </span>
             <span>{transport ? 'Edit' : '+ Add'}</span>
           </button>
         </div>
 
         <div>
-          <label className={labelClass} style={labelStyle}>
+          <label htmlFor="quoteformdrawer-notes" className={labelClass} style={labelStyle}>
             Notes
           </label>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="w-full rounded-md border px-3 py-2 text-sm" style={inputStyle} />
+          <textarea id="quoteformdrawer-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="w-full rounded-md border px-3 py-2 text-sm" style={inputStyle} />
         </div>
       </form>
 

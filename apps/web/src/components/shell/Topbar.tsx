@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
-import { CalendarDays, ChevronDown, LogOut, Menu, ShoppingCart, User as UserIcon, UsersRound } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { CalendarDays, ChevronDown, LogOut, Menu, ShoppingCart, User as UserIcon } from 'lucide-react';
 import { useAuth } from '../../lib/auth-context';
 import { Avatar } from '../Avatar';
 import { ThemeToggle } from '../ThemeToggle';
@@ -25,8 +27,11 @@ function useTodayLabel() {
 
 export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const { user, hasPermission, logout } = useAuth();
+  const pathname = usePathname();
+  const isPos = pathname?.startsWith('/pos') ?? false;
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
   const today = useTodayLabel();
 
   useEffect(() => {
@@ -34,8 +39,18 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
     const onClick = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
     };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMenuOpen(false);
+        menuButtonRef.current?.focus();
+      }
+    };
     document.addEventListener('mousedown', onClick);
-    return () => document.removeEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onKey);
+    };
   }, [menuOpen]);
 
   if (!user) return null;
@@ -47,24 +62,38 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
       style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
     >
       <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={onMenuClick}
-          aria-label="Open menu"
-          className="flex h-8 w-8 items-center justify-center rounded-md lg:hidden"
-          style={{ color: 'var(--color-ink-600)' }}
-        >
-          <Menu size={19} strokeWidth={2} />
-        </button>
+        {/* Inside the POS the sidebar, rail and tab bar are all gone, so this is
+            the way to anywhere else. Everywhere else, navigation is on screen. */}
+        {isPos && (
+          <button
+            type="button"
+            onClick={onMenuClick}
+            aria-label="Open menu"
+            className="flex h-9 w-9 items-center justify-center rounded-md"
+            style={{ color: 'var(--color-ink-600)' }}
+          >
+            <Menu size={19} strokeWidth={2} />
+          </button>
+        )}
 
-        <div className="hidden items-center gap-1.5 text-sm sm:flex" style={{ color: 'var(--color-ink-600)' }}>
+        {/* Phones have no sidebar to carry the brand. */}
+        {!isPos && (
+          <div className="flex items-center gap-2 md:hidden">
+            <Image src="/icons/icon-192.png" alt="" width={24} height={24} className="rounded-md object-contain" />
+            <span className="text-sm font-semibold tracking-tight" style={{ color: 'var(--color-ink-900)' }}>
+              Pava OS
+            </span>
+          </div>
+        )}
+
+        <div className="hidden items-center gap-1.5 text-sm md:flex" style={{ color: 'var(--color-ink-600)' }}>
           <CalendarDays size={15} strokeWidth={2} />
           {today}
         </div>
       </div>
 
       <div className="flex items-center gap-1.5">
-        {hasPermission('POS') && (
+        {hasPermission('POS') && !isPos && (
           <Link
             href="/pos"
             className="mr-1 flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors"
@@ -82,8 +111,11 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
 
         <div className="relative" ref={menuRef}>
           <button
+            ref={menuButtonRef}
             type="button"
             onClick={() => setMenuOpen((v) => !v)}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
             className="flex items-center gap-2 rounded-md px-1.5 py-1 transition-colors"
             style={{ backgroundColor: menuOpen ? 'var(--color-bg)' : 'transparent' }}
           >
@@ -108,17 +140,6 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
                 <UserIcon size={15} strokeWidth={2} />
                 Profile
               </Link>
-              {user.role === 'ADMIN' && (
-                <Link
-                  href="/users"
-                  onClick={() => setMenuOpen(false)}
-                  className="flex items-center gap-2.5 px-3 py-2 text-sm transition-colors"
-                  style={{ color: 'var(--color-ink-900)' }}
-                >
-                  <UsersRound size={15} strokeWidth={2} />
-                  Users &amp; Access
-                </Link>
-              )}
               <div className="my-1 border-t" style={{ borderColor: 'var(--color-border)' }} />
               <button
                 type="button"

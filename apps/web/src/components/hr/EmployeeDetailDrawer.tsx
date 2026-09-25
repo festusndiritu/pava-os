@@ -4,12 +4,10 @@ import { useEffect, useState } from 'react';
 import { Drawer } from '../ui/Drawer';
 import { Avatar } from '../Avatar';
 import { hrApi, type Employee, type AdvanceStatus } from '../../lib/hr-api';
+import { money } from '../../lib/format';
 
 function fmtDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(iso));
-}
-function money(n: number) {
-  return `KSh ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 }
 
 const ADVANCE_LABEL: Record<AdvanceStatus, { label: string; fg: string; bg: string }> = {

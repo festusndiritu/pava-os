@@ -5,8 +5,9 @@ import { AlertTriangle } from 'lucide-react';
 import { inventoryApi } from '../../lib/products-api';
 import type { Product } from '../../lib/products-api';
 import { ApiError } from '../../lib/api';
-import { NumericInput, PhoneInput, toNumber } from '../ui/inputs';
+import { NumericInput, toNumber } from '../ui/inputs';
 import { Modal } from '../ui/Modal';
+import { toast } from '../ui/Toast';
 
 interface NegativeStock {
   current: number;
@@ -45,6 +46,7 @@ export function AdjustStockDialog({ product, onClose, onDone }: { product: Produ
     setError(null);
     try {
       await inventoryApi.adjust({ productId: product.id, quantity: qty, type, note: note || undefined, allowNegative });
+      toast.success('Stock adjusted');
       onDone();
     } catch (err) {
       const detected = err instanceof ApiError ? readNegativeStock(err.details) : null;

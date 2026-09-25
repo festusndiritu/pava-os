@@ -1,6 +1,7 @@
 import { Document, Page, View, Text, StyleSheet } from '@react-pdf/renderer';
 import { BrandMark } from '../brand-mark';
 import { ACCENT, HAIRLINE, INK, MUTED } from '../theme';
+import { fmtNumber } from '../../format';
 
 export interface PricelistViewModel {
   title: string;
@@ -44,7 +45,7 @@ export function PricelistPdf({ vm }: { vm: PricelistViewModel }) {
             {cat.items.map((item) => (
               <View key={item.id} style={styles.row}>
                 <Text>{item.label}</Text>
-                <Text style={styles.price}>KSh {item.price.toLocaleString()}</Text>
+                <Text style={styles.price}>KSh {fmtNumber(item.price)}</Text>
               </View>
             ))}
           </View>

@@ -7,13 +7,12 @@ import { payrollApi, type Advance } from '../../lib/payroll-api';
 import type { AdvanceStatus } from '../../lib/hr-api';
 import { Drawer } from '../ui/Drawer';
 import { ApiError } from '../../lib/api';
-import { NumericInput, PhoneInput, toNumber } from '../ui/inputs';
+import { NumericInput, toNumber } from '../ui/inputs';
+import { toast } from '../ui/Toast';
+import { money } from '../../lib/format';
 
 function fmtDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(iso));
-}
-function money(n: number) {
-  return `KSh ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 }
 
 const STATUS_TABS: { key: AdvanceStatus | ''; label: string }[] = [
@@ -159,6 +158,7 @@ function AdvanceFormDrawer({ open, onClose, onSaved }: { open: boolean; onClose:
     setError(null);
     try {
       await payrollApi.createAdvance({ employeeId, amount: toNumber(amount) ?? 0, reason: reason || undefined, notes: notes || undefined });
+      toast.success('Advance recorded');
       onSaved();
       onClose();
     } catch (err) {
@@ -189,10 +189,10 @@ function AdvanceFormDrawer({ open, onClose, onSaved }: { open: boolean; onClose:
     >
       <form id="advance-form" onSubmit={submit} className="flex flex-col gap-3.5">
         <div>
-          <label className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+          <label htmlFor="advancestab-employee" className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
             Employee
           </label>
-          <select required value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle}>
+          <select id="advancestab-employee" required value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle}>
             <option value="">Select…</option>
             {employees.map((e) => (
               <option key={e.id} value={e.id}>
@@ -202,22 +202,22 @@ function AdvanceFormDrawer({ open, onClose, onSaved }: { open: boolean; onClose:
           </select>
         </div>
         <div>
-          <label className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+          <label htmlFor="advancestab-amount-ksh" className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
             Amount (KSh)
           </label>
-          <NumericInput required min={1} value={amount} onChange={setAmount} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)] data-num" style={inputStyle} />
+          <NumericInput id="advancestab-amount-ksh" required min={1} value={amount} onChange={setAmount} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)] data-num" style={inputStyle} />
         </div>
         <div>
-          <label className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+          <label htmlFor="advancestab-reason" className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
             Reason
           </label>
-          <input value={reason} onChange={(e) => setReason(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+          <input id="advancestab-reason" value={reason} onChange={(e) => setReason(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
         </div>
         <div>
-          <label className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+          <label htmlFor="advancestab-notes" className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
             Notes
           </label>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+          <textarea id="advancestab-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
         </div>
       </form>
     </Drawer>
