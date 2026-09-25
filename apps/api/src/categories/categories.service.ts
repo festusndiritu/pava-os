@@ -2,7 +2,9 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuditService } from '../audit/audit.service.js';
 
-const WITH_USAGE = { _count: { select: { products: true } } } as const;
+// Scoped to active products so this matches what "used" means on the
+// Products page — an archived product shouldn't keep a category pinned.
+const WITH_USAGE = { _count: { select: { products: { where: { active: true } } } } } as const;
 
 @Injectable()
 export class CategoriesService {

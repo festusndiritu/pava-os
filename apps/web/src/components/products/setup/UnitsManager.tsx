@@ -1,7 +1,7 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
-import { Check, ChevronRight, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
+import { Box, Boxes, Check, ChevronDown, ChevronRight, CircleDot, Droplet, Grid3x3, Hash, Layers, Package, Pencil, Plus, Ruler, ShoppingBag, Trash2, Truck, Weight, X } from 'lucide-react';
 import { ConfirmDialog } from '../../ui/ConfirmDialog';
 import { NumericInput, toNumber } from '../../ui/inputs';
 import { productsApi, type SubUnit, type Unit } from '../../../lib/products-api';
@@ -26,6 +26,132 @@ const COMMON_UNITS = [
   { name: 'Bundle', symbol: 'bdl' },
   { name: 'Litre', symbol: 'ltr' },
 ];
+
+// A curated set of the symbols this trade actually uses — picking one is
+// faster and less error-prone than typing it, and still just sets the same
+// plain-text `symbol` the API has always stored. "Custom…" covers anything
+// not on the list, so nothing is lost versus free text.
+const SYMBOL_OPTIONS: { symbol: string; icon: typeof Package }[] = [
+  { symbol: 'pcs', icon: Package },
+  { symbol: 'kg', icon: Weight },
+  { symbol: 'g', icon: Weight },
+  { symbol: 'ltr', icon: Droplet },
+  { symbol: 'm', icon: Ruler },
+  { symbol: 'bag', icon: ShoppingBag },
+  { symbol: 'box', icon: Box },
+  { symbol: 'bdl', icon: Boxes },
+  { symbol: 'sheet', icon: Layers },
+  { symbol: 'roll', icon: CircleDot },
+  { symbol: 'dz', icon: Grid3x3 },
+  { symbol: 'ton', icon: Truck },
+];
+
+function SymbolPicker({ value, onChange, id }: { value: string; onChange: (v: string) => void; id?: string }) {
+  const [open, setOpen] = useState(false);
+  const [customMode, setCustomMode] = useState(false);
+  const [customValue, setCustomValue] = useState('');
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const preset = SYMBOL_OPTIONS.find((o) => o.symbol === value);
+  const Icon = preset?.icon ?? Hash;
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="relative w-32 shrink-0" ref={wrapRef}>
+      <button
+        type="button"
+        id={id}
+        onClick={() => {
+          setCustomMode(false);
+          setOpen((v) => !v);
+        }}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={value ? `Symbol: ${value}` : 'Choose a symbol'}
+        className={`${inputClass} flex items-center gap-1.5`}
+        style={inputStyle}
+      >
+        <Icon size={15} strokeWidth={2} style={{ color: 'var(--color-ink-600)' }} />
+        <span className="min-w-0 flex-1 truncate text-left">{value || 'Symbol'}</span>
+        <ChevronDown size={13} strokeWidth={2} style={{ color: 'var(--color-ink-600)' }} />
+      </button>
+
+      {open && (
+        <div role="menu" aria-label="Symbol options" className="absolute left-0 top-full z-10 mt-1 w-56 overflow-hidden rounded-md border p-1.5" style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', boxShadow: 'var(--shadow-card)' }}>
+          <div className="grid grid-cols-2 gap-1">
+            {SYMBOL_OPTIONS.map((opt) => (
+              <button
+                key={opt.symbol}
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  onChange(opt.symbol);
+                  setOpen(false);
+                }}
+                className="flex items-center gap-1.5 rounded px-2 py-1.5 text-left text-sm"
+                style={{ backgroundColor: value === opt.symbol ? 'var(--color-bg)' : 'transparent', color: 'var(--color-ink-900)' }}
+              >
+                <opt.icon size={14} strokeWidth={2} style={{ color: 'var(--color-ink-600)' }} />
+                <span className="min-w-0 flex-1 truncate">{opt.symbol}</span>
+              </button>
+            ))}
+          </div>
+          <div className="mt-1.5 border-t pt-1.5" style={{ borderColor: 'var(--color-border)' }}>
+            {customMode ? (
+              <input
+                autoFocus
+                value={customValue}
+                onChange={(e) => setCustomValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && customValue.trim()) {
+                    e.preventDefault();
+                    onChange(customValue.trim());
+                    setOpen(false);
+                  }
+                }}
+                onBlur={() => {
+                  if (customValue.trim()) onChange(customValue.trim());
+                }}
+                placeholder="Custom symbol"
+                aria-label="Custom symbol"
+                maxLength={12}
+                className={`${inputClass} min-h-8`}
+                style={inputStyle}
+              />
+            ) : (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setCustomValue(value && !preset ? value : '');
+                  setCustomMode(true);
+                }}
+                className="w-full rounded px-2 py-1.5 text-left text-sm"
+                style={{ color: 'var(--color-ink-600)' }}
+              >
+                Custom…
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function IconButton({ label, onClick, danger, disabled, title, children }: { label: string; onClick: () => void; danger?: boolean; disabled?: boolean; title?: string; children: React.ReactNode }) {
   return (
@@ -294,8 +420,10 @@ export function UnitsManager({ canEdit }: { canEdit: boolean }) {
     <div>
       {canEdit && (
         <form onSubmit={handleAdd} className="flex gap-2">
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Unit name — e.g. Bag" aria-label="New unit name" maxLength={60} className={inputClass} style={inputStyle} />
-          <input value={symbol} onChange={(e) => setSymbol(e.target.value)} placeholder="Symbol — bag" aria-label="New unit symbol" maxLength={12} className={`${inputClass} w-32 shrink-0`} style={inputStyle} />
+          <div className="min-w-0 flex-1">
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Unit name — e.g. Bag" aria-label="New unit name" maxLength={60} className={inputClass} style={inputStyle} />
+          </div>
+          <SymbolPicker value={symbol} onChange={setSymbol} id="unitsmanager-new-symbol" />
           <button type="submit" disabled={adding || !name.trim() || !symbol.trim()} className="flex min-h-10 shrink-0 items-center gap-1.5 rounded-md px-3.5 text-sm font-medium text-white disabled:opacity-50" style={{ backgroundColor: 'var(--color-accent)' }}>
             <Plus size={15} strokeWidth={2} />
             {adding ? 'Adding…' : 'Add'}
@@ -355,8 +483,10 @@ export function UnitsManager({ canEdit }: { canEdit: boolean }) {
 
                     {editing ? (
                       <form onSubmit={handleSave} className="flex min-w-0 flex-1 items-center gap-2">
-                        <input autoFocus value={editName} onChange={(e) => setEditName(e.target.value)} aria-label={`Name of ${u.name}`} maxLength={60} className={inputClass} style={inputStyle} />
-                        <input value={editSymbol} onChange={(e) => setEditSymbol(e.target.value)} aria-label="Symbol" maxLength={12} className={`${inputClass} w-24 shrink-0`} style={inputStyle} />
+                        <div className="min-w-0 flex-1">
+                          <input autoFocus value={editName} onChange={(e) => setEditName(e.target.value)} aria-label={`Name of ${u.name}`} maxLength={60} className={inputClass} style={inputStyle} />
+                        </div>
+                        <SymbolPicker value={editSymbol} onChange={setEditSymbol} id={`unitsmanager-edit-symbol-${u.id}`} />
                         <button type="submit" disabled={saving} aria-label="Save" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-white disabled:opacity-50" style={{ backgroundColor: 'var(--color-accent)' }}>
                           <Check size={15} strokeWidth={2.25} />
                         </button>

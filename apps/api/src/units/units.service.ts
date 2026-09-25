@@ -5,7 +5,9 @@ import type { CreateSubUnitDto, CreateUnitDto, UpdateSubUnitDto, UpdateUnitDto }
 
 const WITH_DETAIL = {
   subUnits: { orderBy: { name: 'asc' } },
-  _count: { select: { products: true } },
+  // Scoped to active products so this matches what "used" means on the
+  // Products page — an archived product shouldn't keep a unit pinned.
+  _count: { select: { products: { where: { active: true } } } },
 } as const;
 
 @Injectable()

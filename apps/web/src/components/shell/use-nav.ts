@@ -14,7 +14,14 @@ export function useNav() {
     items: section.items.filter((item) => hasPermission(item.module)),
   })).filter((section) => section.items.length > 0);
 
-  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+  // Longest-href match wins — the same rule moduleForPath() uses for route
+  // guarding — so a nested page like /products/setup lights up only
+  // "Catalogue setup" and not "Products" too, since "/products" is also a
+  // prefix of that path.
+  const hrefs = sections.flatMap((section) => section.items.map((item) => item.href));
+  const current = hrefs.filter((href) => pathname === href || pathname.startsWith(`${href}/`)).sort((a, b) => b.length - a.length)[0];
+
+  const isActive = (href: string) => href === current;
 
   return { sections, isActive, pathname };
 }
