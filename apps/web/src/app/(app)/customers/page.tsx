@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Archive, Eye, Pencil, Plus, RotateCcw, Search, Users } from 'lucide-react';
 import { customersApi, type Customer, type CustomerStatus } from '../../../lib/customers-api';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
@@ -42,6 +42,13 @@ export default function CustomersPage() {
   const [error, setError] = useState<string | null>(null);
   const [confirmArchive, setConfirmArchive] = useState<Customer | null>(null);
   const [archiveBusy, setArchiveBusy] = useState(false);
+
+  // Lets global search (Ctrl/Cmd+K) land straight on a customer's detail
+  // drawer via `/customers?open=<id>`, the same drawer a row click opens.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('open');
+    if (id) setDetailId(id);
+  }, []);
 
   const debouncedSearch = useDebounced(search);
   const { items: customers, hasMore, loadingMore, error: listError, loadMore, reload: load } = usePagedList(

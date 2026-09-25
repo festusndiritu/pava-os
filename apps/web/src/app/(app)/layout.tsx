@@ -6,7 +6,6 @@ import { LockKeyhole } from 'lucide-react';
 import { useAuth } from '../../lib/auth-context';
 import { moduleForPath } from '../../lib/constants';
 import { Sidebar } from '../../components/shell/Sidebar';
-import { SidebarRail } from '../../components/shell/SidebarRail';
 import { BottomNav } from '../../components/shell/BottomNav';
 import { NavSheet } from '../../components/shell/NavSheet';
 import { Topbar } from '../../components/shell/Topbar';
@@ -51,24 +50,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen" style={{ backgroundColor: 'var(--color-bg)' }}>
-      {/* Desktop: full sidebar. Tablet: icon rail. Phone: bottom tab bar (below). */}
+      {/* Desktop and tablet: full sidebar from `md` up. Phone: bottom tab bar
+          (below). Tablet used to get a narrow icon-only rail here — but an
+          icon with no label is a worse trade for the width it saves than it
+          looks like on paper, and a tablet has the width to spare anyway. */}
       {!isPos && (
         // Pinned to the viewport with its own scroll: the navigation stays put
         // while the page body scrolls, and a long nav scrolls independently.
-        <>
-          <aside
-            className="sticky top-0 hidden h-screen w-60 shrink-0 overflow-y-auto border-r lg:block"
-            style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
-          >
-            <Sidebar />
-          </aside>
-          <aside
-            className="sticky top-0 hidden h-screen w-14 shrink-0 overflow-y-auto border-r md:block lg:hidden"
-            style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
-          >
-            <SidebarRail />
-          </aside>
-        </>
+        <aside
+          className="sticky top-0 hidden h-screen w-60 shrink-0 overflow-y-auto border-r md:block"
+          style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
+        >
+          <Sidebar />
+        </aside>
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">

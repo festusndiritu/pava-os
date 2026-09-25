@@ -4,11 +4,12 @@ import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { CalendarDays, ChevronDown, LogOut, Menu, ShoppingCart, User as UserIcon } from 'lucide-react';
+import { CalendarDays, ChevronDown, LogOut, Menu, Search, ShoppingCart, User as UserIcon } from 'lucide-react';
 import { useAuth } from '../../lib/auth-context';
 import { Avatar } from '../Avatar';
 import { ThemeToggle } from '../ThemeToggle';
 import { QuickCalculator } from './QuickCalculator';
+import { GlobalSearch } from './GlobalSearch';
 
 function useTodayLabel() {
   const format = () => new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short' }).format(new Date());
@@ -30,9 +31,25 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const pathname = usePathname();
   const isPos = pathname?.startsWith('/pos') ?? false;
   const [menuOpen, setMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const today = useTodayLabel();
+
+  // Cmd/Ctrl+K opens the search from anywhere — off inside POS, where it'd
+  // compete with the till's own product search and risk navigating away from
+  // an unsaved sale.
+  useEffect(() => {
+    if (isPos) return;
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isPos]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -93,6 +110,19 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
       </div>
 
       <div className="flex items-center gap-1.5">
+        {!isPos && (
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            aria-label="Search"
+            title="Search (Ctrl/Cmd+K)"
+            className="flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-[var(--color-bg)]"
+            style={{ color: 'var(--color-ink-600)' }}
+          >
+            <Search size={17} strokeWidth={2} />
+          </button>
+        )}
+
         {hasPermission('POS') && !isPos && (
           <Link
             href="/pos"
@@ -154,6 +184,8 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
           )}
         </div>
       </div>
+
+      {searchOpen && <GlobalSearch onClose={() => setSearchOpen(false)} />}
     </header>
   );
 }

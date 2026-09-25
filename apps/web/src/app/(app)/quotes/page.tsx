@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FileText, Plus } from 'lucide-react';
 import { documentsApi } from '../../../lib/documents-api';
 import { QuoteFormDrawer } from '../../../components/documents/QuoteFormDrawer';
@@ -24,6 +24,14 @@ export default function QuotesPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Lets global search (Ctrl/Cmd+K) land straight on a quote's detail drawer
+  // via `/quotes?open=<id>` — it fetches by id itself, independent of the
+  // currently loaded list.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('open');
+    if (id) setDetailId(id);
+  }, []);
 
   const { items: docs, hasMore, loadingMore, error: listError, loadMore, reload: load } = usePagedList(
     (offset, limit) => documentsApi.list({ type: 'QUOTE', status: ['QUOTED', 'CANCELLED'], offset, limit }),

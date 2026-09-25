@@ -48,6 +48,13 @@ export default function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
 
+  // Lets global search (Ctrl/Cmd+K) land straight on a product's detail
+  // drawer via `/products?open=<id>`, the same drawer a row click opens.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('open');
+    if (id) setDetailId(id);
+  }, []);
+
   async function loadLookups() {
     const [b, c, u, f] = await Promise.all([productsApi.brands(), productsApi.categories(), productsApi.units(), productsApi.families()]);
     setBrands(b);

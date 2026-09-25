@@ -96,14 +96,31 @@ export function LeadFormDrawer({ open, onClose, onSaved, lead }: { open: boolean
           <label htmlFor="leadformdrawer-name" className={labelClass} style={labelStyle}>Name</label>
           <input id="leadformdrawer-name" required value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
         </div>
-        <div>
-          <label htmlFor="leadformdrawer-company" className={labelClass} style={labelStyle}>Company</label>
-          <input id="leadformdrawer-company" value={company} onChange={(e) => setCompany(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
-        </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label htmlFor="leadformdrawer-phone" className={labelClass} style={labelStyle}>Phone</label>
             <PhoneInput id="leadformdrawer-phone" value={phone} onChange={setPhone} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+          </div>
+          <div>
+            <label htmlFor="leadformdrawer-location" className={labelClass} style={labelStyle}>Location</label>
+            <input id="leadformdrawer-location" value={location} onChange={(e) => setLocation(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+          </div>
+        </div>
+        <div>
+          <label htmlFor="leadformdrawer-notes" className={labelClass} style={labelStyle}>Note</label>
+          <textarea id="leadformdrawer-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="What they said, what they need, anything to remember" className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+        </div>
+        <div>
+          <label htmlFor="leadformdrawer-follow-up-date" className={labelClass} style={labelStyle}>Follow up on</label>
+          <input id="leadformdrawer-follow-up-date" type="date" value={followUpAt} onChange={(e) => setFollowUpAt(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+        </div>
+
+        {/* Everything below here is optional detail for whoever wants it —
+            not required to just save a contact and a follow-up date. */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="leadformdrawer-company" className={labelClass} style={labelStyle}>Company</label>
+            <input id="leadformdrawer-company" value={company} onChange={(e) => setCompany(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
           </div>
           <div>
             <label htmlFor="leadformdrawer-email" className={labelClass} style={labelStyle}>Email</label>
@@ -112,22 +129,8 @@ export function LeadFormDrawer({ open, onClose, onSaved, lead }: { open: boolean
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label htmlFor="leadformdrawer-location" className={labelClass} style={labelStyle}>Location</label>
-            <input id="leadformdrawer-location" value={location} onChange={(e) => setLocation(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
-          </div>
-          <div>
             <label htmlFor="leadformdrawer-source" className={labelClass} style={labelStyle}>Source</label>
             <input id="leadformdrawer-source" value={source} onChange={(e) => setSource(e.target.value)} placeholder="e.g. Referral, Walk-in" className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label htmlFor="leadformdrawer-stage" className={labelClass} style={labelStyle}>Stage</label>
-            <select id="leadformdrawer-stage" value={stage} onChange={(e) => setStage(e.target.value as LeadStage)} className="w-full rounded-md border px-3 py-2 text-sm" style={inputStyle}>
-              {STAGES.map((s) => (
-                <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
-              ))}
-            </select>
           </div>
           <div>
             <label htmlFor="leadformdrawer-expected-value-ksh" className={labelClass} style={labelStyle}>Expected value (KSh)</label>
@@ -135,12 +138,12 @@ export function LeadFormDrawer({ open, onClose, onSaved, lead }: { open: boolean
           </div>
         </div>
         <div>
-          <label htmlFor="leadformdrawer-follow-up-date" className={labelClass} style={labelStyle}>Follow-up date</label>
-          <input id="leadformdrawer-follow-up-date" type="date" value={followUpAt} onChange={(e) => setFollowUpAt(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
-        </div>
-        <div>
-          <label htmlFor="leadformdrawer-notes" className={labelClass} style={labelStyle}>Notes</label>
-          <textarea id="leadformdrawer-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+          <label htmlFor="leadformdrawer-stage" className={labelClass} style={labelStyle}>Stage</label>
+          <select id="leadformdrawer-stage" value={stage} onChange={(e) => setStage(e.target.value as LeadStage)} className="w-full rounded-md border px-3 py-2 text-sm" style={inputStyle}>
+            {STAGES.map((s) => (
+              <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
+            ))}
+          </select>
         </div>
       </form>
     </Drawer>

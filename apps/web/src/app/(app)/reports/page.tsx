@@ -213,7 +213,7 @@ export default function ReportsPage() {
       </div>
 
       <div className="overflow-hidden rounded-lg border" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
-        <div className="overflow-x-auto">
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)' }}>
@@ -311,6 +311,79 @@ export default function ReportsPage() {
                 ))}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile: stacked cards instead of squeezing a 7-column register
+            sideways — this is the same table→card swap every other list page
+            in the app already does below `md`. */}
+        <div className="divide-y md:hidden" style={{ borderColor: 'var(--color-border)' }}>
+          {loading &&
+            [...Array(5)].map((_, i) => (
+              <div key={i} className="p-4">
+                <div className="h-4 w-2/3 animate-pulse rounded" style={{ backgroundColor: 'var(--color-border)' }} />
+              </div>
+            ))}
+
+          {!loading && rowCount === 0 && (
+            <p className="px-4 py-10 text-center text-sm" style={{ color: 'var(--color-ink-600)' }}>
+              Nothing was recorded in this period.
+            </p>
+          )}
+
+          {tab === 'sales' &&
+            docs?.map((d) => {
+              const badge = STATUS_BADGE[d.status];
+              return (
+                <div key={d.id} className="flex flex-col gap-1.5 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="data-num font-medium" style={{ color: 'var(--color-ink-900)' }}>
+                        {docNumber(d)}
+                      </p>
+                      <p className="truncate text-xs" style={{ color: 'var(--color-ink-600)' }}>
+                        {customerLabel(d)}
+                      </p>
+                    </div>
+                    <p className="data-num shrink-0 font-medium" style={{ color: 'var(--color-ink-900)' }}>
+                      {money(d.total)}
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between text-xs" style={{ color: 'var(--color-ink-600)' }}>
+                    <span>
+                      {fmtDateTime(d.createdAt)} · {d.createdBy?.name ?? '—'} · {d.paymentMethod ?? '—'}
+                    </span>
+                    {badge && (
+                      <span className="shrink-0 rounded px-1.5 py-0.5 font-medium" style={{ backgroundColor: badge.bg, color: badge.fg }}>
+                        {badge.label}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+          {tab === 'returns' &&
+            returns?.map((r) => (
+              <div key={r.id} className="flex flex-col gap-1.5 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="data-num font-medium" style={{ color: 'var(--color-ink-900)' }}>
+                      {r.returnNumber}
+                    </p>
+                    <p className="truncate text-xs" style={{ color: 'var(--color-ink-600)' }}>
+                      Against {r.document?.receiptNumber ?? r.document?.invoiceNumber ?? '—'}
+                      {r.reason ? ` · ${r.reason}` : ''}
+                    </p>
+                  </div>
+                  <p className="data-num shrink-0 font-medium" style={{ color: 'var(--color-status-warn)' }}>
+                    {money(r.total)}
+                  </p>
+                </div>
+                <p className="text-xs" style={{ color: 'var(--color-ink-600)' }}>
+                  {fmtDateTime(r.createdAt)} · {r.refundMethod ?? '—'} · {r.items.length} {plural(r.items.length, 'item')}
+                </p>
+              </div>
+            ))}
         </div>
       </div>
     </div>

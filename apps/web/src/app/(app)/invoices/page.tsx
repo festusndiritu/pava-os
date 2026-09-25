@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Receipt } from 'lucide-react';
 import { documentsApi } from '../../../lib/documents-api';
 import { DocumentDetailDrawer } from '../../../components/documents/DocumentDetailDrawer';
@@ -25,6 +25,14 @@ export default function InvoicesPage() {
   const [tab, setTab] = useState<'invoices' | 'delivery-notes'>('invoices');
   const [detailId, setDetailId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Lets global search (Ctrl/Cmd+K) land straight on a document's detail
+  // drawer via `/invoices?open=<id>` — it fetches by id itself, independent
+  // of which tab/list is currently loaded.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('open');
+    if (id) setDetailId(id);
+  }, []);
 
   // Newest first, a page at a time — the server orders and pages one combined
   // list rather than the browser merging two full ones.

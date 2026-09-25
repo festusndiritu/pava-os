@@ -66,10 +66,17 @@ export const MODULE_GROUPS: { label: string; modules: ModuleKey[] }[] = [
   { label: 'Administration', modules: ['AUDIT', 'USERS', 'SETTINGS'] },
 ];
 
-export const NAV_SECTIONS: { label: string; items: { module: ModuleKey; label: string; href: string }[] }[] = [
-  { label: 'Overview', items: [{ module: 'DASHBOARD', label: 'Dashboard', href: '/dashboard' }] },
+// `pinned` sections stay expanded in the sidebar all the time — no header
+// click needed to reach them. Everything else behaves as a true accordion
+// (see Sidebar.tsx): opening one closes whichever was open before, which is
+// what keeps the sidebar short. Pin only the handful of destinations someone
+// reaches for constantly; pinning too many defeats the point of collapsing
+// the rest.
+export const NAV_SECTIONS: { label: string; pinned?: boolean; items: { module: ModuleKey; label: string; href: string }[] }[] = [
+  { label: 'Overview', pinned: true, items: [{ module: 'DASHBOARD', label: 'Dashboard', href: '/dashboard' }] },
   {
     label: 'Sell',
+    pinned: true,
     items: [
       { module: 'POS', label: 'POS', href: '/pos' },
       { module: 'QUOTES', label: 'Quotes', href: '/quotes' },
