@@ -1,5 +1,5 @@
 import { Document, Page, View, Text, StyleSheet } from '@react-pdf/renderer';
-import { BrandMark } from '../brand-mark';
+import { Logo } from '../brand-mark';
 import { ACCENT, HAIRLINE, INK, MUTED } from '../theme';
 import { fmtNumber } from '../../format';
 
@@ -13,7 +13,7 @@ export interface PricelistViewModel {
 
 const styles = StyleSheet.create({
   page: { padding: '16mm', fontSize: 10, lineHeight: 1.5, color: INK, fontFamily: 'Helvetica' },
-  header: { alignItems: 'center', textAlign: 'center', borderBottom: `2pt solid ${INK}`, paddingBottom: 10, marginBottom: 12 },
+  header: { alignItems: 'center', textAlign: 'center', borderBottom: `2pt solid ${ACCENT}`, paddingBottom: 10, marginBottom: 12 },
   title: { fontSize: 16, fontWeight: 700 },
   muted: { color: MUTED },
   category: { marginBottom: 10 },
@@ -34,7 +34,7 @@ export function PricelistPdf({ vm }: { vm: PricelistViewModel }) {
     <Document title={vm.title}>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
-          <BrandMark size={30} />
+          <Logo size={40} />
           <Text style={[styles.title, { marginTop: 4 }]}>{vm.title}</Text>
           {vm.address && <Text style={styles.muted}>{vm.address}</Text>}
           <Text style={styles.muted}>{[vm.phone, vm.email].filter(Boolean).join('  ·  ')}</Text>

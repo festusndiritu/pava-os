@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet } from '@react-pdf/renderer';
 import type { DocumentViewModel } from '../document-view-model';
-import { BrandMark } from './brand-mark';
+import { Logo } from './brand-mark';
 import { ACCENT, HAIRLINE, INK, LABEL, LINE, MUTED, PANEL } from './theme';
 import { fmtNumber } from '../format';
 
@@ -35,6 +35,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   rule: { borderTopWidth: 2, borderTopColor: INK, marginTop: 10 },
+  accentBar: { width: 46, height: 3, backgroundColor: ACCENT, marginTop: 10, marginBottom: 4 },
   hairline: { borderTopWidth: 1, borderTopColor: HAIRLINE },
   fieldsRow: { flexDirection: 'row', gap: 16, marginTop: 12 },
   fieldLabel: { fontSize: 8, textTransform: 'uppercase', letterSpacing: 1, color: LABEL, marginBottom: 2 },
@@ -78,21 +79,24 @@ export { styles as pdfStyles, money, qty, fmtDate };
 
 export function Letterhead({ vm }: { vm: DocumentViewModel }) {
   return (
-    <View style={styles.letterheadRow}>
-      <View style={styles.bizBlock}>
-        <BrandMark size={34} />
-        <View>
-          <Text style={styles.bizName}>{vm.letterhead.businessName}</Text>
-          {vm.letterhead.address && <Text style={styles.muted}>{vm.letterhead.address}</Text>}
-          <Text style={styles.muted}>{[vm.letterhead.phone, vm.letterhead.email].filter(Boolean).join('  ·  ')}</Text>
+    <>
+      <View style={styles.letterheadRow}>
+        <View style={styles.bizBlock}>
+          <Logo size={38} />
+          <View>
+            <Text style={styles.bizName}>{vm.letterhead.businessName}</Text>
+            {vm.letterhead.address && <Text style={styles.muted}>{vm.letterhead.address}</Text>}
+            <Text style={styles.muted}>{[vm.letterhead.phone, vm.letterhead.email].filter(Boolean).join('  ·  ')}</Text>
+          </View>
+        </View>
+        <View style={styles.titleBlock}>
+          <Text style={styles.docTitle}>{vm.title}</Text>
+          <Text style={styles.docNumber}>{vm.number}</Text>
+          {!vm.isDeliveryNote && vm.isUnpaid && <Text style={styles.unpaidBadge}>Unpaid</Text>}
         </View>
       </View>
-      <View style={styles.titleBlock}>
-        <Text style={styles.docTitle}>{vm.title}</Text>
-        <Text style={styles.docNumber}>{vm.number}</Text>
-        {!vm.isDeliveryNote && vm.isUnpaid && <Text style={styles.unpaidBadge}>Unpaid</Text>}
-      </View>
-    </View>
+      <View style={styles.accentBar} />
+    </>
   );
 }
 

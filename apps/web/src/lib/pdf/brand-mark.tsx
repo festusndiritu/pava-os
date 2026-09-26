@@ -1,11 +1,11 @@
-import { Svg, Rect } from '@react-pdf/renderer';
+import { Svg, Rect, Image } from '@react-pdf/renderer';
 import { INK } from './theme';
 
 /**
  * Direction B from the Phase 2 mark review: a hollow square-tube
  * cross-section (two concentric squares). Pure geometry, no gradients or
- * fine detail, so this same shape renders unmodified on the color PDF
- * letterhead here and on the thermal template (ThermalBrandMark).
+ * fine detail, so this same shape renders unmodified on the thermal
+ * template (ThermalBrandMark), which has no room for a raster image.
  */
 export function BrandMark({ size = 40, color = INK }: { size?: number; color?: string }) {
   return (
@@ -14,4 +14,13 @@ export function BrandMark({ size = 40, color = INK }: { size?: number; color?: s
       <Rect x={14} y={14} width={12} height={12} fill="none" stroke={color} strokeWidth={3} />
     </Svg>
   );
+}
+
+/**
+ * The real Pava logo (public/pava-logo.png — same file the poster loads
+ * onto its canvas), used on every letterhead so a quote, invoice, receipt,
+ * delivery note, and pricelist all carry the same mark as the poster.
+ */
+export function Logo({ size = 40 }: { size?: number }) {
+  return <Image src="/pava-logo.png" style={{ width: size, height: size, objectFit: 'contain' }} />;
 }

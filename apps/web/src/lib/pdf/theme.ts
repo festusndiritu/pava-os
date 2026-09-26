@@ -8,7 +8,9 @@ export const MUTED = '#4b5563';
 export const LABEL = '#6b7280';
 export const LINE = '#d1d5db';
 export const HAIRLINE = '#e5e7eb';
-export const ACCENT = '#0559C9';
+// Matches the poster's brand orange (see lib/poster.ts) so a quote, an
+// invoice, and the marketing poster read as the same business.
+export const ACCENT = '#D88922';
 export const PANEL = '#f3f4f6';
 
 // mm, not pt — @react-pdf/renderer accepts CSS units directly, and mm reads
