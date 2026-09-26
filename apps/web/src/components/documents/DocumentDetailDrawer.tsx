@@ -149,86 +149,91 @@ export function DocumentDetailDrawer({
   const docNumber = doc?.receiptNumber ?? doc?.invoiceNumber ?? doc?.quoteNumber ?? doc?.deliveryNoteNumber;
 
   return (
-    <Drawer
-      open
-      onClose={onClose}
-      title={doc?.customer?.businessName || doc?.customer?.name || doc?.customerName || 'Walk-in customer'}
-      subtitle={doc ? `${docNumber ? `${docNumber} · ` : ''}${docTypeLabel(doc.type)} · ${fmtDate(doc.createdAt)}` : undefined}
-      footer={
-        doc && (
-          <div className="flex flex-col gap-2">
-            {error && (
-              <p className="rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
-                {error}
-              </p>
-            )}
-            {notice && !error && (
-              <p className="rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'var(--color-status-okSoft)', color: 'var(--color-status-ok)' }}>
-                {notice}
-              </p>
-            )}
-            {/* An unpaid invoice is settled here, and how it was settled is
-                recorded on the receipt rather than guessed at later. */}
-            {doc.status === 'INVOICED' && (
-              <div className="rounded-md border p-3" style={{ borderColor: 'var(--color-border)' }}>
-                <p className="text-xs font-medium" style={{ color: 'var(--color-ink-600)' }}>
-                  Settle this invoice
-                </p>
-                <div className="mt-2 flex gap-2">
-                  {(['MPESA', 'CASH'] as const).map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      disabled={busy}
-                      onClick={() => runAction(() => documentsApi.markPaid(doc.id, m))}
-                      className="min-h-10 flex-1 rounded-md px-3 text-sm font-semibold text-white disabled:opacity-60"
-                      style={{ backgroundColor: 'var(--color-accent)' }}
-                    >
-                      Paid · {m === 'MPESA' ? 'M-Pesa' : 'Cash'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="flex gap-2">
-              {doc.status === 'QUOTED' && (
-                <>
-                  <button type="button" disabled={busy} onClick={() => runAction(() => documentsApi.cancel(doc.id))} className="flex-1 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-status-bad)' }}>
-                    Cancel quote
-                  </button>
-                  <button type="button" disabled={busy} onClick={() => runAction(() => documentsApi.convertToInvoice(doc.id), { detectStockShortfall: true })} className="flex-1 rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
-                    Convert to invoice
-                  </button>
-                </>
-              )}
-              {doc.status === 'INVOICED' && (
-                <button type="button" disabled={busy} onClick={() => runAction(() => documentsApi.cancel(doc.id))} className="flex-1 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-status-bad)' }}>
-                  Cancel invoice
-                </button>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {doc.type !== 'DELIVERY_NOTE' && (doc.status === 'QUOTED' || doc.status === 'INVOICED' || doc.status === 'PAID') && (
-                <button type="button" disabled={busy} onClick={() => setAskingDeliveryLocation(true)} className="flex flex-1 items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
-                  <Truck size={14} strokeWidth={2} />
-                  Delivery note
-                </button>
-              )}
-              <button type="button" onClick={() => setPrintTick((t) => t + 1)} className="flex flex-1 items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
-                <Receipt size={14} strokeWidth={2} />
-                Print thermal
-              </button>
-              <button type="button" disabled={sharing} onClick={handleShare} className="flex flex-1 items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
-                <Share2 size={14} strokeWidth={2} />
-                {sharing ? 'Preparing…' : 'Share PDF'}
-              </button>
-            </div>
-          </div>
-        )
-      }
-    >
+    <>
+      {/* Rendered as a sibling of the Drawer, not inside it — the Drawer's
+          panel sits inside a fixed, absolutely-positioned overlay, and
+          printing from inside that positioned ancestor is what offsets the
+          thermal output (see ReceiptDialog.tsx for the same fix). */}
       {doc && <ThermalDocument vm={buildDocumentViewModel(doc, settings)} variant="print" />}
+      <Drawer
+        open
+        onClose={onClose}
+        title={doc?.customer?.businessName || doc?.customer?.name || doc?.customerName || 'Walk-in customer'}
+        subtitle={doc ? `${docNumber ? `${docNumber} · ` : ''}${docTypeLabel(doc.type)} · ${fmtDate(doc.createdAt)}` : undefined}
+        footer={
+          doc && (
+            <div className="flex flex-col gap-2">
+              {error && (
+                <p className="rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
+                  {error}
+                </p>
+              )}
+              {notice && !error && (
+                <p className="rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'var(--color-status-okSoft)', color: 'var(--color-status-ok)' }}>
+                  {notice}
+                </p>
+              )}
+              {/* An unpaid invoice is settled here, and how it was settled is
+                  recorded on the receipt rather than guessed at later. */}
+              {doc.status === 'INVOICED' && (
+                <div className="rounded-md border p-3" style={{ borderColor: 'var(--color-border)' }}>
+                  <p className="text-xs font-medium" style={{ color: 'var(--color-ink-600)' }}>
+                    Settle this invoice
+                  </p>
+                  <div className="mt-2 flex gap-2">
+                    {(['MPESA', 'CASH'] as const).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        disabled={busy}
+                        onClick={() => runAction(() => documentsApi.markPaid(doc.id, m))}
+                        className="min-h-10 flex-1 rounded-md px-3 text-sm font-semibold text-white disabled:opacity-60"
+                        style={{ backgroundColor: 'var(--color-accent)' }}
+                      >
+                        Paid · {m === 'MPESA' ? 'M-Pesa' : 'Cash'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                {doc.status === 'QUOTED' && (
+                  <>
+                    <button type="button" disabled={busy} onClick={() => runAction(() => documentsApi.cancel(doc.id))} className="flex-1 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-status-bad)' }}>
+                      Cancel quote
+                    </button>
+                    <button type="button" disabled={busy} onClick={() => runAction(() => documentsApi.convertToInvoice(doc.id), { detectStockShortfall: true })} className="flex-1 rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
+                      Convert to invoice
+                    </button>
+                  </>
+                )}
+                {doc.status === 'INVOICED' && (
+                  <button type="button" disabled={busy} onClick={() => runAction(() => documentsApi.cancel(doc.id))} className="flex-1 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-status-bad)' }}>
+                    Cancel invoice
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {doc.type !== 'DELIVERY_NOTE' && (doc.status === 'QUOTED' || doc.status === 'INVOICED' || doc.status === 'PAID') && (
+                  <button type="button" disabled={busy} onClick={() => setAskingDeliveryLocation(true)} className="flex flex-1 items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
+                    <Truck size={14} strokeWidth={2} />
+                    Delivery note
+                  </button>
+                )}
+                <button type="button" onClick={() => setPrintTick((t) => t + 1)} className="flex flex-1 items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
+                  <Receipt size={14} strokeWidth={2} />
+                  Print thermal
+                </button>
+                <button type="button" disabled={sharing} onClick={handleShare} className="flex flex-1 items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
+                  <Share2 size={14} strokeWidth={2} />
+                  {sharing ? 'Preparing…' : 'Share PDF'}
+                </button>
+              </div>
+            </div>
+          )
+        }
+      >
 
       {doc && shortfalls && (
         <StockShortfallDialog
@@ -356,5 +361,6 @@ export function DocumentDetailDrawer({
         </div>
       )}
     </Drawer>
+    </>
   );
 }
