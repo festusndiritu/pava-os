@@ -92,7 +92,7 @@ export function QuoteFormDrawer({ open, onClose, onCreated }: { open: boolean; o
         transportAmount: transport?.amount || undefined,
         transportAllocation: transport?.allocation,
         transportApplyTo: transport?.applyTo,
-        manualAllocations: transport?.allocation === 'MANUAL' ? Object.entries(transport.manualAllocations).map(([productId, amount]) => ({ productId, amount })) : undefined,
+        manualAllocations: undefined,
         foldTransportIntoPrices: transport?.fold ?? true,
         notes: notes || undefined,
       });

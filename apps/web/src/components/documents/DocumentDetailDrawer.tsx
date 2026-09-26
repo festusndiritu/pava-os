@@ -332,15 +332,20 @@ export function DocumentDetailDrawer({
           </div>
 
           <div className={isDeliveryNote ? 'hidden' : 'flex flex-col gap-1 text-sm'}>
-            <div className="flex justify-between">
-              <span style={{ color: 'var(--color-ink-600)' }}>Subtotal</span>
-              <span className="data-num" style={{ color: 'var(--color-ink-900)' }}>{money(doc.subtotal)}</span>
-            </div>
-            {doc.transportAmount > 0 && (
+            {doc.transportMode !== 'DISTRIBUTED' && (
               <div className="flex justify-between">
-                <span style={{ color: 'var(--color-ink-600)' }}>Transport {doc.transportMode === 'DISTRIBUTED' ? '(included in prices)' : ''}</span>
+                <span style={{ color: 'var(--color-ink-600)' }}>Subtotal</span>
+                <span className="data-num" style={{ color: 'var(--color-ink-900)' }}>{money(doc.subtotal)}</span>
+              </div>
+            )}
+            {doc.transportAmount > 0 && doc.transportMode !== 'DISTRIBUTED' && (
+              <div className="flex justify-between">
+                <span style={{ color: 'var(--color-ink-600)' }}>Transport</span>
                 <span className="data-num" style={{ color: 'var(--color-ink-900)' }}>{money(doc.transportAmount)}</span>
               </div>
+            )}
+            {doc.transportMode === 'DISTRIBUTED' && (
+              <p className="text-right text-xs" style={{ color: 'var(--color-ink-600)' }}>Delivery included in prices</p>
             )}
             <div className="flex justify-between text-base font-semibold">
               <span style={{ color: 'var(--color-ink-900)' }}>Total</span>

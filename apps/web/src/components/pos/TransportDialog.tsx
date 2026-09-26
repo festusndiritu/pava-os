@@ -1,10 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import type { TransportAllocation } from '../../lib/pos-api';
 import { NumericInput, toNumber } from '../ui/inputs';
 import { Modal } from '../ui/Modal';
-import { fmtNumber } from '../../lib/format';
+import { Checkbox } from '../ui/Checkbox';
 
 export interface CartLine {
   product: { id: string; name: string; displayName: string | null };
@@ -15,7 +14,7 @@ export interface CartLine {
 
 export interface TransportSettings {
   amount: number;
-  allocation: TransportAllocation;
+  allocation: 'QUANTITY';
   applyTo: string[]; // productIds
   manualAllocations: Record<string, number>;
   fold: boolean;
@@ -33,22 +32,18 @@ export function TransportDialog({
   onApply: (settings: TransportSettings) => void;
 }) {
   const [amount, setAmount] = useState(initial ? String(initial.amount) : '');
-  const [allocation, setAllocation] = useState<TransportAllocation>(initial?.allocation ?? 'QUANTITY');
-  const [applyTo, setApplyTo] = useState<Set<string>>(new Set(initial?.applyTo ?? lines.map((l) => l.product.id)));
-  const [manual, setManual] = useState<Record<string, string>>(
-    Object.fromEntries(lines.map((l) => [l.product.id, String(initial?.manualAllocations?.[l.product.id] ?? '')])),
-  );
   const [fold, setFold] = useState(initial?.fold ?? true);
-
-  const manualSum = Object.values(manual).reduce((s, v) => s + (Number(v) || 0), 0);
+  const [applyTo, setApplyTo] = useState<Set<string>>(new Set(initial?.applyTo ?? lines.map((l) => l.product.id)));
 
   function apply() {
     const amt = toNumber(amount) ?? 0;
     onApply({
       amount: amt,
-      allocation,
-      applyTo: [...applyTo],
-      manualAllocations: Object.fromEntries(Object.entries(manual).map(([k, v]) => [k, toNumber(v) ?? 0])),
+      allocation: 'QUANTITY',
+      // A flat delivery line doesn't touch any item's price, so which items
+      // it's "for" has no effect — send them all rather than ask.
+      applyTo: fold ? [...applyTo] : lines.map((l) => l.product.id),
+      manualAllocations: {},
       fold,
     });
     onClose();
@@ -61,37 +56,54 @@ export function TransportDialog({
 
   return (
     <Modal onClose={onClose} placement="center" dismissOnBackdrop={false} label="Transport" className="max-w-sm p-5">
-        <h3 className="text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>
-          Transport
-        </h3>
+      <h3 className="text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>
+        Transport
+      </h3>
 
-        <div className="mt-4 flex flex-col gap-4">
-          <div>
-            <label htmlFor="transportdialog-amount-ksh" className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
-              Amount (KSh)
+      <div className="mt-4 flex flex-col gap-4">
+        <div>
+          <label htmlFor="transportdialog-amount-ksh" className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+            Amount (KSh)
+          </label>
+          <NumericInput id="transportdialog-amount-ksh"
+            value={amount}
+            onChange={setAmount}
+            className="w-full rounded-md border px-3 py-2 text-sm data-num"
+            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}
+          />
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+            How to apply it
+          </label>
+          <div className="flex flex-col gap-1.5">
+            <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-ink-900)' }}>
+              <input type="radio" name="transport-fold" checked={!fold} onChange={() => setFold(false)} />
+              Add a delivery line with the amount
             </label>
-            <NumericInput id="transportdialog-amount-ksh"
-              value={amount}
-              onChange={setAmount}
-              className="w-full rounded-md border px-3 py-2 text-sm data-num"
-              style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}
-            />
+            <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-ink-900)' }}>
+              <input type="radio" name="transport-fold" checked={fold} onChange={() => setFold(true)} />
+              Split the amount into item prices
+            </label>
           </div>
+        </div>
 
+        {fold && (
           <div>
             <label className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
-              Apply to
+              Which items absorb it
             </label>
             <div className="flex flex-col gap-1.5">
               {lines.map((l) => (
                 <label key={l.product.id} className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-ink-900)' }}>
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={applyTo.has(l.product.id)}
-                    onChange={(e) =>
+                    ariaLabel={l.product.displayName ?? l.product.name}
+                    onChange={() =>
                       setApplyTo((prev) => {
                         const next = new Set(prev);
-                        e.target.checked ? next.add(l.product.id) : next.delete(l.product.id);
+                        next.has(l.product.id) ? next.delete(l.product.id) : next.add(l.product.id);
                         return next;
                       })
                     }
@@ -100,60 +112,21 @@ export function TransportDialog({
                 </label>
               ))}
             </div>
+            <p className="mt-2 text-xs" style={{ color: 'var(--color-ink-600)' }}>
+              The customer sees "Delivery included" — not a separate line — and each selected item's price on the quote already reflects its share.
+            </p>
           </div>
+        )}
 
-          <div>
-            <label className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
-              Allocation
-            </label>
-            <div className="flex flex-col gap-1.5">
-              {(['QUANTITY', 'VALUE', 'MANUAL'] as TransportAllocation[]).map((a) => (
-                <label key={a} className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-ink-900)' }}>
-                  <input type="radio" name="alloc" checked={allocation === a} onChange={() => setAllocation(a)} />
-                  {a === 'QUANTITY' ? 'By quantity' : a === 'VALUE' ? 'By line value' : 'Manual'}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {allocation === 'MANUAL' && (
-            <div className="flex flex-col gap-1.5">
-              {lines
-                .filter((l) => applyTo.has(l.product.id))
-                .map((l) => (
-                  <div key={l.product.id} className="flex items-center justify-between gap-2">
-                    <span className="truncate text-sm" style={{ color: 'var(--color-ink-900)' }}>
-                      {l.product.displayName ?? l.product.name}
-                    </span>
-                    <NumericInput
-                      aria-label={`Transport for ${l.product.displayName ?? l.product.name}`}
-                      value={manual[l.product.id] ?? ''}
-                      onChange={(v) => setManual((prev) => ({ ...prev, [l.product.id]: v }))}
-                      className="w-24 rounded-md border px-2 py-1 text-sm data-num"
-                      style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}
-                    />
-                  </div>
-                ))}
-              <p className="text-xs" style={{ color: manualSum === Number(amount) ? 'var(--color-ink-600)' : 'var(--color-status-bad)' }}>
-                Allocated: KSh {fmtNumber(manualSum)} of KSh {fmtNumber(Number(amount || 0))}
-              </p>
-            </div>
-          )}
-
-          <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-ink-900)' }}>
-            <input type="checkbox" checked={fold} onChange={(e) => setFold(e.target.checked)} />
-            Include delivery in item prices (customer sees "Delivery included")
-          </label>
-
-          <div className="mt-1 flex gap-2">
-            <button type="button" onClick={remove} className="flex-1 rounded-md border px-4 py-2 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-status-bad)' }}>
-              Remove transport
-            </button>
-            <button type="button" onClick={apply} className="flex-1 rounded-md px-4 py-2 text-sm font-medium text-white" style={{ backgroundColor: 'var(--color-accent)' }}>
-              Apply
-            </button>
-          </div>
+        <div className="mt-1 flex gap-2">
+          <button type="button" onClick={remove} className="flex-1 rounded-md border px-4 py-2 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-status-bad)' }}>
+            Remove transport
+          </button>
+          <button type="button" onClick={apply} className="flex-1 rounded-md px-4 py-2 text-sm font-medium text-white" style={{ backgroundColor: 'var(--color-accent)' }}>
+            Apply
+          </button>
         </div>
+      </div>
     </Modal>
   );
 }
