@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Copy, Download, Image as ImageIcon, ListChecks, Megaphone, Printer, Search, Share2 } from 'lucide-react';
+import { CheckCheck, Copy, Download, Image as ImageIcon, ListChecks, Megaphone, Printer, Search, Share2 } from 'lucide-react';
 import { productsApi, type Product } from '../../../lib/products-api';
 import { thicknessLabel } from '../../../lib/shape-config';
 import { settingsApi, type BusinessSettings } from '../../../lib/settings-api';
@@ -12,8 +12,20 @@ import { fmtNumber } from '../../../lib/format';
 
 type Mode = 'pricelist' | 'poster';
 
+// Mirrors the row-density tiers in lib/poster.ts (16 / 22 / 30 items) so the
+// picker can tell the person when they're about to leave the roomiest tier —
+// purely an informational echo, the poster itself is still the source of truth.
+function posterDensityHint(count: number): { label: string; tone: 'ok' | 'warn' } | null {
+  if (count === 0) return null;
+  if (count <= 16) return { label: 'Comfortable spacing', tone: 'ok' };
+  if (count <= 22) return { label: 'Snug — still readable', tone: 'ok' };
+  if (count <= 30) return { label: 'Dense — smaller text', tone: 'warn' };
+  return { label: 'Very dense — consider splitting into two posters', tone: 'warn' };
+}
+
 export default function MarketingPage() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pickerSearch, setPickerSearch] = useState('');
   const [mode, setMode] = useState<Mode>('pricelist');
@@ -32,7 +44,10 @@ export default function MarketingPage() {
   const [posterNotice, setPosterNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    productsApi.list().then((p) => setProducts(p.filter((x) => x.active)));
+    productsApi
+      .list()
+      .then((p) => setProducts(p.filter((x) => x.active)))
+      .finally(() => setLoadingProducts(false));
     settingsApi.get().then(setSettings).catch(() => {});
   }, []);
 
@@ -65,7 +80,19 @@ export default function MarketingPage() {
     });
   }
 
+  const filteredIds = useMemo(() => grouped.flatMap(([, items]) => items.map((p) => p.id)), [grouped]);
+  const allFilteredSelected = filteredIds.length > 0 && filteredIds.every((id) => selected.has(id));
+
+  function selectAllFiltered() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      filteredIds.forEach((id) => next.add(id));
+      return next;
+    });
+  }
+
   const selectedProducts = products.filter((p) => selected.has(p.id));
+  const densityHint = posterDensityHint(selectedProducts.length);
 
   const groupedSelected = useMemo(() => {
     const byCategory = new Map<string, Product[]>();
@@ -170,26 +197,44 @@ export default function MarketingPage() {
         </div>
       </div>
 
-      <div className="mt-4 flex gap-1.5">
-        {([
-          { key: 'pricelist' as const, label: 'Price list', icon: ListChecks },
-          { key: 'poster' as const, label: 'Poster', icon: ImageIcon },
-        ]).map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => setMode(t.key)}
-            className="flex min-h-9 items-center gap-1.5 rounded-md border px-3 text-sm font-medium"
-            style={{
-              borderColor: mode === t.key ? 'var(--color-accent)' : 'var(--color-border)',
-              backgroundColor: mode === t.key ? 'var(--color-accent-soft)' : 'transparent',
-              color: mode === t.key ? 'var(--color-accent)' : 'var(--color-ink-600)',
-            }}
-          >
-            <t.icon size={14} strokeWidth={2} />
-            {t.label}
-          </button>
-        ))}
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex gap-1.5">
+          {([
+            { key: 'pricelist' as const, label: 'Price list', icon: ListChecks },
+            { key: 'poster' as const, label: 'Poster', icon: ImageIcon },
+          ]).map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setMode(t.key)}
+              className="flex min-h-9 items-center gap-1.5 rounded-md border px-3 text-sm font-medium"
+              style={{
+                borderColor: mode === t.key ? 'var(--color-accent)' : 'var(--color-border)',
+                backgroundColor: mode === t.key ? 'var(--color-accent-soft)' : 'transparent',
+                color: mode === t.key ? 'var(--color-accent)' : 'var(--color-ink-600)',
+              }}
+            >
+              <t.icon size={14} strokeWidth={2} />
+              {t.label}
+            </button>
+          ))}
+        </div>
+        {selectedProducts.length > 0 && (
+          <div className="flex items-center gap-2 text-xs font-medium" style={{ color: 'var(--color-ink-600)' }}>
+            <span>{selectedProducts.length} item{selectedProducts.length === 1 ? '' : 's'} selected</span>
+            {mode === 'poster' && densityHint && (
+              <span
+                className="rounded-full px-2 py-0.5"
+                style={{
+                  backgroundColor: densityHint.tone === 'ok' ? 'var(--color-status-okSoft)' : 'var(--color-status-warnSoft)',
+                  color: densityHint.tone === 'ok' ? 'var(--color-status-ok)' : 'var(--color-status-warn)',
+                }}
+              >
+                {densityHint.label}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -205,6 +250,17 @@ export default function MarketingPage() {
                 style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)', color: 'var(--color-ink-900)' }}
               />
             </div>
+            {filteredIds.length > 0 && (
+              <button
+                type="button"
+                onClick={allFilteredSelected ? () => setSelected(new Set()) : selectAllFiltered}
+                className="flex shrink-0 items-center gap-1 text-xs font-medium"
+                style={{ color: 'var(--color-accent)' }}
+              >
+                <CheckCheck size={13} strokeWidth={2} />
+                {allFilteredSelected ? 'Deselect all' : `Select all (${filteredIds.length})`}
+              </button>
+            )}
             {selected.size > 0 && (
               <button type="button" onClick={() => setSelected(new Set())} className="shrink-0 text-xs font-medium" style={{ color: 'var(--color-ink-600)' }}>
                 Clear ({selected.size})
@@ -213,11 +269,21 @@ export default function MarketingPage() {
           </div>
 
           <div className="flex flex-col gap-4">
-            {grouped.length === 0 && (
+            {loadingProducts ? (
+              <div className="flex flex-col gap-2">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="animate-pulse rounded-lg border p-4" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+                    <div className="mb-3 h-3.5 w-1/3 rounded" style={{ backgroundColor: 'var(--color-bg)' }} />
+                    <div className="mb-2 h-3 w-full rounded" style={{ backgroundColor: 'var(--color-bg)' }} />
+                    <div className="h-3 w-5/6 rounded" style={{ backgroundColor: 'var(--color-bg)' }} />
+                  </div>
+                ))}
+              </div>
+            ) : grouped.length === 0 ? (
               <p className="rounded-lg border px-4 py-8 text-center text-sm" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-600)' }}>
-                No products match &ldquo;{pickerSearch}&rdquo;.
+                {products.length === 0 ? 'No active products yet — add some in the catalogue first.' : `No products match \u201c${pickerSearch}\u201d.`}
               </p>
-            )}
+            ) : null}
             {grouped.map(([category, items]) => {
               const allOn = items.every((p) => selected.has(p.id));
               return (
