@@ -31,7 +31,10 @@ const TONE_STYLES: Record<IconTone, { fg: string; bg: string }> = {
 
 // Shape is the catalogue's own structured field, so it is the most reliable
 // signal — matched first, before falling back to category and then to name
-// keywords for products that predate the shape taxonomy.
+// keywords for products that predate the shape taxonomy. Only genuinely
+// dimensioned steel profiles live here; a cutting disc or a nail was never
+// really a "shape" in the SHS/angle-bar sense, and the keyword list below
+// already identifies them by name/category, so they don't need one.
 const SHAPE_ICONS: Record<string, { icon: LucideIcon; tone: IconTone }> = {
   SQUARE_TUBE: { icon: Square, tone: 'steel' },
   RECT_TUBE: { icon: Grid2x2, tone: 'steel' },
@@ -41,8 +44,6 @@ const SHAPE_ICONS: Record<string, { icon: LucideIcon; tone: IconTone }> = {
   ROUND_BAR: { icon: CircleDashed, tone: 'steel' },
   DEFORMED_BAR: { icon: Ruler, tone: 'steel' },
   MARINE_BOARD: { icon: Layers, tone: 'timber' },
-  NAIL: { icon: Hammer, tone: 'consumable' },
-  CUTTING_DISC: { icon: Disc3, tone: 'tool' },
 };
 
 const KEYWORD_ICONS: { match: RegExp; icon: LucideIcon; tone: IconTone }[] = [

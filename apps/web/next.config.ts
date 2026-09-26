@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ['recommend-nyc-south-chat.trycloudflare.com'],
+  allowedDevOrigins: ['192.168.100.167'],
 };
 
 export default nextConfig;

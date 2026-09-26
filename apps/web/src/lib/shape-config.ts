@@ -46,9 +46,6 @@ export const SHAPES: ShapeConfig[] = [
   { key: 'ROUND_BAR', label: 'Round Bar', thicknessMode: 'none', hasWidthHeight: false, thicknessOptions: [] },
   { key: 'DEFORMED_BAR', label: 'Deformed Bar', thicknessMode: 'none', hasWidthHeight: false, thicknessOptions: [] },
   { key: 'MARINE_BOARD', label: 'Marine Board', thicknessMode: 'mm', hasWidthHeight: true, thicknessOptions: MARINE_BOARD_THICKNESSES },
-  { key: 'NAIL', label: 'Nail', thicknessMode: 'none', hasWidthHeight: false, thicknessOptions: [] },
-  { key: 'CUTTING_DISC', label: 'Cutting Disc', thicknessMode: 'none', hasWidthHeight: false, thicknessOptions: [] },
-  { key: 'OTHER', label: 'Other', thicknessMode: 'none', hasWidthHeight: false, thicknessOptions: [] },
 ];
 
 export function shapeConfig(key?: string | null): ShapeConfig | undefined {
