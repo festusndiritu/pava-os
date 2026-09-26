@@ -1,16 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCheck, Copy, Download, Image as ImageIcon, ListChecks, Megaphone, Printer, Search, Share2 } from 'lucide-react';
+import { CheckCheck, Download, Image as ImageIcon, Search, Share2 } from 'lucide-react';
 import { productsApi, type Product } from '../../../lib/products-api';
 import { thicknessLabel } from '../../../lib/shape-config';
 import { settingsApi, type BusinessSettings } from '../../../lib/settings-api';
-import { sharePricelistAsPdf } from '../../../lib/pdf/document-pdf';
 import { shareImageBlob } from '../../../lib/pdf';
 import { drawPoster, posterCategoriesFromProducts, posterToBlob } from '../../../lib/poster';
 import { fmtNumber } from '../../../lib/format';
-
-type Mode = 'pricelist' | 'poster';
+import { Checkbox } from '../../../components/ui/Checkbox';
 
 // Mirrors the row-density tiers in lib/poster.ts (16 / 22 / 30 items) so the
 // picker can tell the person when they're about to leave the roomiest tier —
@@ -28,14 +26,7 @@ export default function MarketingPage() {
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pickerSearch, setPickerSearch] = useState('');
-  const [mode, setMode] = useState<Mode>('pricelist');
   const [settings, setSettings] = useState<BusinessSettings | null>(null);
-
-  // Price list state
-  const [title, setTitle] = useState('PAVA STEEL HARDWARE');
-  const [copied, setCopied] = useState(false);
-  const [sharing, setSharing] = useState(false);
-  const [shareNotice, setShareNotice] = useState<string | null>(null);
 
   // Poster state
   const [headline, setHeadline] = useState("This week's prices");
@@ -104,58 +95,10 @@ export default function MarketingPage() {
     return Array.from(byCategory.entries());
   }, [selectedProducts]);
 
-  const textBlock = useMemo(() => {
-    if (selectedProducts.length === 0) return '';
-    const lines = [title.toUpperCase(), ''];
-    for (const [category, items] of groupedSelected) {
-      lines.push(category.toUpperCase());
-      for (const p of items) {
-        const gauge = thicknessLabel(p.shape, p.thicknessMm);
-        const label = [p.displayName ?? p.name, [p.nominalSize, gauge].filter(Boolean).join(' ')].filter(Boolean).join(' — ');
-        lines.push(`${label}    KSh ${fmtNumber(p.basePrice)}`);
-      }
-      lines.push('');
-    }
-    return lines.join('\n').trim();
-  }, [selectedProducts, title, groupedSelected]);
-
-  function copyText() {
-    navigator.clipboard.writeText(textBlock);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }
-
-  async function handleShare() {
-    setSharing(true);
-    setShareNotice(null);
-    try {
-      const result = await sharePricelistAsPdf({
-        title: title.trim() || 'PAVA STEEL HARDWARE',
-        address: settings?.address ?? null,
-        phone: settings?.phone ?? null,
-        email: settings?.email ?? null,
-        categories: groupedSelected.map(([category, items]) => ({
-          name: category,
-          items: items.map((p) => ({
-            id: p.id,
-            label: [p.displayName ?? p.name, [p.nominalSize, thicknessLabel(p.shape, p.thicknessMm)].filter(Boolean).join(' ')].filter(Boolean).join(' — '),
-            price: p.basePrice,
-          })),
-        })),
-      });
-      setShareNotice(result === 'shared' ? 'Shared.' : 'Downloaded — attach it in WhatsApp or wherever you need it.');
-    } catch {
-      setShareNotice('Could not generate the PDF.');
-    } finally {
-      setSharing(false);
-    }
-  }
-
   // Redraws whenever the selection, headline or business details change —
   // the canvas is the source of truth for what gets shared, not a preview
   // of something built separately.
   useEffect(() => {
-    if (mode !== 'poster') return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     drawPoster(canvas, {
@@ -164,7 +107,7 @@ export default function MarketingPage() {
       phone: settings?.phone ?? null,
       categories: posterCategoriesFromProducts(groupedSelected),
     });
-  }, [mode, groupedSelected, headline, settings]);
+  }, [groupedSelected, headline, settings]);
 
   async function handlePosterShare() {
     const canvas = canvasRef.current;
@@ -192,50 +135,27 @@ export default function MarketingPage() {
             Marketing
           </h1>
           <p className="mt-0.5 text-sm" style={{ color: 'var(--color-ink-600)' }}>
-            Pick products once, then export them as a text pricelist or a shareable poster.
+            Pick products, then export them as a shareable poster.
           </p>
         </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex gap-1.5">
-          {([
-            { key: 'pricelist' as const, label: 'Price list', icon: ListChecks },
-            { key: 'poster' as const, label: 'Poster', icon: ImageIcon },
-          ]).map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => setMode(t.key)}
-              className="flex min-h-9 items-center gap-1.5 rounded-md border px-3 text-sm font-medium"
+      {selectedProducts.length > 0 && (
+        <div className="mt-4 flex items-center gap-2 text-xs font-medium" style={{ color: 'var(--color-ink-600)' }}>
+          <span>{selectedProducts.length} item{selectedProducts.length === 1 ? '' : 's'} selected</span>
+          {densityHint && (
+            <span
+              className="rounded-full px-2 py-0.5"
               style={{
-                borderColor: mode === t.key ? 'var(--color-accent)' : 'var(--color-border)',
-                backgroundColor: mode === t.key ? 'var(--color-accent-soft)' : 'transparent',
-                color: mode === t.key ? 'var(--color-accent)' : 'var(--color-ink-600)',
+                backgroundColor: densityHint.tone === 'ok' ? 'var(--color-status-okSoft)' : 'var(--color-status-warnSoft)',
+                color: densityHint.tone === 'ok' ? 'var(--color-status-ok)' : 'var(--color-status-warn)',
               }}
             >
-              <t.icon size={14} strokeWidth={2} />
-              {t.label}
-            </button>
-          ))}
+              {densityHint.label}
+            </span>
+          )}
         </div>
-        {selectedProducts.length > 0 && (
-          <div className="flex items-center gap-2 text-xs font-medium" style={{ color: 'var(--color-ink-600)' }}>
-            <span>{selectedProducts.length} item{selectedProducts.length === 1 ? '' : 's'} selected</span>
-            {mode === 'poster' && densityHint && (
-              <span
-                className="rounded-full px-2 py-0.5"
-                style={{
-                  backgroundColor: densityHint.tone === 'ok' ? 'var(--color-status-okSoft)' : 'var(--color-status-warnSoft)',
-                  color: densityHint.tone === 'ok' ? 'var(--color-status-ok)' : 'var(--color-status-warn)',
-                }}
-              >
-                {densityHint.label}
-              </span>
-            )}
-          </div>
-        )}
-      </div>
+      )}
 
       <div className="mt-5 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div>
@@ -300,7 +220,7 @@ export default function MarketingPage() {
                       return (
                         <label key={p.id} className="flex cursor-pointer items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-[var(--color-bg)]">
                           <span className="flex items-center gap-2">
-                            <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggle(p.id)} />
+                            <Checkbox checked={selected.has(p.id)} onChange={() => toggle(p.id)} ariaLabel={p.displayName ?? p.name} />
                             <span style={{ color: 'var(--color-ink-900)' }}>
                               {p.displayName ?? p.name}
                               {gauge ? <span style={{ color: 'var(--color-ink-600)' }}> · {gauge}</span> : null}
@@ -317,142 +237,70 @@ export default function MarketingPage() {
           </div>
         </div>
 
-        {mode === 'pricelist' ? (
-          <div>
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="mb-4 w-full rounded-md border px-3 py-2 text-sm font-medium outline-none focus:border-[var(--color-accent)]"
-              style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)', color: 'var(--color-ink-900)' }}
-            />
-            <div className="sticky top-4 rounded-lg border p-5" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>Preview</h2>
-                <div className="flex gap-2">
-                  <button type="button" onClick={copyText} disabled={!textBlock} className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium disabled:opacity-40" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
-                    <Copy size={13} strokeWidth={2} />
-                    {copied ? 'Copied' : 'Copy text'}
-                  </button>
-                  <button type="button" onClick={() => window.print()} disabled={!textBlock} className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium disabled:opacity-40" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
-                    <Printer size={13} strokeWidth={2} />
-                    Print
-                  </button>
-                  <button type="button" onClick={handleShare} disabled={!textBlock || sharing} className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40" style={{ backgroundColor: 'var(--color-accent)' }}>
-                    <Share2 size={13} strokeWidth={2} />
-                    {sharing ? 'Preparing…' : 'Share PDF'}
-                  </button>
-                </div>
+        <div>
+          <input
+            value={headline}
+            onChange={(e) => setHeadline(e.target.value)}
+            placeholder="This week's prices"
+            className="mb-4 w-full rounded-md border px-3 py-2 text-sm font-medium outline-none focus:border-[var(--color-accent)]"
+            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)', color: 'var(--color-ink-900)' }}
+          />
+          <div className="sticky top-4 rounded-lg border p-5" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>Preview</h2>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const canvas = canvasRef.current;
+                    if (!canvas) return;
+                    const blob = await posterToBlob(canvas);
+                    if (!blob) return;
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${(headline || 'poster').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'poster'}.png`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(url);
+                  }}
+                  disabled={selectedProducts.length === 0}
+                  className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium disabled:opacity-40"
+                  style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}
+                >
+                  <Download size={13} strokeWidth={2} />
+                  Download
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePosterShare}
+                  disabled={selectedProducts.length === 0 || posterBusy}
+                  className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
+                  style={{ backgroundColor: 'var(--color-accent)' }}
+                >
+                  <Share2 size={13} strokeWidth={2} />
+                  {posterBusy ? 'Preparing…' : 'Share poster'}
+                </button>
               </div>
-              {shareNotice && (
-                <p className="mb-3 rounded-md px-3 py-2 text-xs" style={{ backgroundColor: 'var(--color-status-okSoft)', color: 'var(--color-status-ok)' }}>
-                  {shareNotice}
-                </p>
-              )}
-              {textBlock ? (
-                <pre className="whitespace-pre-wrap rounded-md p-4 font-mono text-sm" style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}>
-                  {textBlock}
-                </pre>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <Megaphone size={28} strokeWidth={1.5} className="mb-2" style={{ color: 'var(--color-ink-600)' }} />
-                  <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>Select products on the left to build a shareable pricelist.</p>
-                </div>
-              )}
             </div>
-          </div>
-        ) : (
-          <div>
-            <input
-              value={headline}
-              onChange={(e) => setHeadline(e.target.value)}
-              placeholder="This week's prices"
-              className="mb-4 w-full rounded-md border px-3 py-2 text-sm font-medium outline-none focus:border-[var(--color-accent)]"
-              style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)', color: 'var(--color-ink-900)' }}
-            />
-            <div className="sticky top-4 rounded-lg border p-5" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>Preview</h2>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const canvas = canvasRef.current;
-                      if (!canvas) return;
-                      const blob = await posterToBlob(canvas);
-                      if (!blob) return;
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = `${(headline || 'poster').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'poster'}.png`;
-                      document.body.appendChild(a);
-                      a.click();
-                      a.remove();
-                      URL.revokeObjectURL(url);
-                    }}
-                    disabled={selectedProducts.length === 0}
-                    className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium disabled:opacity-40"
-                    style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}
-                  >
-                    <Download size={13} strokeWidth={2} />
-                    Download
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handlePosterShare}
-                    disabled={selectedProducts.length === 0 || posterBusy}
-                    className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
-                    style={{ backgroundColor: 'var(--color-accent)' }}
-                  >
-                    <Share2 size={13} strokeWidth={2} />
-                    {posterBusy ? 'Preparing…' : 'Share poster'}
-                  </button>
-                </div>
+            {posterNotice && (
+              <p className="mb-3 rounded-md px-3 py-2 text-xs" style={{ backgroundColor: 'var(--color-status-okSoft)', color: 'var(--color-status-ok)' }}>
+                {posterNotice}
+              </p>
+            )}
+            {selectedProducts.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <ImageIcon size={28} strokeWidth={1.5} className="mb-2" style={{ color: 'var(--color-ink-600)' }} />
+                <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>Select products on the left to build a poster.</p>
               </div>
-              {posterNotice && (
-                <p className="mb-3 rounded-md px-3 py-2 text-xs" style={{ backgroundColor: 'var(--color-status-okSoft)', color: 'var(--color-status-ok)' }}>
-                  {posterNotice}
-                </p>
-              )}
-              {selectedProducts.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <ImageIcon size={28} strokeWidth={1.5} className="mb-2" style={{ color: 'var(--color-ink-600)' }} />
-                  <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>Select products on the left to build a poster.</p>
-                </div>
-              ) : (
-                <div className="mx-auto max-w-sm overflow-hidden rounded-lg border" style={{ borderColor: 'var(--color-border)', boxShadow: 'var(--shadow-card)' }}>
-                  <canvas ref={canvasRef} className="block h-auto w-full" />
-                </div>
-              )}
-            </div>
+            ) : (
+              <div className="mx-auto max-w-sm overflow-hidden rounded-lg border" style={{ borderColor: 'var(--color-border)', boxShadow: 'var(--shadow-card)' }}>
+                <canvas ref={canvasRef} className="block h-auto w-full" />
+              </div>
+            )}
           </div>
-        )}
-      </div>
-
-      {/* Full letterhead layout used for the price list's Print/Share — off-
-          screen on the page itself (see .pdf-capture-offscreen). The poster
-          has no equivalent: it's drawn straight onto the <canvas> above,
-          which is both the preview and the exported image. */}
-      <div id="print-area" className="print-a4 pdf-capture-offscreen">
-        <div style={{ textAlign: 'center', marginBottom: '8mm', borderBottom: '2px solid #111827', paddingBottom: '6mm' }}>
-          <p style={{ fontSize: '18px', fontWeight: 700 }}>{title || 'PAVA STEEL HARDWARE'}</p>
-          {settings?.address && <p style={{ color: '#4b5563' }}>{settings.address}</p>}
-          <p style={{ color: '#4b5563' }}>{[settings?.phone, settings?.email].filter(Boolean).join(' · ')}</p>
         </div>
-        {groupedSelected.map(([category, items]) => (
-          <div key={category} style={{ marginBottom: '6mm' }}>
-            <p style={{ fontWeight: 700, borderBottom: '1px solid #111827', paddingBottom: '1mm', marginBottom: '2mm' }}>{category.toUpperCase()}</p>
-            {items.map((p) => {
-              const gauge = thicknessLabel(p.shape, p.thicknessMm);
-              const label = [p.displayName ?? p.name, [p.nominalSize, gauge].filter(Boolean).join(' ')].filter(Boolean).join(' — ');
-              return (
-                <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '1mm 0' }}>
-                  <span>{label}</span>
-                  <span style={{ fontWeight: 600 }}>KSh {fmtNumber(p.basePrice)}</span>
-                </div>
-              );
-            })}
-          </div>
-        ))}
       </div>
     </div>
   );

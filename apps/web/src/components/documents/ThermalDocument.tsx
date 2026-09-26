@@ -111,10 +111,12 @@ function PricedBody({ vm }: { vm: DocumentViewModel }) {
 
       <div style={{ borderTop: RULE, margin: '10px 0' }} />
 
-      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <span>Subtotal</span>
-        <span style={{ fontVariantNumeric: 'tabular-nums' }}>{money(vm.subtotal)}</span>
-      </div>
+      {!vm.showTransportIncludedNote && (
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <span>Subtotal</span>
+          <span style={{ fontVariantNumeric: 'tabular-nums' }}>{money(vm.subtotal)}</span>
+        </div>
+      )}
       {vm.showTransportLine && (
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <span>Delivery</span>
@@ -128,9 +130,12 @@ function PricedBody({ vm }: { vm: DocumentViewModel }) {
         <span style={{ fontVariantNumeric: 'tabular-nums' }}>{money(vm.total)}</span>
       </div>
 
-      <p style={{ marginTop: '8px', textAlign: 'center', fontWeight: vm.paymentLabel ? 400 : 700 }}>
-        {vm.type === 'RECEIPT' || vm.paymentLabel ? `Paid by ${vm.paymentLabel ?? 'cash'}` : 'UNPAID — SETTLE TODAY'}
-      </p>
+      {vm.type === 'RECEIPT' && vm.paymentLabel && (
+        <p style={{ marginTop: '8px', textAlign: 'center' }}>Paid by {vm.paymentLabel}</p>
+      )}
+      {vm.type !== 'RECEIPT' && vm.letterhead.paymentDetails && (
+        <p style={{ marginTop: '8px', textAlign: 'center', color: MUTED }}>How to pay: {vm.letterhead.paymentDetails}</p>
+      )}
       {vm.issuedByName && <p style={{ textAlign: 'center', color: MUTED }}>Served by {vm.issuedByName}</p>}
     </>
   );

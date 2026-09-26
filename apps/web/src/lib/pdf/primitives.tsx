@@ -186,10 +186,12 @@ export function TotalsBlock({ vm }: { vm: DocumentViewModel }) {
   return (
     <View style={styles.totalsWrap}>
       <View style={styles.totalsBox}>
-        <View style={styles.totalsLine}>
-          <Text style={styles.muted}>Subtotal</Text>
-          <Text>KSh {money(vm.subtotal)}</Text>
-        </View>
+        {!vm.showTransportIncludedNote && (
+          <View style={styles.totalsLine}>
+            <Text style={styles.muted}>Subtotal</Text>
+            <Text>KSh {money(vm.subtotal)}</Text>
+          </View>
+        )}
         {vm.showTransportLine && (
           <View style={styles.totalsLine}>
             <Text style={styles.muted}>Delivery</Text>
