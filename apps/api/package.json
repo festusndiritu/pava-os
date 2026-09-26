@@ -12,8 +12,7 @@
     "start:prod": "bun dist/main.js",
     "prisma:migrate": "prisma migrate dev",
     "prisma:generate": "prisma generate",
-    "prisma:seed": "bun prisma/seed.ts",
-    "normalize:phones": "bun scripts/normalize-phones.ts"
+    "prisma:seed": "bun prisma/seed.ts"
   },
   "dependencies": {
     "@nestjs/common": "12.0.1",
