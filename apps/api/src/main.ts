@@ -18,6 +18,11 @@ async function bootstrap() {
     }),
   );
 
+  // Lightweight health endpoint
+  app.getHttpAdapter().get('/health', (_req, res) => {
+    res.status(200).json({ status: 'ok' });
+  });
+
   // Swagger / OpenAPI
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Pava Hardware API')
@@ -33,7 +38,7 @@ async function bootstrap() {
 
   SwaggerModule.setup('docs', app, swaggerDocument);
 
-const port = process.env.PORT ? parseInt(process.env.PORT) : 4000;
+  const port = process.env.PORT ? parseInt(process.env.PORT) : 4000;
 
   await app.listen(port, '0.0.0.0');
 
