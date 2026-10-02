@@ -14,12 +14,8 @@ export const metadata: Metadata = {
 };
 
 // Tints the mobile browser chrome (and the PWA splash screen background)
-// with the brand accent rather than leaving it to the browser default.
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#000000" },
-    { media: "(prefers-color-scheme: light)", color: '#0559C9' }
-  ]
+  themeColor: '#0559C9',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
