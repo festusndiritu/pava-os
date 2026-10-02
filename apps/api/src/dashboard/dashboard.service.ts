@@ -69,7 +69,7 @@ export class DashboardService {
             },
           },
           orderBy: { createdAt: 'desc' },
-          take: 8,
+          take: 10,
           include: {
             customer: {
               select: {
@@ -151,7 +151,7 @@ export class DashboardService {
     if (canSeeStock) {
       const lowStock = await this.lowStockItems();
 
-      result.lowStock = lowStock.items;
+      result.lowStock = lowStock.items.slice(0, 10);
       result.lowStockCount = lowStock.total;
     }
 
