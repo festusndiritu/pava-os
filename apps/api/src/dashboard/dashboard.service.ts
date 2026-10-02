@@ -151,8 +151,8 @@ export class DashboardService {
     if (canSeeStock) {
       const lowStock = await this.lowStockItems();
 
+      result.lowStockCount = lowStock.items.length;
       result.lowStock = lowStock.items.slice(0, 10);
-      result.lowStockCount = lowStock.total;
     }
 
     if (canSeeCredit) {
