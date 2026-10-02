@@ -12,7 +12,6 @@ import {
   Receipt,
   ShoppingCart,
   TrendingUp,
-  Wallet,
 } from 'lucide-react';
 import { useAuth } from '../../../lib/auth-context';
 import { dashboardApi, type DashboardSummary } from '../../../lib/dashboard-api';
@@ -53,8 +52,8 @@ export default function DashboardPage() {
 
   const today = dayOverDay(data?.chart);
   const week = weekOverWeek(data?.chart);
-  const lowStockCount = data?.lowStock?.length ?? 0;
-  // const unsettled = data?.recentSales?.filter((s) => s.status === 'INVOICED').length ?? 0;
+  const lowStockCount = data?.lowStockCount ?? 0;
+  const salesDays = data?.chart?.filter((day) => day.total > 0).length ?? 0;
 
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 p-4 sm:p-6">
@@ -154,7 +153,7 @@ export default function DashboardPage() {
 
       {/* Analytics */}
       {data?.chart &&
-        (data.chart.length > 1 ? (
+        (salesDays > 1 ? (
           <SalesTrendChart chart={data.chart} />
         ) : (
           <SectionCard
