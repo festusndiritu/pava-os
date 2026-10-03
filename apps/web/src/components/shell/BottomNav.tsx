@@ -6,9 +6,7 @@ import type { ModuleKey } from '../../lib/constants';
 import { iconFor } from './nav-icons';
 import { useNav } from './use-nav';
 
-// The four destinations most likely to be a one-tap job on a phone. Whatever
-// the user isn't permitted to see is skipped and the next one moves up;
-// everything else lives behind "More".
+// The four destinations most likely to be a one-tap job on a phone
 const PRIMARY: ModuleKey[] = ['DASHBOARD', 'POS', 'INVOICES', 'PRODUCTS', 'CUSTOMERS', 'INVENTORY'];
 
 /** Phone navigation: a bottom tab bar, reachable with a thumb. Hidden from `md` up. */

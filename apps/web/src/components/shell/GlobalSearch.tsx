@@ -14,12 +14,7 @@ import { money } from '../../lib/format';
 
 /**
  * The one place to jump straight to a record instead of drilling into its
- * module first — Products, Customers, Invoices/Quotes and Leads all support
- * a `search` param already, so this just fans the same query out to each of
- * them in parallel rather than adding a new backend endpoint. Every result
- * routes to its module's existing page with `?open=<id>`, which those pages
- * already know how to turn into the same detail drawer/edit form a normal
- * click would open.
+ * module first
  */
 
 interface Row {
@@ -56,9 +51,6 @@ export function GlobalSearch({ onClose }: { onClose: () => void }) {
   const canQuotes = hasPermission('QUOTES');
   const canLeads = hasPermission('LEADS');
 
-  // The leads list has no `search` param of its own — leads are few enough
-  // per business that fetching once per open and filtering client-side as
-  // the person types is simpler than adding one just for this.
   useEffect(() => {
     if (canLeads) leadsApi.list().then(setLeads).catch(() => setLeads([]));
   }, [canLeads]);

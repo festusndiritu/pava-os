@@ -7,9 +7,7 @@ import { iconFor } from './nav-icons';
 import { useNav } from './use-nav';
 
 /**
- * Every destination the user can reach, as a bottom sheet. It's the "More"
- * tab on phones and the menu button inside the POS (where the sidebar and
- * tab bar are deliberately gone to give the till the whole screen).
+ * Every destination the user can reach, as a bottom sheet.
  */
 export function NavSheet({ onClose }: { onClose: () => void }) {
   const { sections, isActive } = useNav();
@@ -34,7 +32,7 @@ export function NavSheet({ onClose }: { onClose: () => void }) {
             <div className="grid grid-cols-2 gap-1.5">
               {section.items.map((item) => {
                 const Icon = iconFor(item);
-                const active = isActive(item.href);
+                const active = isActive(item.href);s
                 return (
                   <Link
                     key={item.href}

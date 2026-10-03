@@ -8,14 +8,6 @@ import { iconFor } from './nav-icons';
 import { useNav } from './use-nav';
 import type { ModuleKey } from '../../lib/constants';
 
-// A true accordion for the non-pinned sections: opening one closes whichever
-// was open before, so headers stay a short, scannable list instead of
-// stacking up as you explore. The section holding the current page is what's
-// open by default — there's no separate "remembered" state to fight with
-// that, since navigating anywhere always makes that page's section the
-// sensible one to show. Pinned sections (see NAV_SECTIONS) sit above all of
-// this, always expanded, so the handful of everyday destinations never need
-// a click to reach — only the less-frequent sections collapse to save height.
 function activeSectionLabel(sections: ReturnType<typeof useNav>['sections'], isActive: (href: string) => boolean) {
   return sections.find((s) => s.items.some((i) => isActive(i.href)))?.label;
 }
@@ -45,10 +37,6 @@ export function Sidebar() {
 
   const [openLabel, setOpenLabel] = useState<string | null>(() => activeSectionLabel(accordionSections, isActive) ?? null);
 
-  // Whatever section you navigate into — via the sidebar, a link elsewhere in
-  // the app, or the browser's back/forward — becomes the one that's open,
-  // closing whatever was open before. A pinned section doesn't need this: it's
-  // always shown anyway.
   useEffect(() => {
     setOpenLabel(activeSectionLabel(accordionSections, isActive) ?? null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -70,8 +58,7 @@ export function Sidebar() {
       <nav aria-label="Main" className="flex-1 overflow-y-auto px-3 pb-4">
         {pinnedSections.map((section) => (
           <div key={section.label} className="mb-3 flex flex-col gap-0.5">
-            {/* A single-item pinned section (Overview/Dashboard) doesn't need
-                a header of its own — the item's label already says enough. */}
+            {/* A single-item pinned section (Overview/Dashboard) doesn't need a header of its own */}
             {section.items.length > 1 && (
               <p className="px-2.5 py-1.5 text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
                 {section.label}
