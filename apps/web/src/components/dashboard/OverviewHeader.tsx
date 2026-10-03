@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { LucideIcon } from 'lucide-react';
 import {
   AlertTriangle,
@@ -11,6 +10,7 @@ import {
   PackagePlus,
   PackageSearch,
   Receipt,
+  RefreshCw,
   ShoppingCart,
   Wallet,
 } from 'lucide-react';
@@ -18,14 +18,12 @@ import type { ModuleKey } from '../../lib/constants';
 import type { DashboardSummary } from '../../lib/dashboard-api';
 import {
   attentionItems,
-  dayOverDay,
   firstName,
-  fmtDate,
   greetingFor,
-  money,
+  timeAgo,
   type AttentionItem,
 } from './dashboard-derive';
-import { toneColors } from './DashboardPrimitives';
+import { Skeleton, toneColors } from './DashboardPrimitives';
 
 const ICONS = {
   stock: PackageSearch,
@@ -59,13 +57,13 @@ function QuickAction({
   return (
     <Link
       href={href}
-      className="flex min-h-10 items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-medium transition-colors hover:brightness-95"
+      className="flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-3.5 py-2 text-sm font-medium transition-colors hover:brightness-95"
       style={
         primary
           ? {
               backgroundColor: 'var(--color-accent)',
               borderColor: 'var(--color-accent)',
-              color: '#fff',
+              color: 'var(--color-on-accent)',
             }
           : {
               backgroundColor: 'var(--color-surface)',
@@ -122,110 +120,75 @@ function AttentionChip({
   if (!linked) return body;
 
   return (
-    <Link
-      href={item.href}
-      title={`Open ${item.href.replace('/', '')}`}
-      className="block"
-    >
+    <Link href={item.href} title={`Open ${item.href.split('?')[0].replace('/', '')}`} className="block">
       {body}
     </Link>
   );
 }
 
-/** Compact 7-day paid-sales trend for the header. Hidden until there is something to draw. */
-function WeekSparkline({
-  chart,
-  weekTotal,
+function Freshness({
+  updatedAt,
+  now,
+  refreshing,
+  hasError,
+  onRefresh,
 }: {
-  chart: NonNullable<DashboardSummary['chart']>;
-  weekTotal?: number;
+  updatedAt: number | null;
+  now: number;
+  refreshing: boolean;
+  hasError: boolean;
+  onRefresh: () => void;
 }) {
-  const points = chart.slice(-7);
+  if (updatedAt == null && !hasError) return null;
 
-  if (points.length < 2 || !points.some((p) => p.total > 0)) return null;
+  const label = hasError ? "Couldn't refresh" : `Updated ${timeAgo(updatedAt ?? now, now)}`;
 
   return (
     <div
-      className="flex w-full flex-col gap-1 rounded-lg border px-3 pb-1 pt-2.5 sm:w-60"
-      style={{
-        borderColor: 'var(--color-border)',
-        backgroundColor: 'var(--color-surface)',
-      }}
+      className="flex items-center gap-1.5 text-[11px]"
+      style={{ color: hasError ? 'var(--color-status-bad)' : 'var(--color-ink-600)' }}
     >
-      <div className="flex items-baseline justify-between gap-2">
-        <span
-          className="text-[11px] font-semibold uppercase tracking-[0.06em]"
-          style={{ color: 'var(--color-ink-600)' }}
-        >
-          Last 7 days
-        </span>
-        {weekTotal != null && (
-          <span
-            className="data-num text-xs font-medium"
-            style={{ color: 'var(--color-ink-900)' }}
-          >
-            {money(weekTotal)}
-          </span>
-        )}
-      </div>
-
-      <div className="h-12 w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={points} margin={{ top: 4, right: 2, bottom: 2, left: 2 }}>
-            <defs>
-              <linearGradient id="overview-spark-fill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" style={{ stopColor: 'var(--color-accent)', stopOpacity: 0.3 }} />
-                <stop offset="100%" style={{ stopColor: 'var(--color-accent)', stopOpacity: 0 }} />
-              </linearGradient>
-            </defs>
-            {/* Hidden, but it tells the tooltip to label points by date rather than by index. */}
-            <XAxis dataKey="date" hide />
-            <YAxis hide domain={[0, 'dataMax']} />
-            <Tooltip
-              formatter={(v: number) => money(v)}
-              labelFormatter={fmtDate}
-              contentStyle={{
-                fontSize: 11,
-                borderRadius: 6,
-                padding: '4px 8px',
-                border: '1px solid var(--color-border)',
-                backgroundColor: 'var(--color-surface)',
-                color: 'var(--color-ink-900)',
-              }}
-              cursor={{ stroke: 'var(--color-border)' }}
-            />
-            <Area
-              type="monotone"
-              dataKey="total"
-              stroke="var(--color-accent)"
-              strokeWidth={1.75}
-              fill="url(#overview-spark-fill)"
-              dot={false}
-              activeDot={{ r: 3 }}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
+      <span aria-live="polite">{label}</span>
+      <button
+        type="button"
+        onClick={onRefresh}
+        disabled={refreshing}
+        aria-label="Refresh dashboard"
+        title="Refresh"
+        className="flex h-8 w-8 items-center justify-center rounded-md border transition-colors disabled:opacity-60"
+        style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-600)', backgroundColor: 'var(--color-surface)' }}
+      >
+        <RefreshCw size={13} strokeWidth={2} className={refreshing ? 'animate-spin motion-reduce:animate-none' : ''} />
+      </button>
     </div>
   );
 }
 
 /**
- * Greeting, one sentence of sales context, quick actions, and the
- * "needs attention" strip. Every line here is conditional: if the underlying
- * data is missing — because of permissions or because there is simply nothing
- * yet — the line is dropped rather than filled in.
+ * Greeting, quick actions, and the "needs attention" strip. Every line here
+ * is conditional: if the underlying data is missing — because of permissions
+ * or because there is simply nothing yet — the line is dropped rather than
+ * filled in. Sales figures live in the stat cards, not repeated here.
  */
 export function OverviewHeader({
   userName,
   data,
   hasPermission,
+  updatedAt,
+  now,
+  refreshing,
+  hasError,
+  onRefresh,
 }: {
   userName: string;
   data: DashboardSummary | null;
   hasPermission: (module: ModuleKey) => boolean;
+  updatedAt: number | null;
+  now: number;
+  refreshing: boolean;
+  hasError: boolean;
+  onRefresh: () => void;
 }) {
-  const comparison = dayOverDay(data?.chart);
   const items = attentionItems(data);
   const actions = QUICK_ACTIONS.filter((a) => hasPermission(a.module));
 
@@ -234,23 +197,6 @@ export function OverviewHeader({
     day: 'numeric',
     month: 'long',
   }).format(new Date());
-
-  let salesLine: string | null = null;
-
-  if (data?.sales) {
-    if (comparison?.trend && comparison.trend.direction !== 'flat') {
-      const word =
-        comparison.trend.direction === 'up' ? 'ahead of' : 'behind';
-
-      salesLine = `Today's sales are ${comparison.trend.pct}% ${word} yesterday.`;
-    } else if (comparison?.trend) {
-      salesLine = "Today's sales are level with yesterday.";
-    } else if (data.sales.today.total > 0) {
-      salesLine = `${money(data.sales.today.total)} taken so far today.`;
-    } else {
-      salesLine = 'No sales recorded yet today.';
-    }
-  }
 
   return (
     <div
@@ -274,7 +220,7 @@ export function OverviewHeader({
               className="text-[11px] font-semibold uppercase tracking-[0.08em]"
               style={{ color: 'var(--color-ink-600)' }}
             >
-              Overview · {dateLabel}
+              Overview
             </span>
           </div>
 
@@ -285,32 +231,31 @@ export function OverviewHeader({
             {greetingFor()}, {firstName(userName)}.
           </h1>
 
-          {salesLine && (
-            <p
-              className="mt-1 text-sm"
-              style={{ color: 'var(--color-ink-600)' }}
-            >
-              {salesLine}
-            </p>
-          )}
+          <p className="mt-1 text-sm" style={{ color: 'var(--color-ink-600)' }}>
+            {dateLabel}
+          </p>
         </div>
 
-        {(actions.length > 0 || (data?.sales && data.chart)) && (
-          <div className="flex w-full flex-col gap-3 sm:w-auto sm:items-end">
-            {data?.sales && data.chart && (
-              <WeekSparkline chart={data.chart} weekTotal={data.sales.week.total} />
-            )}
+        <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:items-end">
+          {actions.length > 0 && (
+            <div className="-mx-1 flex flex-nowrap gap-2 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:justify-end sm:overflow-visible sm:pb-0">
+              {actions.map((a) => (
+                <QuickAction key={a.href} {...a} />
+              ))}
+            </div>
+          )}
 
-            {actions.length > 0 && (
-              <div className="flex flex-wrap gap-2 sm:justify-end">
-                {actions.map((a) => (
-                  <QuickAction key={a.href} {...a} />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+          <Freshness
+            updatedAt={updatedAt}
+            now={now}
+            refreshing={refreshing}
+            hasError={hasError}
+            onRefresh={onRefresh}
+          />
+        </div>
       </div>
+
+      {!data && !hasError && <Skeleton className="h-[76px] w-full" />}
 
       {data && (
         <div
@@ -343,17 +288,11 @@ export function OverviewHeader({
             </span>
 
             <div>
-              <p
-                className="text-xs font-semibold"
-                style={{ color: 'var(--color-ink-900)' }}
-              >
+              <p className="text-xs font-semibold" style={{ color: 'var(--color-ink-900)' }}>
                 {items.length > 0 ? 'Needs attention' : 'All clear'}
               </p>
 
-              <p
-                className="text-[11px]"
-                style={{ color: 'var(--color-ink-600)' }}
-              >
+              <p className="text-[11px]" style={{ color: 'var(--color-ink-600)' }}>
                 {items.length > 0
                   ? `${items.length} item${items.length === 1 ? '' : 's'} to review`
                   : 'Nothing is flagged right now'}

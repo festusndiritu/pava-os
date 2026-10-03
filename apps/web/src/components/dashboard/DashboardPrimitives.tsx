@@ -91,14 +91,14 @@ export function SectionLink({ href, label }: { href: string; label: string }) {
   );
 }
 
-function TrendPill({ trend, comparison }: { trend: Trend; comparison: string }) {
+export function TrendPill({ trend, comparison, className = 'mt-2' }: { trend: Trend; comparison: string; className?: string }) {
   const positive = trend.direction === 'up';
   const flat = trend.direction === 'flat';
   const fg = flat ? 'var(--color-ink-600)' : positive ? 'var(--color-status-ok)' : 'var(--color-status-bad)';
   const bg = flat ? 'var(--color-bg)' : positive ? 'var(--color-status-okSoft)' : 'var(--color-status-badSoft)';
   const Icon = flat ? Minus : positive ? ArrowUpRight : ArrowDownRight;
   return (
-    <span className="mt-2 inline-flex max-w-full items-center gap-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>
+    <span className={`${className} inline-flex max-w-full items-center gap-1 text-xs`} style={{ color: 'var(--color-ink-600)' }}>
       <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 font-medium" style={{ backgroundColor: bg, color: fg }}>
         <Icon size={12} strokeWidth={2.2} />
         {flat ? 'level' : `${trend.pct}%`}
@@ -116,6 +116,8 @@ export function StatCard({
   tone = 'neutral',
   trend,
   trendComparison,
+  footer,
+  href,
 }: {
   label: string;
   value: string;
@@ -124,11 +126,15 @@ export function StatCard({
   tone?: Tone;
   trend?: Trend | null;
   trendComparison?: string;
+  /** Extra content under the figures, e.g. a sparkline. */
+  footer?: React.ReactNode;
+  /** Makes the whole card a link. Omit when the user cannot open the destination. */
+  href?: string;
 }) {
   const colors = TONE[tone];
-  return (
+  const card = (
     <div
-      className="flex min-w-0 flex-col rounded-lg border p-4"
+      className="flex h-full min-w-0 flex-col rounded-lg border p-4 transition-shadow"
       style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', boxShadow: 'var(--shadow-card)' }}
     >
       <div className="flex items-center gap-2">
@@ -138,6 +144,7 @@ export function StatCard({
         <p className="truncate text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
           {label}
         </p>
+        {href && <ArrowUpRight size={13} strokeWidth={1.8} className="ml-auto shrink-0 opacity-30 transition-opacity group-hover:opacity-80" />}
       </div>
       <p className="data-num mt-2.5 truncate text-xl font-semibold sm:text-2xl" style={{ color: 'var(--color-ink-900)' }}>
         {value}
@@ -148,7 +155,16 @@ export function StatCard({
         </p>
       )}
       {trend && trendComparison && <TrendPill trend={trend} comparison={trendComparison} />}
+      {footer && <div className="mt-3">{footer}</div>}
     </div>
+  );
+
+  if (!href) return card;
+
+  return (
+    <Link href={href} aria-label={`${label}: ${value}`} className="group block min-w-0 rounded-lg hover:[&>div]:shadow-md">
+      {card}
+    </Link>
   );
 }
 
@@ -160,6 +176,7 @@ export function ListRow({
   value,
   valueTone,
   action,
+  href,
 }: {
   marker?: React.ReactNode;
   title: React.ReactNode;
@@ -167,9 +184,15 @@ export function ListRow({
   value: React.ReactNode;
   valueTone?: string;
   action?: React.ReactNode;
+  /** Makes the whole row a link. */
+  href?: string;
 }) {
-  return (
-    <div className="flex items-center gap-3 border-b py-2.5 last:border-b-0 last:pb-0" style={{ borderColor: 'var(--color-border)' }}>
+  const className = `flex items-center gap-3 border-b py-2.5 last:border-b-0 last:pb-0${
+    href ? ' -mx-2 rounded-md px-2 transition-colors hover:bg-[var(--color-bg)]' : ''
+  }`;
+
+  const content = (
+    <>
       {marker}
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm" style={{ color: 'var(--color-ink-900)' }}>
@@ -185,6 +208,20 @@ export function ListRow({
         {value}
       </span>
       {action}
+    </>
+  );
+
+  if (href) {
+    return (
+      <Link href={href} className={className} style={{ borderColor: 'var(--color-border)' }}>
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <div className={className} style={{ borderColor: 'var(--color-border)' }}>
+      {content}
     </div>
   );
 }
@@ -195,5 +232,47 @@ export function Badge({ label, tone }: { label: string; tone: Tone }) {
     <span className="rounded px-1.5 py-0.5 text-[11px] font-medium" style={{ backgroundColor: colors.soft, color: colors.fg }}>
       {label}
     </span>
+  );
+}
+
+/** Placeholder block. Pulses, unless the user has asked for reduced motion. */
+export function Skeleton({ className = '' }: { className?: string }) {
+  return (
+    <div
+      aria-hidden="true"
+      className={`animate-pulse rounded-lg motion-reduce:animate-none ${className}`}
+      style={{ backgroundColor: 'var(--color-border)' }}
+    />
+  );
+}
+
+/** Skeleton shaped like a SectionCard, so a loading section keeps its footprint. */
+export function SectionSkeleton({ heightClass = 'h-64' }: { heightClass?: string }) {
+  return (
+    <div
+      aria-hidden="true"
+      className="flex flex-col gap-4 rounded-lg border p-4 sm:p-5"
+      style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', boxShadow: 'var(--shadow-card)' }}
+    >
+      <div className="flex items-center gap-2.5">
+        <Skeleton className="h-7 w-7" />
+        <div className="flex flex-col gap-1.5">
+          <Skeleton className="h-3 w-28" />
+          <Skeleton className="h-2.5 w-40" />
+        </div>
+      </div>
+      <Skeleton className={`${heightClass} w-full`} />
+    </div>
+  );
+}
+
+export function EmptyState({ icon: Icon, line }: { icon: LucideIcon; line: string }) {
+  return (
+    <div className="flex flex-col items-center gap-1.5 py-8 text-center">
+      <Icon size={20} strokeWidth={1.5} style={{ color: 'var(--color-ink-400)' }} />
+      <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
+        {line}
+      </p>
+    </div>
   );
 }

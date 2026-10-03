@@ -31,6 +31,11 @@ export function StockLevelsTable({ onOpenProduct }: { onOpenProduct: (id: string
   const [lowOnly, setLowOnly] = useState(false);
   const [adjusting, setAdjusting] = useState<Product | null>(null);
 
+  // The dashboard links here with ?filter=low.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('filter') === 'low') setLowOnly(true);
+  }, []);
+
   async function load() {
     const list = await productsApi.list({ search: search || undefined, categoryId: categoryId || undefined });
     setProducts(list);

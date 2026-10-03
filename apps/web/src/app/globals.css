@@ -13,6 +13,7 @@
   --color-accent: #0559C9;
   --color-accent-hover: #0447A3;
   --color-accent-soft: #EAF1FD;
+  --color-on-accent: #FFFFFF;
 
   --color-status-ok: #0B9E6F;
   --color-status-okSoft: #E7F7F1;
@@ -47,6 +48,7 @@
   --color-accent: #4C8DF0;
   --color-accent-hover: #6AA5F5;
   --color-accent-soft: #16233A;
+  --color-on-accent: #0B0D10;
 
   --color-status-ok: #34D399;
   --color-status-okSoft: #10261F;

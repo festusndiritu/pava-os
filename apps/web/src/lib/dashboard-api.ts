@@ -16,8 +16,22 @@ export interface DashboardSummary {
     };
   };
 
+  /** Daily paid totals, oldest first, ending with today (business calendar). */
   chart?: {
     date: string;
+    total: number;
+  }[];
+
+  /** Open (invoiced, unpaid) documents — the true count and value. */
+  unpaid?: {
+    count: number;
+    total: number;
+  };
+
+  /** Payment split of paid sales over the last 30 days. */
+  paymentMix?: {
+    method: string;
+    count: number;
     total: number;
   }[];
 
@@ -40,6 +54,7 @@ export interface DashboardSummary {
   }[];
 
   lowStockCount?: number;
+  outOfStockCount?: number;
 
   outstandingCredit?: {
     total: number;

@@ -7,6 +7,63 @@ function has(role: Role, permissions: string[], allowed: Module[]) {
   return role === Role.ADMIN || allowed.some((m) => permissions.includes(m));
 }
 
+/**
+ * Every "day" on the dashboard is a business day, not a server day or a UTC
+ * day. Set BUSINESS_TIMEZONE (an IANA name) to change it; defaults to Nairobi.
+ */
+const BUSINESS_TZ = process.env.BUSINESS_TIMEZONE || 'Africa/Nairobi';
+
+/** Daily points returned for the trend chart (the web app slices 7 / 30 / 90 plus the period before). */
+const CHART_DAYS = 180;
+
+const dayParts = new Intl.DateTimeFormat('en-US', {
+  timeZone: BUSINESS_TZ,
+  hourCycle: 'h23',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+});
+
+function partsOf(at: Date) {
+  const out: Record<string, number> = {};
+  for (const part of dayParts.formatToParts(at)) {
+    if (part.type !== 'literal') out[part.type] = Number(part.value);
+  }
+  return out;
+}
+
+/** YYYY-MM-DD of `at` on the business calendar. */
+function dayKey(at: Date) {
+  const p = partsOf(at);
+  const mm = String(p.month).padStart(2, '0');
+  const dd = String(p.day).padStart(2, '0');
+  return `${p.year}-${mm}-${dd}`;
+}
+
+/** Calendar arithmetic on a YYYY-MM-DD key (no timezone involved). */
+function addDays(key: string, days: number) {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+function offsetMs(at: Date) {
+  const p = partsOf(at);
+  const asUtc = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+  return asUtc - Math.floor(at.getTime() / 1000) * 1000;
+}
+
+/** The instant a business day begins (00:00 in BUSINESS_TZ). */
+function startOfDay(key: string) {
+  const [y, m, d] = key.split('-').map(Number);
+  const guess = Date.UTC(y, m - 1, d);
+  let t = guess - offsetMs(new Date(guess));
+  t = guess - offsetMs(new Date(t)); // settle across a DST change
+  return new Date(t);
+}
+
 @Injectable()
 export class DashboardService {
   constructor(
@@ -20,21 +77,18 @@ export class DashboardService {
     const canSeeCredit = has(role, permissions, ['CUSTOMERS'] as Module[]);
     const canSeeProducts = has(role, permissions, ['PRODUCTS', 'MARKETING', 'ANALYTICS', 'REPORTS'] as Module[]);
 
-    const now = new Date();
+    const todayKey = dayKey(new Date());
+    const chartStartKey = addDays(todayKey, -(CHART_DAYS - 1));
 
-    const startOfToday = new Date(now);
-    startOfToday.setHours(0, 0, 0, 0);
-
-    const last7 = new Date(startOfToday);
-    last7.setDate(last7.getDate() - 6);
-
-    const last30 = new Date(startOfToday);
-    last30.setDate(last30.getDate() - 29);
+    const startOfToday = startOfDay(todayKey);
+    const last7 = startOfDay(addDays(todayKey, -6));
+    const last30 = startOfDay(addDays(todayKey, -29));
+    const chartStart = startOfDay(chartStartKey);
 
     const result: Record<string, unknown> = {};
 
     if (canSeeSales) {
-      const [today, week, month, recentSales, paidDocsForChart] = await Promise.all([
+      const [today, week, month, recentSales, paidDocsForChart, unpaid, paymentGroups] = await Promise.all([
         this.prisma.document.aggregate({
           where: {
             status: DocumentStatus.PAID,
@@ -83,29 +137,44 @@ export class DashboardService {
         this.prisma.document.findMany({
           where: {
             status: DocumentStatus.PAID,
-            paidAt: { gte: last30 },
+            paidAt: { gte: chartStart },
           },
           select: {
             total: true,
             paidAt: true,
           },
         }),
+
+        // Open (invoiced, unpaid) documents — the real count, not a count of
+        // whichever ten rows happen to be in "recent sales".
+        this.prisma.document.aggregate({
+          where: { status: DocumentStatus.INVOICED },
+          _sum: { total: true },
+          _count: true,
+        }),
+
+        // Payment split over the same 30 days as the stat cards.
+        this.prisma.document.groupBy({
+          by: ['paymentMethod'],
+          where: {
+            status: DocumentStatus.PAID,
+            paidAt: { gte: last30 },
+          },
+          _sum: { total: true },
+          _count: { _all: true },
+        }),
       ]);
 
       const byDay = new Map<string, number>();
 
-      for (let i = 0; i < 30; i++) {
-        const date = new Date(last30);
-        date.setDate(last30.getDate() + i);
-
-        const key = date.toISOString().slice(0, 10);
-        byDay.set(key, 0);
+      for (let i = 0; i < CHART_DAYS; i++) {
+        byDay.set(addDays(chartStartKey, i), 0);
       }
 
       for (const d of paidDocsForChart) {
         if (!d.paidAt) continue;
 
-        const key = d.paidAt.toISOString().slice(0, 10);
+        const key = dayKey(d.paidAt);
 
         if (byDay.has(key)) {
           byDay.set(key, (byDay.get(key) || 0) + d.total);
@@ -127,6 +196,22 @@ export class DashboardService {
         },
       };
 
+      result.unpaid = {
+        count: unpaid._count,
+        total: unpaid._sum.total || 0,
+      };
+
+      result.paymentMix = paymentGroups
+        .filter((g) => g.paymentMethod)
+        .map((g) => ({
+          method: String(g.paymentMethod),
+          count: g._count._all,
+          total: g._sum.total || 0,
+        }))
+        .sort((a, b) => b.total - a.total);
+
+      // Oldest first, ending with today (business calendar). The web app
+      // relies on that order instead of re-deriving day keys.
       result.chart = Array.from(byDay.entries())
         .sort(([a], [b]) => (a < b ? -1 : 1))
         .map(([date, total]) => ({
@@ -152,6 +237,7 @@ export class DashboardService {
       const lowStock = await this.lowStockItems();
 
       result.lowStockCount = lowStock.items.length;
+      result.outOfStockCount = lowStock.items.filter((i) => i.stockQuantity <= 0).length;
       result.lowStock = lowStock.items.slice(0, 10);
     }
 

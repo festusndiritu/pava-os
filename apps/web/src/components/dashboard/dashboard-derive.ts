@@ -1,15 +1,27 @@
 import type { ModuleKey } from '../../lib/constants';
 import type { DashboardSummary } from '../../lib/dashboard-api';
 
+import { money as moneyLabel } from '../../lib/format';
+
 export type ChartPoint = { date: string; total: number };
 
 export { money } from '../../lib/format';
 
+/**
+ * Accepts both full timestamps and the API's date-only chart keys. A bare
+ * "2026-10-03" is built as a local calendar date — `new Date('2026-10-03')`
+ * is UTC midnight and shows the previous day west of Greenwich.
+ */
 export function fmtDate(iso: string) {
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  const date = dateOnly
+    ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
+    : new Date(iso);
+
   return new Intl.DateTimeFormat(undefined, {
     day: 'numeric',
     month: 'short',
-  }).format(new Date(iso));
+  }).format(date);
 }
 
 export function plural(n: number, one: string, many = `${one}s`) {
@@ -26,6 +38,15 @@ export function greetingFor(date: Date = new Date()) {
 export function firstName(fullName: string) {
   const first = fullName.trim().split(/\s+/)[0];
   return first || fullName;
+}
+
+export function timeAgo(then: number, now: number) {
+  const seconds = Math.max(0, Math.round((now - then) / 1000));
+  if (seconds < 45) return 'just now';
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  return `${hours} h ago`;
 }
 
 export interface Trend {
@@ -51,58 +72,47 @@ export function trendBetween(current: number, previous: number): Trend | null {
   };
 }
 
-// The API builds its chart keys from `paidAt.toISOString().slice(0, 10)`, so
-// every comparison below is done on the same UTC day boundary. Mixing in a
-// local-midnight key would silently shift sales made late in the evening.
-function utcDayKey(daysAgo: number, now: Date) {
-  const d = new Date(now);
-  d.setUTCDate(d.getUTCDate() - daysAgo);
-  return d.toISOString().slice(0, 10);
+const sum = (points: ChartPoint[]) => points.reduce((total, p) => total + p.total, 0);
+
+// The API returns the chart oldest-first and ending with today on the
+// business calendar, so "today" is the last point and "yesterday" the one
+// before it — no day keys to rebuild (and get wrong) on the client.
+export function dayOverDay(chart: ChartPoint[] | undefined) {
+  if (!chart || chart.length < 2) return null;
+
+  const today = chart[chart.length - 1].total;
+  const yesterday = chart[chart.length - 2].total;
+
+  return { today, yesterday, trend: trendBetween(today, yesterday) };
 }
 
-function keyedTotals(chart: ChartPoint[]) {
-  const map = new Map<string, number>();
-
-  for (const point of chart) {
-    map.set(point.date, point.total);
-  }
-
-  return map;
-}
-
-export function dayOverDay(chart: ChartPoint[] | undefined, now = new Date()) {
+export function weekOverWeek(chart: ChartPoint[] | undefined) {
   if (!chart || chart.length === 0) return null;
 
-  const totals = keyedTotals(chart);
-  const today = totals.get(utcDayKey(0, now)) ?? 0;
-  const yesterday = totals.get(utcDayKey(1, now)) ?? 0;
+  const current = sum(chart.slice(-7));
+  const previous = sum(chart.slice(-14, -7));
 
-  return {
-    today,
-    yesterday,
-    trend: trendBetween(today, yesterday),
-  };
+  return { current, previous, trend: trendBetween(current, previous) };
 }
 
-export function weekOverWeek(chart: ChartPoint[] | undefined, now = new Date()) {
-  if (!chart || chart.length === 0) return null;
+/**
+ * The last `days` points, the `days` before them, and their totals. The
+ * previous period only counts as comparable when it is complete and non-empty.
+ */
+export function splitPeriods(chart: ChartPoint[], days: number) {
+  const current = chart.slice(-days);
+  const earlier = chart.slice(-days * 2, -days);
 
-  const totals = keyedTotals(chart);
-  let current = 0;
-  let previous = 0;
-
-  for (let i = 0; i < 7; i++) {
-    current += totals.get(utcDayKey(i, now)) ?? 0;
-  }
-
-  for (let i = 7; i < 14; i++) {
-    previous += totals.get(utcDayKey(i, now)) ?? 0;
-  }
+  const total = sum(current);
+  const previousTotal = sum(earlier);
+  const comparable = earlier.length === current.length && previousTotal > 0;
 
   return {
     current,
-    previous,
-    trend: trendBetween(current, previous),
+    previous: comparable ? earlier : [],
+    total,
+    previousTotal,
+    trend: comparable ? trendBetween(total, previousTotal) : null,
   };
 }
 
@@ -114,6 +124,7 @@ export interface AttentionItem {
   label: string;
   tone: AttentionTone;
   href: string;
+  /** Module the destination page needs — the caller drops the link if the user lacks it. */
   module: ModuleKey;
 }
 
@@ -127,75 +138,41 @@ export function attentionItems(data: DashboardSummary | null): AttentionItem[] {
 
   const items: AttentionItem[] = [];
 
-  // The API returns the full low-stock count separately
+  // The API returns the full low-stock count separately from the
+  // ten low-stock rows displayed on the dashboard.
   const lowStockCount = data.lowStockCount ?? 0;
+  const outOfStock = data.outOfStockCount ?? 0;
 
   if (lowStockCount > 0) {
     items.push({
       id: 'low-stock',
       icon: 'stock',
-      label: `${lowStockCount} ${plural(lowStockCount, 'item')} running low`,
-      tone: 'warn',
-      href: '/inventory',
+      label:
+        `${lowStockCount} ${plural(lowStockCount, 'item')} running low` +
+        (outOfStock > 0 ? ` · ${outOfStock} out of stock` : ''),
+      tone: outOfStock > 0 ? 'bad' : 'warn',
+      href: '/inventory?filter=low',
       module: 'INVENTORY',
     });
   }
 
-  const recent = data.recentSales;
+  if (data.unpaid && data.unpaid.count > 0) {
+    const { count, total } = data.unpaid;
 
-  if (recent && recent.length > 0) {
-    const unpaid = recent.filter((s) => s.status === 'INVOICED').length;
-
-    if (unpaid > 0) {
-      items.push({
-        id: 'unpaid',
-        icon: 'invoice',
-        label: `${unpaid} sale${unpaid === 1 ? '' : 's'} still to be settled today`,
-        tone: 'warn',
-        href: '/invoices',
-        module: 'INVOICES',
-      });
-    }
+    items.push({
+      id: 'unpaid',
+      icon: 'invoice',
+      label: `${count} unpaid ${plural(count, 'invoice')} · ${moneyLabel(total)}`,
+      tone: 'warn',
+      href: '/invoices',
+      module: 'INVOICES',
+    });
   }
 
   return items;
 }
 
-export interface PaymentSlice {
-  method: string;
-  count: number;
-  total: number;
-}
-
-/**
- * Payment split of the sales the summary actually returns.
- * It is not a 30-day share.
- */
-export function paymentMix(
-  recentSales: DashboardSummary['recentSales'],
-): PaymentSlice[] {
-  if (!recentSales || recentSales.length === 0) return [];
-
-  const byMethod = new Map<string, PaymentSlice>();
-
-  for (const sale of recentSales) {
-    if (!sale.paymentMethod) continue;
-
-    const existing =
-      byMethod.get(sale.paymentMethod) ?? {
-        method: sale.paymentMethod,
-        count: 0,
-        total: 0,
-      };
-
-    existing.count += 1;
-    existing.total += sale.total;
-
-    byMethod.set(sale.paymentMethod, existing);
-  }
-
-  return Array.from(byMethod.values()).sort((a, b) => b.total - a.total);
-}
+export type PaymentSlice = NonNullable<DashboardSummary['paymentMix']>[number];
 
 const PAYMENT_LABELS: Record<string, string> = {
   CASH: 'Cash',
