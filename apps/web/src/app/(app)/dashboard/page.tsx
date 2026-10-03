@@ -1,14 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import type { LucideIcon } from 'lucide-react';
 import {
   AlertTriangle,
   Boxes,
   CalendarRange,
   ExternalLink,
-  Package,
   Receipt,
   ShoppingCart,
   TrendingUp,
@@ -57,26 +55,7 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 p-4 sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <OverviewHeader userName={user.name} data={data} hasPermission={hasPermission} />
-        </div>
-
-        {hasPermission('INVENTORY') && (
-          <Link
-            href="/inventory"
-            className="flex min-h-9 items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium"
-            style={{
-              borderColor: 'var(--color-border)',
-              color: 'var(--color-ink-900)',
-              backgroundColor: 'var(--color-surface)',
-            }}
-          >
-            <Package size={15} strokeWidth={2} />
-            Receive stock
-          </Link>
-        )}
-      </div>
+      <OverviewHeader userName={user.name} data={data} hasPermission={hasPermission} />
 
       {!data && (
         <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 xl:grid-cols-4">

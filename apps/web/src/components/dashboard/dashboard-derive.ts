@@ -114,7 +114,6 @@ export interface AttentionItem {
   label: string;
   tone: AttentionTone;
   href: string;
-  /** Module the destination page needs — the caller drops the link if the user lacks it. */
   module: ModuleKey;
 }
 
@@ -128,15 +127,14 @@ export function attentionItems(data: DashboardSummary | null): AttentionItem[] {
 
   const items: AttentionItem[] = [];
 
-  // The API returns the full low-stock count separately from the
-  // ten low-stock rows displayed on the dashboard.
+  // The API returns the full low-stock count separately
   const lowStockCount = data.lowStockCount ?? 0;
 
   if (lowStockCount > 0) {
     items.push({
       id: 'low-stock',
       icon: 'stock',
-      label: `${lowStockCount} ${plural(lowStockCount, 'product')} running low`,
+      label: `${lowStockCount} ${plural(lowStockCount, 'item')} running low`,
       tone: 'warn',
       href: '/inventory',
       module: 'INVENTORY',
