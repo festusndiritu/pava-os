@@ -12,7 +12,8 @@ const INCLUDE = {
   aliases: { select: { id: true, term: true } },
 } as const;
 
-export type StockFilter = 'in' | 'low' | 'out';
+// restock = at or below the low-stock threshold (low + out), what "needs ordering" means.
+export type StockFilter = 'in' | 'low' | 'out' | 'restock';
 export type ProductSort = 'name' | 'price_asc' | 'price_desc' | 'stock_asc' | 'stock_desc' | 'newest';
 
 // `id` is the tiebreaker so paging by offset never skips or repeats a row.
@@ -94,9 +95,14 @@ export class ProductsService {
     let stockWhere = {};
     if (stock === 'out') {
       stockWhere = { stockQuantity: { lte: 0 } };
-    } else if (stock === 'low' || stock === 'in') {
+    } else if (stock === 'low' || stock === 'in' || stock === 'restock') {
       const { lowStockThreshold } = await this.settings.get();
-      stockWhere = stock === 'low' ? { stockQuantity: { gt: 0, lte: lowStockThreshold } } : { stockQuantity: { gt: lowStockThreshold } };
+      stockWhere =
+        stock === 'low'
+          ? { stockQuantity: { gt: 0, lte: lowStockThreshold } }
+          : stock === 'restock'
+            ? { stockQuantity: { lte: lowStockThreshold } }
+            : { stockQuantity: { gt: lowStockThreshold } };
     }
 
     const baseWhere = {

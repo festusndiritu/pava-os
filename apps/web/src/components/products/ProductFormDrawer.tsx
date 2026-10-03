@@ -5,11 +5,13 @@ import Link from 'next/link';
 import { X } from 'lucide-react';
 import { Drawer } from '../ui/Drawer';
 import { InlineAddSelect } from '../ui/InlineAddSelect';
-import { productsApi, type Brand, type Category, type Product, type ProductFamily, type Unit } from '../../lib/products-api';
+import { inventoryApi, productsApi, type Brand, type Category, type Product, type ProductFamily, type Unit } from '../../lib/products-api';
 import { SHAPES, shapeConfig } from '../../lib/shape-config';
 import { ApiError } from '../../lib/api';
 import { NumericInput, toNumber } from '../ui/inputs';
 import { toast } from '../ui/Toast';
+import { useAuth } from '../../lib/auth-context';
+import { useDebounced } from '../../lib/use-paged-list';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
 const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase';
@@ -74,6 +76,7 @@ export function ProductFormDrawer({
   onClose,
   onSaved,
   product,
+  duplicateFrom,
   brands,
   categories,
   units,
@@ -85,6 +88,8 @@ export function ProductFormDrawer({
   onClose: () => void;
   onSaved: () => void;
   product: Product | null; // null = creating
+  /** When creating, start from this product's details (name and aliases are left for the person to fill in). */
+  duplicateFrom?: Product | null;
   brands: Brand[];
   categories: Category[];
   units: Unit[];
@@ -93,6 +98,8 @@ export function ProductFormDrawer({
   onCreateCategory: (name: string) => Promise<Category>;
 }) {
   const isEdit = !!product;
+  const { hasPermission } = useAuth();
+  const canOpenStock = hasPermission('INVENTORY');
 
   const [name, setName] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -111,30 +118,38 @@ export function ProductFormDrawer({
   const [basePrice, setBasePrice] = useState('');
   const [stockStatus, setStockStatus] = useState<'IN_STOCK' | 'SUPPLIER_ONLY' | 'OUT_OF_STOCK'>('IN_STOCK');
   const [active, setActive] = useState(true);
+  const [openingQty, setOpeningQty] = useState('');
+  const [openingCost, setOpeningCost] = useState('');
+  const [sameName, setSameName] = useState<Product | null>(null);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    if (product) {
-      setName(product.name);
-      setDisplayName(product.displayName ?? '');
-      setSpec(product.spec ?? '');
-      setBrandId(product.brandId ?? '');
-      setCategoryId(product.categoryId ?? '');
-      setUnitId(product.unitId);
-      setShape(product.shape ?? '');
-      setNominalSize(product.nominalSize ?? '');
-      setWidthMm(product.widthMm != null ? String(product.widthMm) : '');
-      setHeightMm(product.heightMm != null ? String(product.heightMm) : '');
-      setThicknessMm(product.thicknessMm ?? null);
-      setMaterial(product.material ?? 'STEEL');
-      setFamilyId(product.familyId ?? '');
-      setAliases(product.aliases.map((a) => a.term));
-      setBasePrice(String(product.basePrice));
-      setStockStatus(product.stockStatus);
-      setActive(product.active);
+    setOpeningQty('');
+    setOpeningCost('');
+    const source = product ?? duplicateFrom ?? null;
+    if (source) {
+      // A copy keeps the shape of the original so a run of similar sizes is quick
+      // to enter, but not its name or aliases: those identify one specific product.
+      setName(product ? source.name : '');
+      setDisplayName(product ? (source.displayName ?? '') : '');
+      setSpec(source.spec ?? '');
+      setBrandId(source.brandId ?? '');
+      setCategoryId(source.categoryId ?? '');
+      setUnitId(source.unitId);
+      setShape(source.shape ?? '');
+      setNominalSize(source.nominalSize ?? '');
+      setWidthMm(source.widthMm != null ? String(source.widthMm) : '');
+      setHeightMm(source.heightMm != null ? String(source.heightMm) : '');
+      setThicknessMm(source.thicknessMm ?? null);
+      setMaterial(source.material ?? 'STEEL');
+      setFamilyId(source.familyId ?? '');
+      setAliases(product ? source.aliases.map((a) => a.term) : []);
+      setBasePrice(String(source.basePrice));
+      setStockStatus(product ? source.stockStatus : 'IN_STOCK');
+      setActive(product ? source.active : true);
     } else {
       setName('');
       setDisplayName('');
@@ -155,14 +170,42 @@ export function ProductFormDrawer({
       setActive(true);
     }
     setError(null);
-  }, [open, product, units]);
+  }, [open, product, duplicateFrom, units]);
+
+  // Two products with the same technical name are almost always a double entry.
+  // Not blocked (a genuine repeat is possible), just pointed out before saving.
+  const debouncedName = useDebounced(name.trim());
+  useEffect(() => {
+    setSameName(null);
+    if (!open || isEdit || debouncedName.length < 3) return;
+    let stale = false;
+    productsApi
+      .list({ search: debouncedName, status: 'all', limit: 20 })
+      .then((rows) => {
+        if (!stale) setSameName(rows.find((r) => r.name.trim().toLowerCase() === debouncedName.toLowerCase()) ?? null);
+      })
+      .catch(() => {});
+    return () => {
+      stale = true;
+    };
+  }, [debouncedName, open, isEdit]);
 
   const cfg = shapeConfig(shape);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    setSaving(true);
     setError(null);
+    if (!(toNumber(basePrice) && toNumber(basePrice)! > 0)) {
+      setError('Enter a selling price above zero.');
+      return;
+    }
+    const qty = toNumber(openingQty);
+    const cost = toNumber(openingCost);
+    if (!isEdit && qty && !cost) {
+      setError('Enter what the opening stock cost per unit, so it can be valued.');
+      return;
+    }
+    setSaving(true);
     try {
       const gaugeOption = cfg?.thicknessOptions.find((o) => o.mm === thicknessMm);
       const payload = {
@@ -188,7 +231,18 @@ export function ProductFormDrawer({
       if (isEdit && product) {
         await productsApi.update(product.id, payload);
       } else {
-        await productsApi.create(payload);
+        const created = await productsApi.create(payload);
+        if (qty && cost) {
+          try {
+            await inventoryApi.openingBalance({ productId: created.id, quantity: qty, unitCost: cost });
+          } catch (err) {
+            // The product exists now; losing the whole form over the stock half would be worse.
+            toast.error(`Product saved, but opening stock wasn’t added${err instanceof ApiError ? `: ${err.message}` : ''}. Add it with Adjust stock.`);
+            onSaved();
+            onClose();
+            return;
+          }
+        }
       }
       toast.success('Product saved');
       onSaved();
@@ -205,8 +259,8 @@ export function ProductFormDrawer({
       guardUnsaved
       open={open}
       onClose={onClose}
-      title={isEdit ? 'Edit product' : 'Add product'}
-      subtitle={isEdit ? product?.name : 'Technical identity, dimensions, and customer-facing details'}
+      title={isEdit ? 'Edit product' : duplicateFrom ? 'Duplicate product' : 'Add product'}
+      subtitle={isEdit ? product?.name : duplicateFrom ? `Starting from ${duplicateFrom.name}. Give it its own name and price.` : 'Technical identity, dimensions, and customer-facing details'}
       footer={
         <div className="flex items-center gap-3">
           <button
@@ -240,6 +294,11 @@ export function ProductFormDrawer({
               className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]"
               style={inputStyle}
             />
+            {sameName && (
+              <p className="mt-1 text-xs" role="status" style={{ color: 'var(--color-status-warn)' }}>
+                A product called “{sameName.name}” already exists{sameName.active ? '' : ' (archived)'}. Save only if this is a different item.
+              </p>
+            )}
           </div>
           <div>
             <label htmlFor="productformdrawer-spec-grade-note" className={labelClass} style={labelStyle}>
@@ -459,7 +518,7 @@ export function ProductFormDrawer({
             </div>
             <div>
               <label htmlFor="productformdrawer-stock-status" className={labelClass} style={labelStyle}>
-                Stock status
+                Availability
               </label>
               <select id="productformdrawer-stock-status"
                 value={stockStatus}
@@ -471,6 +530,9 @@ export function ProductFormDrawer({
                 <option value="SUPPLIER_ONLY">Supplier only</option>
                 <option value="OUT_OF_STOCK">Out of stock</option>
               </select>
+              <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>
+                “In stock” follows the real count. The other two override it.
+              </p>
             </div>
           </div>
 
@@ -481,6 +543,28 @@ export function ProductFormDrawer({
             </label>
           )}
         </Section>
+
+        {!isEdit && canOpenStock && (
+          <Section title="Opening stock (optional)">
+            <p className="text-xs" style={{ color: 'var(--color-ink-600)' }}>
+              Already have this on the shelf? Enter what you hold and what it cost per unit. Otherwise leave it blank and receive stock later.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="productformdrawer-opening-qty" className={labelClass} style={labelStyle}>
+                  Quantity on hand
+                </label>
+                <NumericInput id="productformdrawer-opening-qty" value={openingQty} onChange={setOpeningQty} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)] data-num" style={inputStyle} />
+              </div>
+              <div>
+                <label htmlFor="productformdrawer-opening-cost" className={labelClass} style={labelStyle}>
+                  Cost per unit (KSh)
+                </label>
+                <NumericInput id="productformdrawer-opening-cost" value={openingCost} onChange={setOpeningCost} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)] data-num" style={inputStyle} />
+              </div>
+            </div>
+          </Section>
+        )}
       </form>
     </Drawer>
   );

@@ -33,7 +33,8 @@ export class ReceiveInventoryDto {
   lines!: ReceiveLineDto[];
 }
 
-const ADJUST_TYPES = ['ADJUSTMENT', 'CORRECTION', 'RETURN'] as const;
+// DAMAGE and LOSS only ever reduce stock; RETURN only ever adds it. The service enforces the direction.
+const ADJUST_TYPES = ['ADJUSTMENT', 'CORRECTION', 'RETURN', 'DAMAGE', 'LOSS'] as const;
 
 export class AdjustInventoryDto {
   @IsString()
@@ -52,6 +53,12 @@ export class AdjustInventoryDto {
   @IsOptional()
   @IsBoolean()
   allowNegative?: boolean;
+
+  // What the added units cost, per unit. Only used when quantity > 0; without
+  // it the new lot is costed at the product's last known cost (or 0 if none).
+  @IsOptional()
+  @IsMoney()
+  unitCost?: number;
 }
 
 export class OpeningBalanceDto {

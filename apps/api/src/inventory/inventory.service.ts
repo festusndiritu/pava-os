@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { MovementType } from '../../generated/prisma/client.js';
 import { roundMoney } from '../common/money.js';
+import { SettingsService } from '../settings/settings.service.js';
 
 // Simple markup-preserving suggestion for the "update selling price?" prompt
 // on receiving (brief §23) — not a general rounding/pricing engine (that's
@@ -19,12 +20,23 @@ interface ReceiveLine {
   unitCost: number;
 }
 
+// Receipts that exist only to give a stock change a cost lot. They are real
+// rows (FIFO needs a batch to hang off) but not supplier deliveries, so the
+// receipts log can tell them apart from goods actually received.
+const OPENING_SUPPLIER = 'Opening Balance';
+const ADJUSTMENT_SUPPLIER = 'Stock adjustment';
+const RETURN_SUPPLIER = 'Customer return';
+const SYSTEM_SUPPLIERS = [OPENING_SUPPLIER, ADJUSTMENT_SUPPLIER, RETURN_SUPPLIER];
+
+type AdjustType = 'ADJUSTMENT' | 'CORRECTION' | 'RETURN' | 'DAMAGE' | 'LOSS';
+
 interface AdjustInput {
   productId: string;
   quantity: number; // signed
-  type: 'ADJUSTMENT' | 'CORRECTION' | 'RETURN';
+  type: AdjustType;
   note?: string;
   allowNegative?: boolean;
+  unitCost?: number; // per-unit cost of added stock; ignored when reducing
 }
 
 @Injectable()
@@ -32,6 +44,7 @@ export class InventoryService {
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
+    private settings: SettingsService,
   ) {}
 
   async receive(
@@ -227,7 +240,7 @@ export class InventoryService {
       const cost = product.lastCost ?? 0;
 
       const receipt = await tx.inventoryReceipt.create({
-        data: { supplier: 'Customer return', notes: note, receivedById: createdById },
+        data: { supplier: RETURN_SUPPLIER, notes: note, receivedById: createdById },
       });
       const batch = await tx.inventoryBatch.create({
         data: { productId, receiptId: receipt.id, quantityReceived: quantity, remainingQuantity: quantity, unitCost: cost },
@@ -244,6 +257,12 @@ export class InventoryService {
 
   async adjust(input: AdjustInput, createdById: string) {
     if (!input.quantity) throw new BadRequestException('Quantity must not be zero');
+    if (input.quantity > 0 && (input.type === 'DAMAGE' || input.type === 'LOSS')) {
+      throw new BadRequestException('Damage and loss can only reduce stock');
+    }
+    if (input.quantity < 0 && input.type === 'RETURN') {
+      throw new BadRequestException('A customer return adds stock. Use a correction to take stock off.');
+    }
 
     const product = await this.prisma.product.findUnique({ where: { id: input.productId } });
     if (!product) throw new NotFoundException('Product not found');
@@ -252,12 +271,14 @@ export class InventoryService {
       // Adding stock outside a formal goods-received flow (a stocktake
       // correction, a manually-logged return). FIFO can only ever sell from
       // a real InventoryBatch, so this opens one the same way restock() and
-      // openingBalance() do — costed at the last known price since no new
-      // cost was actually paid here.
-      const cost = product.lastCost ?? 0;
+      // openingBalance() do. The caller can say what the units cost; without
+      // that it falls back to the last known cost, and a product that has
+      // never had one gets a zero-cost lot (which valuation and margins then
+      // treat as "no cost on record").
+      const cost = input.unitCost || product.lastCost || 0;
       const movement = await this.prisma.$transaction(async (tx) => {
         const receipt = await tx.inventoryReceipt.create({
-          data: { supplier: 'Stock adjustment', notes: input.note, receivedById: createdById },
+          data: { supplier: ADJUSTMENT_SUPPLIER, notes: input.note, receivedById: createdById },
         });
         const batch = await tx.inventoryBatch.create({
           data: { productId: input.productId, receiptId: receipt.id, quantityReceived: input.quantity, remainingQuantity: input.quantity, unitCost: cost },
@@ -265,7 +286,14 @@ export class InventoryService {
         const created = await tx.inventoryMovement.create({
           data: { productId: input.productId, batchId: batch.id, type: input.type as MovementType, quantity: input.quantity, unitCost: cost, note: input.note, createdById },
         });
-        await tx.product.update({ where: { id: input.productId }, data: { stockQuantity: { increment: input.quantity } } });
+        await tx.product.update({
+          where: { id: input.productId },
+          data: {
+            stockQuantity: { increment: input.quantity },
+            // First real cost for a product that had none becomes its last cost.
+            ...(input.unitCost && input.unitCost > 0 && !product.lastCost ? { lastCost: input.unitCost } : {}),
+          },
+        });
         return created;
       });
 
@@ -274,7 +302,7 @@ export class InventoryService {
         action: 'inventory.adjusted',
         entityType: 'Product',
         entityId: input.productId,
-        metadata: { type: input.type, quantity: input.quantity, note: input.note },
+        metadata: { type: input.type, quantity: input.quantity, note: input.note, unitCost: input.unitCost },
       });
       return movement;
     }
@@ -302,7 +330,7 @@ export class InventoryService {
     const { shortfall } = await this.consumeFifo(
       input.productId,
       decrease,
-      input.type as 'ADJUSTMENT' | 'CORRECTION',
+      input.type as 'ADJUSTMENT' | 'CORRECTION' | 'DAMAGE' | 'LOSS',
       createdById,
       input.note,
       input.allowNegative,
@@ -326,7 +354,7 @@ export class InventoryService {
   async openingBalance(productId: string, quantity: number, unitCost: number, createdById: string) {
     return this.prisma.$transaction(async (tx) => {
       const receipt = await tx.inventoryReceipt.create({
-        data: { supplier: 'Opening Balance', receivedById: createdById },
+        data: { supplier: OPENING_SUPPLIER, receivedById: createdById },
       });
       const batch = await tx.inventoryBatch.create({
         data: { productId, receiptId: receipt.id, quantityReceived: quantity, remainingQuantity: quantity, unitCost },
@@ -355,15 +383,108 @@ export class InventoryService {
     return { ...movement, unitCost: undefined as unknown as number | null };
   }
 
-  async receipts(canViewCost: boolean) {
+  async receipts(
+    canViewCost: boolean,
+    params: { search?: string; kind?: 'delivery' | 'other'; limit?: number; offset?: number } = {},
+  ) {
+    const { search, kind, limit, offset = 0 } = params;
+    const term = search?.trim();
     const receipts = await this.prisma.inventoryReceipt.findMany({
+      where: {
+        ...(kind === 'delivery' ? { supplier: { notIn: SYSTEM_SUPPLIERS } } : {}),
+        ...(kind === 'other' ? { supplier: { in: SYSTEM_SUPPLIERS } } : {}),
+        ...(term
+          ? {
+              OR: [
+                { supplier: { contains: term, mode: 'insensitive' as const } },
+                { reference: { contains: term, mode: 'insensitive' as const } },
+                {
+                  batches: {
+                    some: {
+                      product: {
+                        OR: [
+                          { name: { contains: term, mode: 'insensitive' as const } },
+                          { displayName: { contains: term, mode: 'insensitive' as const } },
+                        ],
+                      },
+                    },
+                  },
+                },
+              ],
+            }
+          : {}),
+      },
       include: {
         receivedBy: { select: { name: true } },
         batches: { include: { product: { select: { id: true, name: true, displayName: true } } } },
       },
-      orderBy: { receivedAt: 'desc' },
+      // id breaks ties so paging by offset never skips or repeats a row.
+      orderBy: [{ receivedAt: 'desc' }, { id: 'desc' }],
+      ...(limit ? { take: limit, skip: offset } : {}),
     });
     return receipts.map((r) => ({ ...r, batches: r.batches.map((b) => this.redactBatchCost(b, canViewCost)) }));
+  }
+
+  // The numbers behind the Inventory header: how healthy stock is, and what it
+  // is worth. Value at cost walks the live FIFO lots; a lot costed at zero (stock
+  // added by an adjustment on a product that never had a cost) falls back to the
+  // product's last cost, and stock with no lot at all is valued the same way.
+  // Anything still without a cost is counted separately rather than silently
+  // reading as free. Uses the global low-stock threshold, same as the stock
+  // filters; per-family thresholds are not applied here.
+  async summary(canViewCost: boolean) {
+    const { lowStockThreshold } = await this.settings.get();
+    const [products, batches] = await Promise.all([
+      this.prisma.product.findMany({
+        where: { active: true },
+        select: { id: true, stockQuantity: true, lastCost: true, basePrice: true },
+      }),
+      this.prisma.inventoryBatch.findMany({
+        where: { remainingQuantity: { gt: 0 }, product: { active: true } },
+        select: { productId: true, remainingQuantity: true, unitCost: true },
+      }),
+    ]);
+
+    const lots = new Map<string, { units: number; value: number; uncosted: number }>();
+    const lastCostOf = new Map(products.map((p) => [p.id, p.lastCost ?? 0]));
+    for (const b of batches) {
+      const cost = b.unitCost > 0 ? b.unitCost : (lastCostOf.get(b.productId) ?? 0);
+      const lot = lots.get(b.productId) ?? { units: 0, value: 0, uncosted: 0 };
+      lot.units += b.remainingQuantity;
+      lot.value += b.remainingQuantity * cost;
+      if (cost === 0) lot.uncosted += b.remainingQuantity;
+      lots.set(b.productId, lot);
+    }
+
+    let inStockCount = 0;
+    let lowCount = 0;
+    let outCount = 0;
+    let retailValue = 0;
+    let costValue = 0;
+    let uncostedProducts = 0;
+    for (const p of products) {
+      if (p.stockQuantity <= 0) outCount++;
+      else if (p.stockQuantity <= lowStockThreshold) lowCount++;
+      else inStockCount++;
+      if (p.stockQuantity > 0) retailValue += p.stockQuantity * p.basePrice;
+
+      const lot = lots.get(p.id) ?? { units: 0, value: 0, uncosted: 0 };
+      const unbatched = Math.max(0, p.stockQuantity - lot.units);
+      const lastCost = p.lastCost ?? 0;
+      costValue += lot.value + unbatched * lastCost;
+      if (lot.uncosted > 0 || (unbatched > 0 && lastCost === 0)) uncostedProducts++;
+    }
+
+    return {
+      productCount: products.length,
+      inStockCount,
+      lowCount,
+      outCount,
+      lowStockThreshold,
+      retailValue,
+      costValue: canViewCost ? costValue : null,
+      uncostedProducts: canViewCost ? uncostedProducts : null,
+    };
   }
 
   async receiptDetail(id: string, canViewCost: boolean) {

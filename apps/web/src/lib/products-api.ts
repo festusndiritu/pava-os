@@ -105,6 +105,21 @@ export interface InventoryReceipt {
   batches: { id: string; quantityReceived: number; unitCost: number; product: { id: string; name: string; displayName: string | null } }[];
 }
 
+export type ReceiptKind = 'delivery' | 'other';
+export type AdjustType = 'ADJUSTMENT' | 'CORRECTION' | 'RETURN' | 'DAMAGE' | 'LOSS';
+
+export interface InventorySummary {
+  productCount: number;
+  inStockCount: number;
+  lowCount: number;
+  outCount: number;
+  lowStockThreshold: number;
+  retailValue: number;
+  // null when the viewer can't see cost.
+  costValue: number | null;
+  uncostedProducts: number | null;
+}
+
 export interface ReceiveLineResult {
   productId: string;
   productName: string;
@@ -114,7 +129,8 @@ export interface ReceiveLineResult {
 }
 
 export type CatalogueStatus = 'active' | 'archived' | 'all';
-export type StockFilter = 'in' | 'low' | 'out';
+// restock = at or below the low-stock threshold (low and out together).
+export type StockFilter = 'in' | 'low' | 'out' | 'restock';
 export type ProductSort = 'name' | 'price_asc' | 'price_desc' | 'stock_asc' | 'stock_desc' | 'newest';
 
 export const productsApi = {
@@ -165,12 +181,23 @@ export const productsApi = {
 };
 
 export const inventoryApi = {
-  receipts: () => api.get<InventoryReceipt[]>('/inventory/receipts'),
+  receipts: (params: { search?: string; kind?: ReceiptKind; limit?: number; offset?: number } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.search) qs.set('search', params.search);
+    if (params.kind) qs.set('kind', params.kind);
+    if (params.limit) qs.set('limit', String(params.limit));
+    if (params.offset) qs.set('offset', String(params.offset));
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return api.get<InventoryReceipt[]>(`/inventory/receipts${suffix}`);
+  },
+  summary: () => api.get<InventorySummary>('/inventory/summary'),
   receiptDetail: (id: string) => api.get<InventoryReceipt>(`/inventory/receipts/${id}`),
   receive: (data: { supplier: string; reference?: string; notes?: string; lines: { productId: string; quantity: number; unitCost: number }[] }) =>
     api.post<{ receipt: InventoryReceipt; lines: ReceiveLineResult[] }>('/inventory/receipts', data),
-  adjust: (data: { productId: string; quantity: number; type: 'ADJUSTMENT' | 'CORRECTION' | 'RETURN'; note?: string; allowNegative?: boolean }) =>
+  adjust: (data: { productId: string; quantity: number; type: AdjustType; note?: string; allowNegative?: boolean; unitCost?: number }) =>
     api.post<{ id: string }>('/inventory/adjustments', data),
+  // Seeds stock a product already has when it is first entered, with a real cost lot behind it.
+  openingBalance: (data: { productId: string; quantity: number; unitCost: number }) => api.post<{ id: string }>('/inventory/opening-balance', data),
   batches: (productId: string) => api.get<InventoryBatch[]>(`/inventory/batches?productId=${productId}`),
   movements: (productId: string) => api.get<InventoryMovement[]>(`/inventory/movements?productId=${productId}`),
 };
