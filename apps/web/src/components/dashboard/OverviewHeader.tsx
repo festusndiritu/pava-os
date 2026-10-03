@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from 'recharts';
+import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { LucideIcon } from 'lucide-react';
 import {
   AlertTriangle,
@@ -178,6 +178,8 @@ function WeekSparkline({
                 <stop offset="100%" style={{ stopColor: 'var(--color-accent)', stopOpacity: 0 }} />
               </linearGradient>
             </defs>
+            {/* Hidden, but it tells the tooltip to label points by date rather than by index. */}
+            <XAxis dataKey="date" hide />
             <YAxis hide domain={[0, 'dataMax']} />
             <Tooltip
               formatter={(v: number) => money(v)}
