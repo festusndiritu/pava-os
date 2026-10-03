@@ -1,6 +1,6 @@
 'use client';
 
-import { Bar, BarChart, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Area, AreaChart, Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { BarChart3, PieChart as PieChartIcon, TrendingUp } from 'lucide-react';
 import type { DashboardSummary } from '../../lib/dashboard-api';
 import { fmtDate, money, paymentColor, paymentLabel, paymentMix, plural, truncate, type ChartPoint } from './dashboard-derive';
@@ -21,7 +21,7 @@ function shortMoney(value: number) {
   return String(Math.round(value));
 }
 
-/** 30-day paid-sales line — the chart that already existed, given its own container. */
+/** 30-day paid-sales smooth area chart. */
 export function SalesTrendChart({ chart }: { chart: ChartPoint[] }) {
   return (
     <SectionCard
@@ -32,12 +32,18 @@ export function SalesTrendChart({ chart }: { chart: ChartPoint[] }) {
     >
       <div className="h-56 w-full sm:h-64">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={chart} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+          <AreaChart data={chart} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+            <defs>
+              <linearGradient id="sales-trend-fill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" style={{ stopColor: 'var(--color-accent)', stopOpacity: 0.35 }} />
+                <stop offset="100%" style={{ stopColor: 'var(--color-accent)', stopOpacity: 0.02 }} />
+              </linearGradient>
+            </defs>
             <XAxis dataKey="date" tickFormatter={fmtDate} tick={AXIS_TICK} axisLine={false} tickLine={false} minTickGap={24} />
             <YAxis tickFormatter={shortMoney} tick={AXIS_TICK} axisLine={false} tickLine={false} width={40} />
             <Tooltip formatter={(v: number) => money(v)} labelFormatter={fmtDate} contentStyle={TOOLTIP_STYLE} cursor={{ stroke: 'var(--color-border)' }} />
-            <Line type="monotone" dataKey="total" stroke="var(--color-accent)" strokeWidth={2} dot={false} />
-          </LineChart>
+            <Area type="monotone" dataKey="total" stroke="var(--color-accent)" strokeWidth={2} fill="url(#sales-trend-fill)" dot={false} activeDot={{ r: 4 }} />
+          </AreaChart>
         </ResponsiveContainer>
       </div>
     </SectionCard>
