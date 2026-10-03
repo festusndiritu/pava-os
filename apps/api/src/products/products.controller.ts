@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards, Delete } from '@nestjs/common';
 import { Role, Module } from '../../generated/prisma/client.js';
-import { ProductsService } from './products.service.js';
+import { ProductsService, type ProductSort, type StockFilter } from './products.service.js';
+import { parsePaging } from '../common/paging.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/roles.guard.js';
 import { Roles } from '../auth/roles.decorator.js';
@@ -21,9 +22,13 @@ export class ProductsController {
     @Query('categoryId') categoryId?: string,
     @Query('familyId') familyId?: string,
     @Query('status') status?: 'active' | 'archived' | 'all',
+    @Query('stock') stock?: StockFilter,
+    @Query('sort') sort?: ProductSort,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
   ) {
     const canViewCost = req.user.role === Role.ADMIN || !!req.user.canViewCost;
-    return this.products.findAll({ search, brandId, categoryId, familyId, canViewCost, status });
+    return this.products.findAll({ search, brandId, categoryId, familyId, canViewCost, status, stock, sort, ...parsePaging(limit, offset) });
   }
 
   @Get('families')

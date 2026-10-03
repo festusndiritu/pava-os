@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { normalizeSearchTerm, parseSearchHints } from './search-normalize.js';
+import { SettingsService } from '../settings/settings.service.js';
 
 const INCLUDE = {
   brand: true,
@@ -9,6 +10,19 @@ const INCLUDE = {
   unit: true,
   family: true,
   aliases: { select: { id: true, term: true } },
+} as const;
+
+export type StockFilter = 'in' | 'low' | 'out';
+export type ProductSort = 'name' | 'price_asc' | 'price_desc' | 'stock_asc' | 'stock_desc' | 'newest';
+
+// `id` is the tiebreaker so paging by offset never skips or repeats a row.
+const ORDER_BY = {
+  name: [{ name: 'asc' }, { id: 'asc' }],
+  price_asc: [{ basePrice: 'asc' }, { name: 'asc' }, { id: 'asc' }],
+  price_desc: [{ basePrice: 'desc' }, { name: 'asc' }, { id: 'asc' }],
+  stock_asc: [{ stockQuantity: 'asc' }, { name: 'asc' }, { id: 'asc' }],
+  stock_desc: [{ stockQuantity: 'desc' }, { name: 'asc' }, { id: 'asc' }],
+  newest: [{ createdAt: 'desc' }, { id: 'asc' }],
 } as const;
 
 interface ProductInput {
@@ -36,6 +50,7 @@ export class ProductsService {
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
+    private settings: SettingsService,
   ) {}
 
   // Cost/margin visibility is a permission axis separate from module access
@@ -66,19 +81,42 @@ export class ProductsService {
     familyId?: string;
     canViewCost: boolean;
     status?: 'active' | 'archived' | 'all';
+    stock?: StockFilter;
+    sort?: ProductSort;
+    limit?: number;
+    offset?: number;
   }) {
-    const { search, brandId, categoryId, familyId, canViewCost, status = 'active' } = params;
+    const { search, brandId, categoryId, familyId, canViewCost, status = 'active', stock, sort, limit, offset = 0 } = params;
+
+    // Stock buckets use the global low-stock threshold from Settings, the
+    // same one the dashboard and Inventory page use. (Per-family overrides
+    // are not applied here.)
+    let stockWhere = {};
+    if (stock === 'out') {
+      stockWhere = { stockQuantity: { lte: 0 } };
+    } else if (stock === 'low' || stock === 'in') {
+      const { lowStockThreshold } = await this.settings.get();
+      stockWhere = stock === 'low' ? { stockQuantity: { gt: 0, lte: lowStockThreshold } } : { stockQuantity: { gt: lowStockThreshold } };
+    }
 
     const baseWhere = {
       ...(status === 'all' ? {} : { active: status === 'archived' ? false : true }),
       ...(brandId ? { brandId } : {}),
       ...(categoryId ? { categoryId } : {}),
       ...(familyId ? { familyId } : {}),
+      ...stockWhere,
     };
 
+    const orderBy = ORDER_BY[sort && sort in ORDER_BY ? sort : 'name'] as any;
+
     if (!search) {
-      const all = await this.prisma.product.findMany({ where: baseWhere, include: INCLUDE, orderBy: { name: 'asc' } });
-      return all.map((p) => this.redactCost(p, canViewCost));
+      const rows = await this.prisma.product.findMany({
+        where: baseWhere,
+        include: INCLUDE,
+        orderBy,
+        ...(limit ? { take: limit, skip: offset } : {}),
+      });
+      return rows.map((p) => this.redactCost(p, canViewCost));
     }
 
     const normalized = normalizeSearchTerm(search);
@@ -120,9 +158,23 @@ export class ProductsService {
       return 4;
     }
 
-    return candidates
-      .sort((a, b) => score(a) - score(b) || a.name.localeCompare(b.name))
-      .map((p) => this.redactCost(p, canViewCost));
+    // Relevance stays the default while searching; an explicit sort wins.
+    const byExplicitSort = (a: (typeof candidates)[number], b: (typeof candidates)[number]) => {
+      switch (sort) {
+        case 'price_asc': return a.basePrice - b.basePrice;
+        case 'price_desc': return b.basePrice - a.basePrice;
+        case 'stock_asc': return a.stockQuantity - b.stockQuantity;
+        case 'stock_desc': return b.stockQuantity - a.stockQuantity;
+        case 'newest': return b.createdAt.getTime() - a.createdAt.getTime();
+        default: return 0;
+      }
+    };
+
+    const ranked = candidates.sort((a, b) =>
+      (sort && sort !== 'name' ? byExplicitSort(a, b) : 0) || score(a) - score(b) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id),
+    );
+
+    return (limit ? ranked.slice(offset, offset + limit) : ranked).map((p) => this.redactCost(p, canViewCost));
   }
 
   async findOne(id: string, canViewCost = true) {

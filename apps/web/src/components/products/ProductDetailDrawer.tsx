@@ -57,6 +57,8 @@ export function ProductDetailDrawer({
   useEffect(() => {
     if (!productId) return;
     setLoading(true);
+    setProduct(null);
+    setTab('batches');
     Promise.all([productsApi.get(productId), inventoryApi.batches(productId), productsApi.priceHistory(productId), inventoryApi.movements(productId)])
       .then(([p, b, h, m]) => {
         setProduct(p);
@@ -120,7 +122,17 @@ export function ProductDetailDrawer({
 
   const gauge = product ? thicknessLabel(product.shape, product.thicknessMm) : null;
   const totalRemaining = batches.reduce((sum, b) => sum + b.remainingQuantity, 0);
-  const inventoryValue = batches.reduce((sum, b) => sum + b.remainingQuantity * b.unitCost, 0);
+
+  // Value of what's on the shelf now. Batches created by stock adjustments or
+  // returns on a product that had never been received carry unitCost 0, and
+  // stock can exist with no batch at all — so fall back to the product's last
+  // known cost for both, and say how many units still have no cost anywhere.
+  const lastCost = product?.lastCost ?? 0;
+  const liveBatches = batches.filter((b) => b.remainingQuantity > 0);
+  const costOf = (b: InventoryBatch) => (b.unitCost > 0 ? b.unitCost : lastCost);
+  const unbatched = Math.max(0, (product?.stockQuantity ?? 0) - totalRemaining);
+  const inventoryValue = liveBatches.reduce((sum, b) => sum + b.remainingQuantity * costOf(b), 0) + unbatched * lastCost;
+  const uncostedUnits = liveBatches.filter((b) => costOf(b) === 0).reduce((sum, b) => sum + b.remainingQuantity, 0) + (lastCost === 0 ? unbatched : 0);
 
   return (
     <>
@@ -212,8 +224,13 @@ export function ProductDetailDrawer({
                     Inventory value
                   </p>
                   <p className="mt-0.5 text-lg font-semibold data-num" style={{ color: 'var(--color-ink-900)' }}>
-                    {money(inventoryValue)}
+                    {inventoryValue > 0 || uncostedUnits === 0 ? money(inventoryValue) : '—'}
                   </p>
+                  {uncostedUnits > 0 && (
+                    <p className="mt-0.5 text-[11px]" style={{ color: 'var(--color-status-warn)' }}>
+                      {uncostedUnits} {product.unit.symbol} with no cost on record
+                    </p>
+                  )}
                 </div>
               )}
             </div>

@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Archive, Eye, Package, PackagePlus, Pencil, Plus, RotateCcw, Search } from 'lucide-react';
-import { productsApi, type Brand, type CatalogueStatus, type Category, type Product, type ProductFamily, type Unit } from '../../../lib/products-api';
+import { Archive, Eye, Package, PackagePlus, Pencil, Plus, RotateCcw, Search, X } from 'lucide-react';
+import { productsApi, type Brand, type CatalogueStatus, type Category, type Product, type ProductFamily, type ProductSort, type StockFilter, type Unit } from '../../../lib/products-api';
 import { AdjustStockDialog } from '../../../components/inventory/AdjustStockDialog';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { ApiError } from '../../../lib/api';
@@ -11,6 +11,8 @@ import { ProductFormDrawer } from '../../../components/products/ProductFormDrawe
 import { ProductDetailDrawer } from '../../../components/products/ProductDetailDrawer';
 import { fmtNumber } from '../../../lib/format';
 import { activateOnKey } from '../../../lib/a11y';
+import { usePagedList, useDebounced } from '../../../lib/use-paged-list';
+import { ListFooter } from '../../../components/ui/ListFooter';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)', color: 'var(--color-ink-900)' };
 
@@ -28,8 +30,23 @@ function StatusBadge({ status }: { status: Product['stockStatus'] }) {
   );
 }
 
+const STOCK_CHIPS: { value: StockFilter | ''; label: string }[] = [
+  { value: '', label: 'All stock' },
+  { value: 'in', label: 'In stock' },
+  { value: 'low', label: 'Low' },
+  { value: 'out', label: 'Out' },
+];
+
+const SORT_OPTIONS: { value: ProductSort; label: string }[] = [
+  { value: 'name', label: 'Name A–Z' },
+  { value: 'newest', label: 'Newest first' },
+  { value: 'price_asc', label: 'Price: low to high' },
+  { value: 'price_desc', label: 'Price: high to low' },
+  { value: 'stock_asc', label: 'Stock: low to high' },
+  { value: 'stock_desc', label: 'Stock: high to low' },
+];
+
 export default function ProductsPage() {
-  const [products, setProducts] = useState<Product[] | null>(null);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
@@ -39,6 +56,8 @@ export default function ProductsPage() {
   const [brandId, setBrandId] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [status, setStatus] = useState<CatalogueStatus>('active');
+  const [stock, setStock] = useState<StockFilter | ''>('');
+  const [sort, setSort] = useState<ProductSort>('name');
   const [error, setError] = useState<string | null>(null);
   const [adjusting, setAdjusting] = useState<Product | null>(null);
   const [confirmArchive, setConfirmArchive] = useState<Product | null>(null);
@@ -63,20 +82,39 @@ export default function ProductsPage() {
     setFamilies(f);
   }
 
-  async function loadProducts() {
-    const list = await productsApi.list({ search: search || undefined, brandId: brandId || undefined, categoryId: categoryId || undefined, status });
-    setProducts(list);
+  const debouncedSearch = useDebounced(search);
+  const {
+    items: products,
+    hasMore,
+    loadingMore,
+    error: listError,
+    loadMore,
+    reload: loadProducts,
+  } = usePagedList(
+    (offset, limit) =>
+      productsApi.list({
+        search: debouncedSearch || undefined,
+        brandId: brandId || undefined,
+        categoryId: categoryId || undefined,
+        stock: stock || undefined,
+        // With a search term the server ranks by relevance; only send a sort
+        // when the user picked something other than the default.
+        sort: sort === 'name' ? undefined : sort,
+        status,
+        offset,
+        limit,
+      }),
+    [debouncedSearch, brandId, categoryId, stock, sort, status],
+  );
+
+  const filtersActive = !!(search || brandId || categoryId || stock || sort !== 'name');
+  function clearFilters() {
+    setSearch('');
+    setBrandId('');
+    setCategoryId('');
+    setStock('');
+    setSort('name');
   }
-
-  useEffect(() => {
-    loadLookups();
-  }, []);
-
-  useEffect(() => {
-    const t = setTimeout(loadProducts, search ? 250 : 0);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, brandId, categoryId, status]);
 
   async function archiveProduct(p: Product) {
     setArchiveBusy(true);
@@ -178,6 +216,43 @@ export default function ProductsPage() {
             </option>
           ))}
         </select>
+        <select value={sort} onChange={(e) => setSort(e.target.value as ProductSort)} aria-label="Sort products" className="rounded-md border px-3 py-2 text-sm" style={inputStyle}>
+          {SORT_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        {STOCK_CHIPS.map((c) => (
+          <button
+            key={c.value || 'all'}
+            type="button"
+            onClick={() => setStock(c.value)}
+            className="min-h-8 rounded-full border px-3 text-xs font-medium"
+            style={{
+              borderColor: stock === c.value ? 'var(--color-accent)' : 'var(--color-border)',
+              backgroundColor: stock === c.value ? 'var(--color-accent-soft)' : 'transparent',
+              color: stock === c.value ? 'var(--color-accent)' : 'var(--color-ink-600)',
+            }}
+          >
+            {c.label}
+          </button>
+        ))}
+        {filtersActive && (
+          <button type="button" onClick={clearFilters} className="ml-1 flex min-h-8 items-center gap-1 rounded-full px-2.5 text-xs font-medium" style={{ color: 'var(--color-ink-600)' }}>
+            <X size={13} strokeWidth={2} />
+            Clear filters
+          </button>
+        )}
+        {products && products.length > 0 && (
+          <span className="ml-auto text-xs" style={{ color: 'var(--color-ink-600)' }}>
+            Showing {products.length}
+            {hasMore ? '+' : ''}
+          </span>
+        )}
       </div>
 
       <div className="mt-5 overflow-hidden rounded-lg border" style={{ borderColor: 'var(--color-border)' }}>
@@ -220,10 +295,10 @@ export default function ProductsPage() {
                 <td colSpan={6} className="px-4 py-12 text-center">
                   <Package size={28} strokeWidth={1.5} className="mx-auto mb-2" style={{ color: 'var(--color-ink-600)' }} />
                   <p className="text-sm font-medium" style={{ color: 'var(--color-ink-900)' }}>
-                    {status === 'archived' ? 'No archived products' : 'No products match your search'}
+                    {status === 'archived' && !filtersActive ? 'No archived products' : 'No products match your filters'}
                   </p>
                   <p className="mt-1 text-sm" style={{ color: 'var(--color-ink-600)' }}>
-                    {status === 'archived' ? 'Products you archive will show up here.' : 'Try a different term, or add this product to the catalogue.'}
+                    {filtersActive ? 'Try a different term, or clear the filters.' : status === 'archived' ? 'Products you archive will show up here.' : 'Add your first product to the catalogue.'}
                   </p>
                 </td>
               </tr>
@@ -311,10 +386,10 @@ export default function ProductsPage() {
             <div className="px-4 py-12 text-center">
               <Package size={28} strokeWidth={1.5} className="mx-auto mb-2" style={{ color: 'var(--color-ink-600)' }} />
               <p className="text-sm font-medium" style={{ color: 'var(--color-ink-900)' }}>
-                {status === 'archived' ? 'No archived products' : 'No products match your search'}
+                {status === 'archived' && !filtersActive ? 'No archived products' : 'No products match your filters'}
               </p>
               <p className="mt-1 text-sm" style={{ color: 'var(--color-ink-600)' }}>
-                {status === 'archived' ? 'Products you archive will show up here.' : 'Try a different term, or add this product to the catalogue.'}
+                {filtersActive ? 'Try a different term, or clear the filters.' : status === 'archived' ? 'Products you archive will show up here.' : 'Add your first product to the catalogue.'}
               </p>
             </div>
           )}
@@ -380,12 +455,14 @@ export default function ProductsPage() {
             );
           })}
         </div>
+
+        <ListFooter hasMore={hasMore} loadingMore={loadingMore} error={listError} onMore={loadMore} onRetry={loadProducts} />
       </div>
 
       <ProductFormDrawer
         open={formOpen}
         onClose={() => setFormOpen(false)}
-        onSaved={loadProducts}
+        onSaved={() => void loadProducts()}
         product={editingProduct}
         brands={brands}
         categories={categories}
@@ -411,7 +488,7 @@ export default function ProductsPage() {
           setEditingProduct(p);
           setFormOpen(true);
         }}
-        onChanged={loadProducts}
+        onChanged={() => void loadProducts()}
       />
 
       {adjusting && (

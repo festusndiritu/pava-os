@@ -114,14 +114,20 @@ export interface ReceiveLineResult {
 }
 
 export type CatalogueStatus = 'active' | 'archived' | 'all';
+export type StockFilter = 'in' | 'low' | 'out';
+export type ProductSort = 'name' | 'price_asc' | 'price_desc' | 'stock_asc' | 'stock_desc' | 'newest';
 
 export const productsApi = {
-  list: (params: { search?: string; brandId?: string; categoryId?: string; status?: CatalogueStatus } = {}) => {
+  list: (params: { search?: string; brandId?: string; categoryId?: string; status?: CatalogueStatus; stock?: StockFilter; sort?: ProductSort; limit?: number; offset?: number } = {}) => {
     const qs = new URLSearchParams();
     if (params.search) qs.set('search', params.search);
     if (params.brandId) qs.set('brandId', params.brandId);
     if (params.categoryId) qs.set('categoryId', params.categoryId);
     if (params.status) qs.set('status', params.status);
+    if (params.stock) qs.set('stock', params.stock);
+    if (params.sort) qs.set('sort', params.sort);
+    if (params.limit) qs.set('limit', String(params.limit));
+    if (params.offset) qs.set('offset', String(params.offset));
     const suffix = qs.toString() ? `?${qs.toString()}` : '';
     return api.get<Product[]>(`/products${suffix}`);
   },
