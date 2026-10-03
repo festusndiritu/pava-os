@@ -32,7 +32,7 @@ export function NavSheet({ onClose }: { onClose: () => void }) {
             <div className="grid grid-cols-2 gap-1.5">
               {section.items.map((item) => {
                 const Icon = iconFor(item);
-                const active = isActive(item.href);s
+                const active = isActive(item.href);
                 return (
                   <Link
                     key={item.href}

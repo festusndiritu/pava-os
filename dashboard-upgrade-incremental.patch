@@ -1,0 +1,1842 @@
+diff --git a/apps/api/src/dashboard/dashboard.service.ts b/apps/api/src/dashboard/dashboard.service.ts
+index 002f4bb..0cb3196 100644
+--- a/apps/api/src/dashboard/dashboard.service.ts
++++ b/apps/api/src/dashboard/dashboard.service.ts
+@@ -7,6 +7,63 @@ function has(role: Role, permissions: string[], allowed: Module[]) {
+   return role === Role.ADMIN || allowed.some((m) => permissions.includes(m));
+ }
+ 
++/**
++ * Every "day" on the dashboard is a business day, not a server day or a UTC
++ * day. Set BUSINESS_TIMEZONE (an IANA name) to change it; defaults to Nairobi.
++ */
++const BUSINESS_TZ = process.env.BUSINESS_TIMEZONE || 'Africa/Nairobi';
++
++/** Daily points returned for the trend chart (the web app slices 7 / 30 / 90 plus the period before). */
++const CHART_DAYS = 180;
++
++const dayParts = new Intl.DateTimeFormat('en-US', {
++  timeZone: BUSINESS_TZ,
++  hourCycle: 'h23',
++  year: 'numeric',
++  month: '2-digit',
++  day: '2-digit',
++  hour: '2-digit',
++  minute: '2-digit',
++  second: '2-digit',
++});
++
++function partsOf(at: Date) {
++  const out: Record<string, number> = {};
++  for (const part of dayParts.formatToParts(at)) {
++    if (part.type !== 'literal') out[part.type] = Number(part.value);
++  }
++  return out;
++}
++
++/** YYYY-MM-DD of `at` on the business calendar. */
++function dayKey(at: Date) {
++  const p = partsOf(at);
++  const mm = String(p.month).padStart(2, '0');
++  const dd = String(p.day).padStart(2, '0');
++  return `${p.year}-${mm}-${dd}`;
++}
++
++/** Calendar arithmetic on a YYYY-MM-DD key (no timezone involved). */
++function addDays(key: string, days: number) {
++  const [y, m, d] = key.split('-').map(Number);
++  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
++}
++
++function offsetMs(at: Date) {
++  const p = partsOf(at);
++  const asUtc = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
++  return asUtc - Math.floor(at.getTime() / 1000) * 1000;
++}
++
++/** The instant a business day begins (00:00 in BUSINESS_TZ). */
++function startOfDay(key: string) {
++  const [y, m, d] = key.split('-').map(Number);
++  const guess = Date.UTC(y, m - 1, d);
++  let t = guess - offsetMs(new Date(guess));
++  t = guess - offsetMs(new Date(t)); // settle across a DST change
++  return new Date(t);
++}
++
+ @Injectable()
+ export class DashboardService {
+   constructor(
+@@ -20,21 +77,18 @@ export class DashboardService {
+     const canSeeCredit = has(role, permissions, ['CUSTOMERS'] as Module[]);
+     const canSeeProducts = has(role, permissions, ['PRODUCTS', 'MARKETING', 'ANALYTICS', 'REPORTS'] as Module[]);
+ 
+-    const now = new Date();
+-
+-    const startOfToday = new Date(now);
+-    startOfToday.setHours(0, 0, 0, 0);
++    const todayKey = dayKey(new Date());
++    const chartStartKey = addDays(todayKey, -(CHART_DAYS - 1));
+ 
+-    const last7 = new Date(startOfToday);
+-    last7.setDate(last7.getDate() - 6);
+-
+-    const last30 = new Date(startOfToday);
+-    last30.setDate(last30.getDate() - 29);
++    const startOfToday = startOfDay(todayKey);
++    const last7 = startOfDay(addDays(todayKey, -6));
++    const last30 = startOfDay(addDays(todayKey, -29));
++    const chartStart = startOfDay(chartStartKey);
+ 
+     const result: Record<string, unknown> = {};
+ 
+     if (canSeeSales) {
+-      const [today, week, month, recentSales, paidDocsForChart] = await Promise.all([
++      const [today, week, month, recentSales, paidDocsForChart, unpaid, paymentGroups] = await Promise.all([
+         this.prisma.document.aggregate({
+           where: {
+             status: DocumentStatus.PAID,
+@@ -83,29 +137,44 @@ export class DashboardService {
+         this.prisma.document.findMany({
+           where: {
+             status: DocumentStatus.PAID,
+-            paidAt: { gte: last30 },
++            paidAt: { gte: chartStart },
+           },
+           select: {
+             total: true,
+             paidAt: true,
+           },
+         }),
++
++        // Open (invoiced, unpaid) documents — the real count, not a count of
++        // whichever ten rows happen to be in "recent sales".
++        this.prisma.document.aggregate({
++          where: { status: DocumentStatus.INVOICED },
++          _sum: { total: true },
++          _count: true,
++        }),
++
++        // Payment split over the same 30 days as the stat cards.
++        this.prisma.document.groupBy({
++          by: ['paymentMethod'],
++          where: {
++            status: DocumentStatus.PAID,
++            paidAt: { gte: last30 },
++          },
++          _sum: { total: true },
++          _count: { _all: true },
++        }),
+       ]);
+ 
+       const byDay = new Map<string, number>();
+ 
+-      for (let i = 0; i < 30; i++) {
+-        const date = new Date(last30);
+-        date.setDate(last30.getDate() + i);
+-
+-        const key = date.toISOString().slice(0, 10);
+-        byDay.set(key, 0);
++      for (let i = 0; i < CHART_DAYS; i++) {
++        byDay.set(addDays(chartStartKey, i), 0);
+       }
+ 
+       for (const d of paidDocsForChart) {
+         if (!d.paidAt) continue;
+ 
+-        const key = d.paidAt.toISOString().slice(0, 10);
++        const key = dayKey(d.paidAt);
+ 
+         if (byDay.has(key)) {
+           byDay.set(key, (byDay.get(key) || 0) + d.total);
+@@ -127,6 +196,22 @@ export class DashboardService {
+         },
+       };
+ 
++      result.unpaid = {
++        count: unpaid._count,
++        total: unpaid._sum.total || 0,
++      };
++
++      result.paymentMix = paymentGroups
++        .filter((g) => g.paymentMethod)
++        .map((g) => ({
++          method: String(g.paymentMethod),
++          count: g._count._all,
++          total: g._sum.total || 0,
++        }))
++        .sort((a, b) => b.total - a.total);
++
++      // Oldest first, ending with today (business calendar). The web app
++      // relies on that order instead of re-deriving day keys.
+       result.chart = Array.from(byDay.entries())
+         .sort(([a], [b]) => (a < b ? -1 : 1))
+         .map(([date, total]) => ({
+@@ -152,6 +237,7 @@ export class DashboardService {
+       const lowStock = await this.lowStockItems();
+ 
+       result.lowStockCount = lowStock.items.length;
++      result.outOfStockCount = lowStock.items.filter((i) => i.stockQuantity <= 0).length;
+       result.lowStock = lowStock.items.slice(0, 10);
+     }
+ 
+diff --git a/apps/web/src/app/(app)/dashboard/page.tsx b/apps/web/src/app/(app)/dashboard/page.tsx
+index 3aab6b4..d0ca25e 100644
+--- a/apps/web/src/app/(app)/dashboard/page.tsx
++++ b/apps/web/src/app/(app)/dashboard/page.tsx
+@@ -1,7 +1,6 @@
+ 'use client';
+ 
+-import { useEffect, useState } from 'react';
+-import type { LucideIcon } from 'lucide-react';
++import { useCallback, useEffect, useRef, useState } from 'react';
+ import {
+   AlertTriangle,
+   Boxes,
+@@ -12,23 +11,23 @@ import {
+   TrendingUp,
+ } from 'lucide-react';
+ import { useAuth } from '../../../lib/auth-context';
++import { ApiError } from '../../../lib/api';
+ import { dashboardApi, type DashboardSummary } from '../../../lib/dashboard-api';
+ import { OverviewHeader } from '../../../components/dashboard/OverviewHeader';
+-import { PaymentMixChart, SalesTrendChart, TopProductsChart } from '../../../components/dashboard/DashboardCharts';
+-import { Badge, IconAction, ListRow, SectionCard, SectionLink, StatCard } from '../../../components/dashboard/DashboardPrimitives';
++import { PaymentMixChart, SalesTrendChart, TopProductsChart, WeekSparkline } from '../../../components/dashboard/DashboardCharts';
++import {
++  Badge,
++  EmptyState,
++  IconAction,
++  ListRow,
++  SectionCard,
++  SectionLink,
++  SectionSkeleton,
++  Skeleton,
++  StatCard,
++} from '../../../components/dashboard/DashboardPrimitives';
+ import { dayOverDay, fmtDate, money, plural, weekOverWeek } from '../../../components/dashboard/dashboard-derive';
+ 
+-function EmptyState({ icon: Icon, line }: { icon: LucideIcon; line: string }) {
+-  return (
+-    <div className="flex flex-col items-center gap-1.5 py-8 text-center">
+-      <Icon size={20} strokeWidth={1.5} style={{ color: 'var(--color-ink-400)' }} />
+-      <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
+-        {line}
+-      </p>
+-    </div>
+-  );
+-}
+-
+ const SALE_STATUS: Record<string, { label: string; tone: 'ok' | 'warn' | 'bad' | 'neutral' }> = {
+   PAID: { label: 'Paid', tone: 'ok' },
+   INVOICED: { label: 'Unpaid', tone: 'warn' },
+@@ -36,14 +35,76 @@ const SALE_STATUS: Record<string, { label: string; tone: 'ok' | 'warn' | 'bad' |
+   DRAFT: { label: 'Draft', tone: 'neutral' },
+ };
+ 
++// Written out in full so Tailwind can see every class. The grid follows the
++// number of cards the user can actually see, so a restricted account never
++// gets an empty column.
++const STAT_GRID: Record<number, string> = {
++  1: 'grid-cols-1',
++  2: 'grid-cols-1 min-[420px]:grid-cols-2',
++  3: 'grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-3',
++  4: 'grid-cols-1 min-[420px]:grid-cols-2 xl:grid-cols-4',
++};
++
++/** Refetch when the tab regains focus, but only if the data is older than this. */
++const STALE_MS = 60_000;
++
++function errorMessage(error: unknown) {
++  if (error instanceof ApiError && error.status >= 500) return 'The server ran into a problem. Please try again in a moment.';
++  if (error instanceof ApiError && error.status === 403) return "You don't have access to the dashboard.";
++  return 'Check your connection and try again.';
++}
++
+ export default function DashboardPage() {
+   const { user, hasPermission } = useAuth();
+   const [data, setData] = useState<DashboardSummary | null>(null);
++  const [error, setError] = useState<string | null>(null);
++  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
++  const [refreshing, setRefreshing] = useState(false);
++  const [now, setNow] = useState(() => Date.now());
+ 
+-  useEffect(() => {
+-    dashboardApi.summary().then(setData);
++  const inFlight = useRef(false);
++  const lastAttempt = useRef(0);
++
++  const load = useCallback(async () => {
++    if (inFlight.current) return;
++
++    inFlight.current = true;
++    lastAttempt.current = Date.now();
++    setRefreshing(true);
++
++    try {
++      const next = await dashboardApi.summary();
++      setData(next);
++      setError(null);
++      setUpdatedAt(Date.now());
++    } catch (e) {
++      setError(errorMessage(e));
++    } finally {
++      inFlight.current = false;
++      setRefreshing(false);
++    }
+   }, []);
+ 
++  useEffect(() => {
++    void load();
++  }, [load]);
++
++  useEffect(() => {
++    const refreshIfStale = () => {
++      if (document.visibilityState === 'visible' && Date.now() - lastAttempt.current > STALE_MS) void load();
++    };
++
++    window.addEventListener('focus', refreshIfStale);
++    document.addEventListener('visibilitychange', refreshIfStale);
++    const tick = window.setInterval(() => setNow(Date.now()), 30_000);
++
++    return () => {
++      window.removeEventListener('focus', refreshIfStale);
++      document.removeEventListener('visibilitychange', refreshIfStale);
++      window.clearInterval(tick);
++    };
++  }, [load]);
++
+   if (!user) return null;
+ 
+   const nothingToShow = data && !data.sales && !data.lowStock && !data.recentSales && !data.topProducts;
+@@ -51,24 +112,80 @@ export default function DashboardPage() {
+   const today = dayOverDay(data?.chart);
+   const week = weekOverWeek(data?.chart);
+   const lowStockCount = data?.lowStockCount ?? 0;
+-  const salesDays = data?.chart?.filter((day) => day.total > 0).length ?? 0;
++  const outOfStockCount = data?.outOfStockCount ?? 0;
++  const lowStockShown = data?.lowStock?.length ?? 0;
++
++  const statCount = (data?.sales ? 3 : 0) + (data?.lowStock ? 1 : 0);
++  const salesHref = hasPermission('INVOICES') ? '/invoices' : undefined;
++
++  const loading = !data && !error;
+ 
+   return (
+     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 p-4 sm:p-6">
+-      <OverviewHeader userName={user.name} data={data} hasPermission={hasPermission} />
+-
+-      {!data && (
+-        <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 xl:grid-cols-4">
+-          {[...Array(4)].map((_, i) => (
+-            <div
+-              key={i}
+-              className="h-28 animate-pulse rounded-lg"
+-              style={{ backgroundColor: 'var(--color-border)' }}
+-            />
+-          ))}
++      <OverviewHeader
++        userName={user.name}
++        data={data}
++        hasPermission={hasPermission}
++        updatedAt={updatedAt}
++        now={now}
++        refreshing={refreshing}
++        hasError={!!error}
++        onRefresh={load}
++      />
++
++      {error && !data && (
++        <div
++          role="alert"
++          className="flex flex-wrap items-center gap-3 rounded-lg border p-4"
++          style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
++        >
++          <span
++            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md"
++            style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}
++          >
++            <AlertTriangle size={16} strokeWidth={2} />
++          </span>
++
++          <div className="min-w-0 flex-1">
++            <p className="text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>
++              We couldn&apos;t load the dashboard
++            </p>
++            <p className="text-xs" style={{ color: 'var(--color-ink-600)' }}>
++              {error}
++            </p>
++          </div>
++
++          <button
++            type="button"
++            onClick={() => void load()}
++            disabled={refreshing}
++            className="min-h-10 rounded-lg border px-3.5 text-sm font-medium disabled:opacity-60"
++            style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)', backgroundColor: 'var(--color-surface)' }}
++          >
++            {refreshing ? 'Trying…' : 'Try again'}
++          </button>
+         </div>
+       )}
+ 
++      {loading && (
++        <>
++          <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 xl:grid-cols-4">
++            {[...Array(4)].map((_, i) => (
++              <Skeleton key={i} className="h-28" />
++            ))}
++          </div>
++          <SectionSkeleton heightClass="h-64" />
++          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
++            <SectionSkeleton heightClass="h-56" />
++            <SectionSkeleton heightClass="h-56" />
++          </div>
++          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
++            <SectionSkeleton heightClass="h-48" />
++            <SectionSkeleton heightClass="h-48" />
++          </div>
++        </>
++      )}
++
+       {nothingToShow && (
+         <div
+           className="rounded-lg border p-8 text-center"
+@@ -84,8 +201,8 @@ export default function DashboardPage() {
+       )}
+ 
+       {/* Quick statistics */}
+-      {data && (data.sales || data.recentSales || data.lowStock) && (
+-        <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 xl:grid-cols-4">
++      {data && statCount > 0 && (
++        <div className={`grid gap-4 ${STAT_GRID[statCount]}`}>
+           {data.sales && (
+             <>
+               <StatCard
+@@ -96,6 +213,7 @@ export default function DashboardPage() {
+                 tone="neutral"
+                 trend={today?.trend}
+                 trendComparison="vs yesterday"
++                href={salesHref}
+               />
+ 
+               <StatCard
+@@ -106,6 +224,8 @@ export default function DashboardPage() {
+                 tone="ok"
+                 trend={week?.trend}
+                 trendComparison="vs previous 7 days"
++                footer={data.chart ? <WeekSparkline chart={data.chart} /> : undefined}
++                href={salesHref}
+               />
+ 
+               <StatCard
+@@ -114,6 +234,7 @@ export default function DashboardPage() {
+                 sub={`${data.sales.month.count} ${plural(data.sales.month.count, 'sale')}`}
+                 icon={CalendarRange}
+                 tone="neutral"
++                href={salesHref}
+               />
+             </>
+           )}
+@@ -122,50 +243,41 @@ export default function DashboardPage() {
+             <StatCard
+               label="Low stock"
+               value={String(lowStockCount)}
+-              sub={`${plural(lowStockCount, 'item')} at or below threshold`}
++              sub={
++                outOfStockCount > 0
++                  ? `${outOfStockCount} out of stock`
++                  : `${plural(lowStockCount, 'item')} at or below threshold`
++              }
+               icon={Boxes}
+-              tone={lowStockCount > 0 ? 'bad' : 'ok'}
++              tone={outOfStockCount > 0 ? 'bad' : lowStockCount > 0 ? 'warn' : 'ok'}
++              href={hasPermission('INVENTORY') ? '/inventory?filter=low' : undefined}
+             />
+           )}
+         </div>
+       )}
+ 
+       {/* Analytics */}
+-      {data?.chart &&
+-        (salesDays > 1 ? (
+-          <SalesTrendChart chart={data.chart} />
+-        ) : (
+-          <SectionCard
+-            title="Sales trend"
+-            description="Paid sales per day, last 30 days"
+-            icon={TrendingUp}
+-          >
+-            <EmptyState
+-              icon={TrendingUp}
+-              line="Not enough days with sales yet to draw a trend."
+-            />
+-          </SectionCard>
+-        ))}
++      {data?.chart && <SalesTrendChart chart={data.chart} />}
+ 
+-      {(data?.topProducts || data?.recentSales) && (
++      {(data?.topProducts || data?.paymentMix) && (
+         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+           {data?.topProducts &&
+             (data.topProducts.length > 0 ? (
+-              <TopProductsChart topProducts={data.topProducts} />
++              <TopProductsChart
++                topProducts={data.topProducts}
++                href={hasPermission('PRODUCTS') ? '/products' : undefined}
++              />
+             ) : (
+               <SectionCard
+                 title="Revenue by product"
+                 description="Top sellers, last 30 days"
+                 icon={TrendingUp}
+               >
+-                <EmptyState
+-                  icon={TrendingUp}
+-                  line="Nothing sold in the last 30 days."
+-                />
++                <EmptyState icon={TrendingUp} line="Nothing sold in the last 30 days." />
+               </SectionCard>
+             ))}
+ 
+-          {data?.recentSales && <PaymentMixChart recentSales={data.recentSales} />}
++          {data?.paymentMix && <PaymentMixChart slices={data.paymentMix} />}
+         </div>
+       )}
+ 
+@@ -174,12 +286,16 @@ export default function DashboardPage() {
+         {data?.lowStock && (
+           <SectionCard
+             title="Low stock"
+-            description="At or below the reorder threshold"
++            description={
++              lowStockCount > lowStockShown
++                ? `Showing ${lowStockShown} of ${lowStockCount} · largest shortfall first`
++                : 'At or below the reorder threshold'
++            }
+             icon={AlertTriangle}
+             iconTone="warn"
+             action={
+               <IconAction
+-                href="/inventory"
++                href="/inventory?filter=low"
+                 label="View inventory"
+                 icon={ExternalLink}
+               />
+@@ -187,19 +303,20 @@ export default function DashboardPage() {
+           >
+             <div className="flex flex-col">
+               {data.lowStock.length === 0 && (
+-                <EmptyState
+-                  icon={Boxes}
+-                  line="Every product is above its reorder threshold."
+-                />
++                <EmptyState icon={Boxes} line="Every product is above its reorder threshold." />
+               )}
+ 
+               {data.lowStock.map((p) => (
+                 <ListRow
+                   key={p.id}
++                  href="/inventory?filter=low"
+                   marker={
+                     <span
+                       className="h-2 w-2 shrink-0 rounded-full"
+-                      style={{ backgroundColor: 'var(--color-status-warn)' }}
++                      style={{
++                        backgroundColor:
++                          p.stockQuantity <= 0 ? 'var(--color-status-bad)' : 'var(--color-status-warn)',
++                      }}
+                     />
+                   }
+                   title={p.name}
+@@ -211,10 +328,14 @@ export default function DashboardPage() {
+                     )
+                   }
+                   value={`${p.stockQuantity} ${p.unit}`}
+-                  valueTone="var(--color-status-warn)"
++                  valueTone={p.stockQuantity <= 0 ? 'var(--color-status-bad)' : 'var(--color-status-warn)'}
+                 />
+               ))}
+             </div>
++
++            {lowStockCount > lowStockShown && (
++              <SectionLink href="/inventory?filter=low" label={`View all ${lowStockCount} low-stock items`} />
++            )}
+           </SectionCard>
+         )}
+ 
+@@ -226,20 +347,13 @@ export default function DashboardPage() {
+             iconTone="neutral"
+             action={
+               hasPermission('INVOICES') ? (
+-                <IconAction
+-                  href="/invoices"
+-                  label="View invoices"
+-                  icon={ExternalLink}
+-                />
++                <IconAction href="/invoices" label="View invoices" icon={ExternalLink} />
+               ) : undefined
+             }
+           >
+             <div className="flex flex-col">
+               {data.recentSales.length === 0 && (
+-                <EmptyState
+-                  icon={Receipt}
+-                  line="Sales will appear here as they are rung up."
+-                />
++                <EmptyState icon={Receipt} line="Sales will appear here as they are rung up." />
+               )}
+ 
+               {data.recentSales.map((s) => {
+@@ -248,15 +362,11 @@ export default function DashboardPage() {
+                 return (
+                   <ListRow
+                     key={s.id}
++                    href={salesHref}
+                     title={s.customerLabel}
+                     meta={
+                       <>
+-                        {status && (
+-                          <Badge
+-                            label={status.label}
+-                            tone={status.tone}
+-                          />
+-                        )}
++                        {status && <Badge label={status.label} tone={status.tone} />}
+ 
+                         <span className="truncate">
+                           {fmtDate(s.createdAt)}
+@@ -270,12 +380,10 @@ export default function DashboardPage() {
+               })}
+             </div>
+ 
+-            {hasPermission('INVOICES') && (
+-              <SectionLink href="/invoices" label="All invoices" />
+-            )}
++            {hasPermission('INVOICES') && <SectionLink href="/invoices" label="All invoices" />}
+           </SectionCard>
+         )}
+       </div>
+     </div>
+   );
+-}
+\ No newline at end of file
++}
+diff --git a/apps/web/src/app/globals.css b/apps/web/src/app/globals.css
+index bd118af..40a192c 100644
+--- a/apps/web/src/app/globals.css
++++ b/apps/web/src/app/globals.css
+@@ -13,6 +13,7 @@
+   --color-accent: #0559C9;
+   --color-accent-hover: #0447A3;
+   --color-accent-soft: #EAF1FD;
++  --color-on-accent: #FFFFFF;
+ 
+   --color-status-ok: #0B9E6F;
+   --color-status-okSoft: #E7F7F1;
+@@ -47,6 +48,7 @@
+   --color-accent: #4C8DF0;
+   --color-accent-hover: #6AA5F5;
+   --color-accent-soft: #16233A;
++  --color-on-accent: #0B0D10;
+ 
+   --color-status-ok: #34D399;
+   --color-status-okSoft: #10261F;
+diff --git a/apps/web/src/components/dashboard/DashboardCharts.tsx b/apps/web/src/components/dashboard/DashboardCharts.tsx
+index 7dcce5a..d8141d5 100644
+--- a/apps/web/src/components/dashboard/DashboardCharts.tsx
++++ b/apps/web/src/components/dashboard/DashboardCharts.tsx
+@@ -1,10 +1,34 @@
+ 'use client';
+ 
+-import { Area, AreaChart, Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+-import { BarChart3, PieChart as PieChartIcon, TrendingUp } from 'lucide-react';
++import { useMemo, useState } from 'react';
++import {
++  Area,
++  AreaChart,
++  Bar,
++  BarChart,
++  Cell,
++  Pie,
++  PieChart,
++  ResponsiveContainer,
++  Tooltip,
++  XAxis,
++  YAxis,
++} from 'recharts';
++import { BarChart3, ExternalLink, PieChart as PieChartIcon, TrendingUp } from 'lucide-react';
+ import type { DashboardSummary } from '../../lib/dashboard-api';
+-import { fmtDate, money, paymentColor, paymentLabel, paymentMix, plural, truncate, type ChartPoint } from './dashboard-derive';
+-import { SectionCard } from './DashboardPrimitives';
++import { useReducedMotion } from '../../lib/use-reduced-motion';
++import {
++  fmtDate,
++  money,
++  paymentColor,
++  paymentLabel,
++  plural,
++  splitPeriods,
++  truncate,
++  type ChartPoint,
++  type PaymentSlice,
++} from './dashboard-derive';
++import { EmptyState, IconAction, SectionCard, TrendPill } from './DashboardPrimitives';
+ 
+ const AXIS_TICK = { fontSize: 11, fill: 'var(--color-ink-600)' };
+ const TOOLTIP_STYLE = {
+@@ -21,55 +45,233 @@ function shortMoney(value: number) {
+   return String(Math.round(value));
+ }
+ 
+-/** 30-day paid-sales smooth area chart. */
++const RANGES = [7, 30, 90] as const;
++type Range = (typeof RANGES)[number];
++
++function RangeToggle({ value, onChange, available }: { value: Range; onChange: (r: Range) => void; available: readonly Range[] }) {
++  return (
++    <div
++      role="group"
++      aria-label="Date range"
++      className="flex items-center rounded-md border p-0.5"
++      style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)' }}
++    >
++      {available.map((range) => {
++        const active = range === value;
++
++        return (
++          <button
++            key={range}
++            type="button"
++            aria-pressed={active}
++            onClick={() => onChange(range)}
++            className="min-h-8 rounded px-2.5 text-xs font-medium transition-colors"
++            style={{
++              backgroundColor: active ? 'var(--color-surface)' : 'transparent',
++              color: active ? 'var(--color-ink-900)' : 'var(--color-ink-600)',
++              boxShadow: active ? 'var(--shadow-card)' : undefined,
++            }}
++          >
++            {range}d
++          </button>
++        );
++      })}
++    </div>
++  );
++}
++
++/**
++ * Paid sales per day as a smooth area, with a 7 / 30 / 90 day range and a
++ * dashed line for the equivalent period before it.
++ */
+ export function SalesTrendChart({ chart }: { chart: ChartPoint[] }) {
++  const [range, setRange] = useState<Range>(30);
++  const reduced = useReducedMotion();
++
++  const available = RANGES.filter((r) => chart.length >= r);
++  const active: Range = available.includes(range) ? range : (available[available.length - 1] ?? 30);
++
++  const { rows, total, trend, hasPrevious, daysWithSales, peak } = useMemo(() => {
++    const periods = splitPeriods(chart, active);
++
++    const rows = periods.current.map((point, i) => ({
++      date: point.date,
++      total: point.total,
++      previous: periods.previous[i]?.total ?? null,
++    }));
++
++    const peak = periods.current.reduce<ChartPoint | null>((best, p) => (!best || p.total > best.total ? p : best), null);
++
++    return {
++      rows,
++      total: periods.total,
++      trend: periods.trend,
++      hasPrevious: periods.previous.length > 0,
++      daysWithSales: periods.current.filter((p) => p.total > 0).length,
++      peak,
++    };
++  }, [chart, active]);
++
++  const summary =
++    `Paid sales per day over the last ${active} days. Total ${money(total)}.` +
++    (peak && peak.total > 0 ? ` Best day ${fmtDate(peak.date)} at ${money(peak.total)}.` : '');
++
+   return (
+     <SectionCard
+       title="Sales trend"
+-      description="Paid sales per day, last 30 days"
++      description={`Paid sales per day, last ${active} days`}
+       icon={TrendingUp}
+       iconTone="neutral"
++      action={<RangeToggle value={active} onChange={setRange} available={available} />}
+     >
+-      <div className="h-56 w-full sm:h-64">
+-        <ResponsiveContainer width="100%" height="100%">
+-          <AreaChart data={chart} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+-            <defs>
+-              <linearGradient id="sales-trend-fill" x1="0" y1="0" x2="0" y2="1">
+-                <stop offset="0%" style={{ stopColor: 'var(--color-accent)', stopOpacity: 0.35 }} />
+-                <stop offset="100%" style={{ stopColor: 'var(--color-accent)', stopOpacity: 0.02 }} />
+-              </linearGradient>
+-            </defs>
+-            <XAxis dataKey="date" tickFormatter={fmtDate} tick={AXIS_TICK} axisLine={false} tickLine={false} minTickGap={24} />
+-            <YAxis tickFormatter={shortMoney} tick={AXIS_TICK} axisLine={false} tickLine={false} width={40} />
+-            <Tooltip formatter={(v: number) => money(v)} labelFormatter={fmtDate} contentStyle={TOOLTIP_STYLE} cursor={{ stroke: 'var(--color-border)' }} />
+-            <Area type="monotone" dataKey="total" stroke="var(--color-accent)" strokeWidth={2} fill="url(#sales-trend-fill)" dot={false} activeDot={{ r: 4 }} />
+-          </AreaChart>
+-        </ResponsiveContainer>
+-      </div>
++      {daysWithSales < 2 ? (
++        <EmptyState icon={TrendingUp} line="Not enough days with sales in this range to draw a trend." />
++      ) : (
++        <>
++          <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
++            <span className="data-num text-xl font-semibold" style={{ color: 'var(--color-ink-900)' }}>
++              {money(total)}
++            </span>
++            {trend && <TrendPill trend={trend} comparison={`vs previous ${active} days`} className="" />}
++            {hasPrevious && (
++              <span className="ml-auto flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--color-ink-600)' }}>
++                <span className="h-0 w-4 border-t-2 border-dashed" style={{ borderColor: 'var(--color-ink-400)' }} />
++                Previous period
++              </span>
++            )}
++          </div>
++
++          <div className="h-56 w-full sm:h-64" role="img" aria-label={summary}>
++            <ResponsiveContainer width="100%" height="100%">
++              <AreaChart data={rows} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
++                <defs>
++                  <linearGradient id="sales-trend-fill" x1="0" y1="0" x2="0" y2="1">
++                    <stop offset="0%" style={{ stopColor: 'var(--color-accent)', stopOpacity: 0.35 }} />
++                    <stop offset="100%" style={{ stopColor: 'var(--color-accent)', stopOpacity: 0.02 }} />
++                  </linearGradient>
++                </defs>
++                <XAxis dataKey="date" tickFormatter={fmtDate} tick={AXIS_TICK} axisLine={false} tickLine={false} minTickGap={24} />
++                <YAxis tickFormatter={shortMoney} tick={AXIS_TICK} axisLine={false} tickLine={false} width={40} />
++                <Tooltip
++                  formatter={(v) => (typeof v === 'number' ? money(v) : '—')}
++                  labelFormatter={fmtDate}
++                  contentStyle={TOOLTIP_STYLE}
++                  cursor={{ stroke: 'var(--color-border)' }}
++                />
++                {hasPrevious && (
++                  <Area
++                    type="monotone"
++                    dataKey="previous"
++                    name="Previous period"
++                    stroke="var(--color-ink-400)"
++                    strokeWidth={1.5}
++                    strokeDasharray="4 4"
++                    fill="none"
++                    dot={false}
++                    activeDot={false}
++                    isAnimationActive={!reduced}
++                  />
++                )}
++                <Area
++                  type="monotone"
++                  dataKey="total"
++                  name="This period"
++                  stroke="var(--color-accent)"
++                  strokeWidth={2}
++                  fill="url(#sales-trend-fill)"
++                  dot={false}
++                  activeDot={{ r: 4 }}
++                  isAnimationActive={!reduced}
++                />
++              </AreaChart>
++            </ResponsiveContainer>
++          </div>
++        </>
++      )}
+     </SectionCard>
+   );
+ }
+ 
++/** Tiny 7-day line for the "Last 7 days" stat card. */
++export function WeekSparkline({ chart }: { chart: ChartPoint[] }) {
++  const reduced = useReducedMotion();
++  const points = chart.slice(-7);
++
++  if (points.length < 2 || !points.some((p) => p.total > 0)) return null;
++
++  return (
++    <div className="h-12 w-full" role="img" aria-label={`Paid sales per day for the last 7 days, ${money(points.reduce((s, p) => s + p.total, 0))} in total`}>
++      <ResponsiveContainer width="100%" height="100%">
++        <AreaChart data={points} margin={{ top: 4, right: 2, bottom: 2, left: 2 }}>
++          <defs>
++            <linearGradient id="week-spark-fill" x1="0" y1="0" x2="0" y2="1">
++              <stop offset="0%" style={{ stopColor: 'var(--color-status-ok)', stopOpacity: 0.3 }} />
++              <stop offset="100%" style={{ stopColor: 'var(--color-status-ok)', stopOpacity: 0 }} />
++            </linearGradient>
++          </defs>
++          {/* Hidden, but it makes the tooltip label points by date instead of by index. */}
++          <XAxis dataKey="date" hide />
++          <YAxis hide domain={[0, 'dataMax']} />
++          <Tooltip
++            formatter={(v) => (typeof v === 'number' ? money(v) : '—')}
++            labelFormatter={fmtDate}
++            contentStyle={{ ...TOOLTIP_STYLE, fontSize: 11, padding: '4px 8px' }}
++            cursor={{ stroke: 'var(--color-border)' }}
++          />
++          <Area
++            type="monotone"
++            dataKey="total"
++            name="Sales"
++            stroke="var(--color-status-ok)"
++            strokeWidth={1.75}
++            fill="url(#week-spark-fill)"
++            dot={false}
++            activeDot={{ r: 3 }}
++            isAnimationActive={!reduced}
++          />
++        </AreaChart>
++      </ResponsiveContainer>
++    </div>
++  );
++}
++
+ /** Revenue of the same top products already listed below, as a horizontal bar. */
+-export function TopProductsChart({ topProducts }: { topProducts: NonNullable<DashboardSummary['topProducts']> }) {
++export function TopProductsChart({
++  topProducts,
++  href,
++}: {
++  topProducts: NonNullable<DashboardSummary['topProducts']>;
++  /** Where "see all" goes; omitted when the user cannot open it. */
++  href?: string;
++}) {
++  const reduced = useReducedMotion();
++
+   // Axis labels are truncated to stay readable on a phone; the tooltip maps
+   // the shortened label back to the product's full name.
+   const data = topProducts.map((p) => ({ ...p, short: truncate(p.name, 14) }));
+   const fullNames = new Map(data.map((p) => [p.short, p.name]));
++  const summary = `Revenue by product, last 30 days. ${data.map((p) => `${p.name} ${money(p.revenue)}`).join('; ')}.`;
++
+   return (
+-    <SectionCard title="Revenue by product" description="Top sellers, last 30 days" icon={BarChart3} iconTone="neutral">
+-      <div className="h-56 w-full">
++    <SectionCard
++      title="Revenue by product"
++      description="Top sellers, last 30 days"
++      icon={BarChart3}
++      iconTone="neutral"
++      action={href ? <IconAction href={href} label="View products" icon={ExternalLink} /> : undefined}
++    >
++      <div className="h-56 w-full" role="img" aria-label={summary}>
+         <ResponsiveContainer width="100%" height="100%">
+           <BarChart data={data} layout="vertical" margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>
+             <XAxis type="number" tickFormatter={shortMoney} tick={AXIS_TICK} axisLine={false} tickLine={false} />
+             <YAxis type="category" dataKey="short" tick={AXIS_TICK} axisLine={false} tickLine={false} width={92} />
+             <Tooltip
+-              formatter={(v: number) => money(v)}
+-              labelFormatter={(label: string) => fullNames.get(label) ?? label}
++              formatter={(v) => (typeof v === 'number' ? money(v) : '—')}
++              labelFormatter={(label) => fullNames.get(String(label)) ?? String(label)}
+               contentStyle={TOOLTIP_STYLE}
+               cursor={{ fill: 'var(--color-bg)' }}
+             />
+-            <Bar dataKey="revenue" name="Revenue" fill="var(--color-accent)" radius={[0, 3, 3, 0]} barSize={14} />
++            <Bar dataKey="revenue" name="Revenue" fill="var(--color-accent)" radius={[0, 3, 3, 0]} barSize={14} isAnimationActive={!reduced} />
+           </BarChart>
+         </ResponsiveContainer>
+       </div>
+@@ -77,57 +279,57 @@ export function TopProductsChart({ topProducts }: { topProducts: NonNullable<Das
+   );
+ }
+ 
+-/**
+- * Payment split of the recent sales the summary returns. Deliberately labelled
+- * with the sample size — the endpoint does not expose a 30-day payment split.
+- */
+-export function PaymentMixChart({ recentSales }: { recentSales: NonNullable<DashboardSummary['recentSales']> }) {
+-  const slices = paymentMix(recentSales);
++/** Payment split of paid sales over the last 30 days. */
++export function PaymentMixChart({ slices }: { slices: PaymentSlice[] }) {
++  const reduced = useReducedMotion();
+   const counted = slices.reduce((sum, s) => sum + s.count, 0);
+   const total = slices.reduce((sum, s) => sum + s.total, 0);
+ 
++  const summary = `Payment mix, last 30 days. ${slices
++    .map((s) => `${paymentLabel(s.method)} ${total > 0 ? Math.round((s.total / total) * 100) : 0}%`)
++    .join(', ')}.`;
++
+   return (
+     <SectionCard
+       title="Payment mix"
+-      description={counted > 0 ? `Latest ${counted} recorded ${plural(counted, 'sale')}` : 'How recent sales were paid'}
++      description={counted > 0 ? `${counted} paid ${plural(counted, 'sale')}, last 30 days` : 'How sales were paid, last 30 days'}
+       icon={PieChartIcon}
+       iconTone="neutral"
+     >
+-      {slices.length === 0 && (
+-        <div className="flex flex-col items-center gap-1.5 py-8 text-center">
+-          <PieChartIcon size={20} strokeWidth={1.5} style={{ color: 'var(--color-ink-400)' }} />
+-          <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
+-            No settled sales to split yet.
+-          </p>
++      {slices.length === 0 ? (
++        <EmptyState icon={PieChartIcon} line="No settled sales to split yet." />
++      ) : (
++        <div className="flex flex-col items-center gap-4 sm:flex-row">
++          <div className="h-40 w-full max-w-[180px] shrink-0" role="img" aria-label={summary}>
++            <ResponsiveContainer width="100%" height="100%">
++              <PieChart>
++                <Pie data={slices} dataKey="total" nameKey="method" innerRadius="58%" outerRadius="86%" paddingAngle={2} stroke="none" isAnimationActive={!reduced}>
++                  {slices.map((slice) => (
++                    <Cell key={slice.method} fill={paymentColor(slice.method)} />
++                  ))}
++                </Pie>
++                <Tooltip
++                  formatter={(v, name) => [typeof v === 'number' ? money(v) : '—', paymentLabel(String(name))]}
++                  contentStyle={TOOLTIP_STYLE}
++                />
++              </PieChart>
++            </ResponsiveContainer>
++          </div>
++          <ul className="flex w-full min-w-0 flex-col gap-2">
++            {slices.map((slice) => (
++              <li key={slice.method} className="flex items-center gap-2 text-sm">
++                <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: paymentColor(slice.method) }} />
++                <span className="min-w-0 flex-1 truncate" style={{ color: 'var(--color-ink-900)' }}>
++                  {paymentLabel(slice.method)}
++                </span>
++                <span className="data-num shrink-0 text-xs" style={{ color: 'var(--color-ink-600)' }}>
++                  {total > 0 ? `${Math.round((slice.total / total) * 100)}%` : '—'} · {money(slice.total)}
++                </span>
++              </li>
++            ))}
++          </ul>
+         </div>
+       )}
+-      <div className="flex flex-col items-center gap-4 sm:flex-row" style={{ display: slices.length === 0 ? 'none' : undefined }}>
+-        <div className="h-40 w-full max-w-[180px] shrink-0">
+-          <ResponsiveContainer width="100%" height="100%">
+-            <PieChart>
+-              <Pie data={slices} dataKey="total" nameKey="method" innerRadius="58%" outerRadius="86%" paddingAngle={2} stroke="none">
+-                {slices.map((slice) => (
+-                  <Cell key={slice.method} fill={paymentColor(slice.method)} />
+-                ))}
+-              </Pie>
+-              <Tooltip formatter={(v: number, name: string) => [money(v), paymentLabel(name)]} contentStyle={TOOLTIP_STYLE} />
+-            </PieChart>
+-          </ResponsiveContainer>
+-        </div>
+-        <ul className="flex w-full min-w-0 flex-col gap-2">
+-          {slices.map((slice) => (
+-            <li key={slice.method} className="flex items-center gap-2 text-sm">
+-              <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: paymentColor(slice.method) }} />
+-              <span className="min-w-0 flex-1 truncate" style={{ color: 'var(--color-ink-900)' }}>
+-                {paymentLabel(slice.method)}
+-              </span>
+-              <span className="data-num shrink-0 text-xs" style={{ color: 'var(--color-ink-600)' }}>
+-                {total > 0 ? `${Math.round((slice.total / total) * 100)}%` : '—'} · {money(slice.total)}
+-              </span>
+-            </li>
+-          ))}
+-        </ul>
+-      </div>
+     </SectionCard>
+   );
+-}
+\ No newline at end of file
++}
+diff --git a/apps/web/src/components/dashboard/DashboardPrimitives.tsx b/apps/web/src/components/dashboard/DashboardPrimitives.tsx
+index a6ae09f..bf95ab8 100644
+--- a/apps/web/src/components/dashboard/DashboardPrimitives.tsx
++++ b/apps/web/src/components/dashboard/DashboardPrimitives.tsx
+@@ -91,14 +91,14 @@ export function SectionLink({ href, label }: { href: string; label: string }) {
+   );
+ }
+ 
+-function TrendPill({ trend, comparison }: { trend: Trend; comparison: string }) {
++export function TrendPill({ trend, comparison, className = 'mt-2' }: { trend: Trend; comparison: string; className?: string }) {
+   const positive = trend.direction === 'up';
+   const flat = trend.direction === 'flat';
+   const fg = flat ? 'var(--color-ink-600)' : positive ? 'var(--color-status-ok)' : 'var(--color-status-bad)';
+   const bg = flat ? 'var(--color-bg)' : positive ? 'var(--color-status-okSoft)' : 'var(--color-status-badSoft)';
+   const Icon = flat ? Minus : positive ? ArrowUpRight : ArrowDownRight;
+   return (
+-    <span className="mt-2 inline-flex max-w-full items-center gap-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>
++    <span className={`${className} inline-flex max-w-full items-center gap-1 text-xs`} style={{ color: 'var(--color-ink-600)' }}>
+       <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 font-medium" style={{ backgroundColor: bg, color: fg }}>
+         <Icon size={12} strokeWidth={2.2} />
+         {flat ? 'level' : `${trend.pct}%`}
+@@ -116,6 +116,8 @@ export function StatCard({
+   tone = 'neutral',
+   trend,
+   trendComparison,
++  footer,
++  href,
+ }: {
+   label: string;
+   value: string;
+@@ -124,11 +126,15 @@ export function StatCard({
+   tone?: Tone;
+   trend?: Trend | null;
+   trendComparison?: string;
++  /** Extra content under the figures, e.g. a sparkline. */
++  footer?: React.ReactNode;
++  /** Makes the whole card a link. Omit when the user cannot open the destination. */
++  href?: string;
+ }) {
+   const colors = TONE[tone];
+-  return (
++  const card = (
+     <div
+-      className="flex min-w-0 flex-col rounded-lg border p-4"
++      className="flex h-full min-w-0 flex-col rounded-lg border p-4 transition-shadow"
+       style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', boxShadow: 'var(--shadow-card)' }}
+     >
+       <div className="flex items-center gap-2">
+@@ -138,6 +144,7 @@ export function StatCard({
+         <p className="truncate text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+           {label}
+         </p>
++        {href && <ArrowUpRight size={13} strokeWidth={1.8} className="ml-auto shrink-0 opacity-30 transition-opacity group-hover:opacity-80" />}
+       </div>
+       <p className="data-num mt-2.5 truncate text-xl font-semibold sm:text-2xl" style={{ color: 'var(--color-ink-900)' }}>
+         {value}
+@@ -148,8 +155,17 @@ export function StatCard({
+         </p>
+       )}
+       {trend && trendComparison && <TrendPill trend={trend} comparison={trendComparison} />}
++      {footer && <div className="mt-3">{footer}</div>}
+     </div>
+   );
++
++  if (!href) return card;
++
++  return (
++    <Link href={href} aria-label={`${label}: ${value}`} className="group block min-w-0 rounded-lg hover:[&>div]:shadow-md">
++      {card}
++    </Link>
++  );
+ }
+ 
+ /** Compact list row: leading marker, flexible body, right-aligned value, optional action. */
+@@ -160,6 +176,7 @@ export function ListRow({
+   value,
+   valueTone,
+   action,
++  href,
+ }: {
+   marker?: React.ReactNode;
+   title: React.ReactNode;
+@@ -167,9 +184,15 @@ export function ListRow({
+   value: React.ReactNode;
+   valueTone?: string;
+   action?: React.ReactNode;
++  /** Makes the whole row a link. */
++  href?: string;
+ }) {
+-  return (
+-    <div className="flex items-center gap-3 border-b py-2.5 last:border-b-0 last:pb-0" style={{ borderColor: 'var(--color-border)' }}>
++  const className = `flex items-center gap-3 border-b py-2.5 last:border-b-0 last:pb-0${
++    href ? ' -mx-2 rounded-md px-2 transition-colors hover:bg-[var(--color-bg)]' : ''
++  }`;
++
++  const content = (
++    <>
+       {marker}
+       <div className="min-w-0 flex-1">
+         <p className="truncate text-sm" style={{ color: 'var(--color-ink-900)' }}>
+@@ -185,6 +208,20 @@ export function ListRow({
+         {value}
+       </span>
+       {action}
++    </>
++  );
++
++  if (href) {
++    return (
++      <Link href={href} className={className} style={{ borderColor: 'var(--color-border)' }}>
++        {content}
++      </Link>
++    );
++  }
++
++  return (
++    <div className={className} style={{ borderColor: 'var(--color-border)' }}>
++      {content}
+     </div>
+   );
+ }
+@@ -196,4 +233,46 @@ export function Badge({ label, tone }: { label: string; tone: Tone }) {
+       {label}
+     </span>
+   );
+-}
+\ No newline at end of file
++}
++
++/** Placeholder block. Pulses, unless the user has asked for reduced motion. */
++export function Skeleton({ className = '' }: { className?: string }) {
++  return (
++    <div
++      aria-hidden="true"
++      className={`animate-pulse rounded-lg motion-reduce:animate-none ${className}`}
++      style={{ backgroundColor: 'var(--color-border)' }}
++    />
++  );
++}
++
++/** Skeleton shaped like a SectionCard, so a loading section keeps its footprint. */
++export function SectionSkeleton({ heightClass = 'h-64' }: { heightClass?: string }) {
++  return (
++    <div
++      aria-hidden="true"
++      className="flex flex-col gap-4 rounded-lg border p-4 sm:p-5"
++      style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', boxShadow: 'var(--shadow-card)' }}
++    >
++      <div className="flex items-center gap-2.5">
++        <Skeleton className="h-7 w-7" />
++        <div className="flex flex-col gap-1.5">
++          <Skeleton className="h-3 w-28" />
++          <Skeleton className="h-2.5 w-40" />
++        </div>
++      </div>
++      <Skeleton className={`${heightClass} w-full`} />
++    </div>
++  );
++}
++
++export function EmptyState({ icon: Icon, line }: { icon: LucideIcon; line: string }) {
++  return (
++    <div className="flex flex-col items-center gap-1.5 py-8 text-center">
++      <Icon size={20} strokeWidth={1.5} style={{ color: 'var(--color-ink-400)' }} />
++      <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
++        {line}
++      </p>
++    </div>
++  );
++}
+diff --git a/apps/web/src/components/dashboard/OverviewHeader.tsx b/apps/web/src/components/dashboard/OverviewHeader.tsx
+index b464bad..ed1cc9c 100644
+--- a/apps/web/src/components/dashboard/OverviewHeader.tsx
++++ b/apps/web/src/components/dashboard/OverviewHeader.tsx
+@@ -1,7 +1,6 @@
+ 'use client';
+ 
+ import Link from 'next/link';
+-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+ import type { LucideIcon } from 'lucide-react';
+ import {
+   AlertTriangle,
+@@ -11,6 +10,7 @@ import {
+   PackagePlus,
+   PackageSearch,
+   Receipt,
++  RefreshCw,
+   ShoppingCart,
+   Wallet,
+ } from 'lucide-react';
+@@ -18,14 +18,12 @@ import type { ModuleKey } from '../../lib/constants';
+ import type { DashboardSummary } from '../../lib/dashboard-api';
+ import {
+   attentionItems,
+-  dayOverDay,
+   firstName,
+-  fmtDate,
+   greetingFor,
+-  money,
++  timeAgo,
+   type AttentionItem,
+ } from './dashboard-derive';
+-import { toneColors } from './DashboardPrimitives';
++import { Skeleton, toneColors } from './DashboardPrimitives';
+ 
+ const ICONS = {
+   stock: PackageSearch,
+@@ -59,13 +57,13 @@ function QuickAction({
+   return (
+     <Link
+       href={href}
+-      className="flex min-h-10 items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-medium transition-colors hover:brightness-95"
++      className="flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-3.5 py-2 text-sm font-medium transition-colors hover:brightness-95"
+       style={
+         primary
+           ? {
+               backgroundColor: 'var(--color-accent)',
+               borderColor: 'var(--color-accent)',
+-              color: '#fff',
++              color: 'var(--color-on-accent)',
+             }
+           : {
+               backgroundColor: 'var(--color-surface)',
+@@ -122,110 +120,75 @@ function AttentionChip({
+   if (!linked) return body;
+ 
+   return (
+-    <Link
+-      href={item.href}
+-      title={`Open ${item.href.replace('/', '')}`}
+-      className="block"
+-    >
++    <Link href={item.href} title={`Open ${item.href.split('?')[0].replace('/', '')}`} className="block">
+       {body}
+     </Link>
+   );
+ }
+ 
+-/** Compact 7-day paid-sales trend for the header. Hidden until there is something to draw. */
+-function WeekSparkline({
+-  chart,
+-  weekTotal,
++function Freshness({
++  updatedAt,
++  now,
++  refreshing,
++  hasError,
++  onRefresh,
+ }: {
+-  chart: NonNullable<DashboardSummary['chart']>;
+-  weekTotal?: number;
++  updatedAt: number | null;
++  now: number;
++  refreshing: boolean;
++  hasError: boolean;
++  onRefresh: () => void;
+ }) {
+-  const points = chart.slice(-7);
++  if (updatedAt == null && !hasError) return null;
+ 
+-  if (points.length < 2 || !points.some((p) => p.total > 0)) return null;
++  const label = hasError ? "Couldn't refresh" : `Updated ${timeAgo(updatedAt ?? now, now)}`;
+ 
+   return (
+     <div
+-      className="flex w-full flex-col gap-1 rounded-lg border px-3 pb-1 pt-2.5 sm:w-60"
+-      style={{
+-        borderColor: 'var(--color-border)',
+-        backgroundColor: 'var(--color-surface)',
+-      }}
++      className="flex items-center gap-1.5 text-[11px]"
++      style={{ color: hasError ? 'var(--color-status-bad)' : 'var(--color-ink-600)' }}
+     >
+-      <div className="flex items-baseline justify-between gap-2">
+-        <span
+-          className="text-[11px] font-semibold uppercase tracking-[0.06em]"
+-          style={{ color: 'var(--color-ink-600)' }}
+-        >
+-          Last 7 days
+-        </span>
+-        {weekTotal != null && (
+-          <span
+-            className="data-num text-xs font-medium"
+-            style={{ color: 'var(--color-ink-900)' }}
+-          >
+-            {money(weekTotal)}
+-          </span>
+-        )}
+-      </div>
+-
+-      <div className="h-12 w-full">
+-        <ResponsiveContainer width="100%" height="100%">
+-          <AreaChart data={points} margin={{ top: 4, right: 2, bottom: 2, left: 2 }}>
+-            <defs>
+-              <linearGradient id="overview-spark-fill" x1="0" y1="0" x2="0" y2="1">
+-                <stop offset="0%" style={{ stopColor: 'var(--color-accent)', stopOpacity: 0.3 }} />
+-                <stop offset="100%" style={{ stopColor: 'var(--color-accent)', stopOpacity: 0 }} />
+-              </linearGradient>
+-            </defs>
+-            {/* Hidden, but it tells the tooltip to label points by date rather than by index. */}
+-            <XAxis dataKey="date" hide />
+-            <YAxis hide domain={[0, 'dataMax']} />
+-            <Tooltip
+-              formatter={(v: number) => money(v)}
+-              labelFormatter={fmtDate}
+-              contentStyle={{
+-                fontSize: 11,
+-                borderRadius: 6,
+-                padding: '4px 8px',
+-                border: '1px solid var(--color-border)',
+-                backgroundColor: 'var(--color-surface)',
+-                color: 'var(--color-ink-900)',
+-              }}
+-              cursor={{ stroke: 'var(--color-border)' }}
+-            />
+-            <Area
+-              type="monotone"
+-              dataKey="total"
+-              stroke="var(--color-accent)"
+-              strokeWidth={1.75}
+-              fill="url(#overview-spark-fill)"
+-              dot={false}
+-              activeDot={{ r: 3 }}
+-            />
+-          </AreaChart>
+-        </ResponsiveContainer>
+-      </div>
++      <span aria-live="polite">{label}</span>
++      <button
++        type="button"
++        onClick={onRefresh}
++        disabled={refreshing}
++        aria-label="Refresh dashboard"
++        title="Refresh"
++        className="flex h-8 w-8 items-center justify-center rounded-md border transition-colors disabled:opacity-60"
++        style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-600)', backgroundColor: 'var(--color-surface)' }}
++      >
++        <RefreshCw size={13} strokeWidth={2} className={refreshing ? 'animate-spin motion-reduce:animate-none' : ''} />
++      </button>
+     </div>
+   );
+ }
+ 
+ /**
+- * Greeting, one sentence of sales context, quick actions, and the
+- * "needs attention" strip. Every line here is conditional: if the underlying
+- * data is missing — because of permissions or because there is simply nothing
+- * yet — the line is dropped rather than filled in.
++ * Greeting, quick actions, and the "needs attention" strip. Every line here
++ * is conditional: if the underlying data is missing — because of permissions
++ * or because there is simply nothing yet — the line is dropped rather than
++ * filled in. Sales figures live in the stat cards, not repeated here.
+  */
+ export function OverviewHeader({
+   userName,
+   data,
+   hasPermission,
++  updatedAt,
++  now,
++  refreshing,
++  hasError,
++  onRefresh,
+ }: {
+   userName: string;
+   data: DashboardSummary | null;
+   hasPermission: (module: ModuleKey) => boolean;
++  updatedAt: number | null;
++  now: number;
++  refreshing: boolean;
++  hasError: boolean;
++  onRefresh: () => void;
+ }) {
+-  const comparison = dayOverDay(data?.chart);
+   const items = attentionItems(data);
+   const actions = QUICK_ACTIONS.filter((a) => hasPermission(a.module));
+ 
+@@ -235,23 +198,6 @@ export function OverviewHeader({
+     month: 'long',
+   }).format(new Date());
+ 
+-  let salesLine: string | null = null;
+-
+-  if (data?.sales) {
+-    if (comparison?.trend && comparison.trend.direction !== 'flat') {
+-      const word =
+-        comparison.trend.direction === 'up' ? 'ahead of' : 'behind';
+-
+-      salesLine = `Today's sales are ${comparison.trend.pct}% ${word} yesterday.`;
+-    } else if (comparison?.trend) {
+-      salesLine = "Today's sales are level with yesterday.";
+-    } else if (data.sales.today.total > 0) {
+-      salesLine = `${money(data.sales.today.total)} taken so far today.`;
+-    } else {
+-      salesLine = 'No sales recorded yet today.';
+-    }
+-  }
+-
+   return (
+     <div
+       className="flex flex-col gap-5 rounded-xl border p-5 sm:p-6"
+@@ -274,7 +220,7 @@ export function OverviewHeader({
+               className="text-[11px] font-semibold uppercase tracking-[0.08em]"
+               style={{ color: 'var(--color-ink-600)' }}
+             >
+-              Overview · {dateLabel}
++              Overview
+             </span>
+           </div>
+ 
+@@ -285,33 +231,32 @@ export function OverviewHeader({
+             {greetingFor()}, {firstName(userName)}.
+           </h1>
+ 
+-          {salesLine && (
+-            <p
+-              className="mt-1 text-sm"
+-              style={{ color: 'var(--color-ink-600)' }}
+-            >
+-              {salesLine}
+-            </p>
+-          )}
++          <p className="mt-1 text-sm" style={{ color: 'var(--color-ink-600)' }}>
++            {dateLabel}
++          </p>
+         </div>
+ 
+-        {(actions.length > 0 || (data?.sales && data.chart)) && (
+-          <div className="flex w-full flex-col gap-3 sm:w-auto sm:items-end">
+-            {data?.sales && data.chart && (
+-              <WeekSparkline chart={data.chart} weekTotal={data.sales.week.total} />
+-            )}
++        <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:items-end">
++          {actions.length > 0 && (
++            <div className="-mx-1 flex flex-nowrap gap-2 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:justify-end sm:overflow-visible sm:pb-0">
++              {actions.map((a) => (
++                <QuickAction key={a.href} {...a} />
++              ))}
++            </div>
++          )}
+ 
+-            {actions.length > 0 && (
+-              <div className="flex flex-wrap gap-2 sm:justify-end">
+-                {actions.map((a) => (
+-                  <QuickAction key={a.href} {...a} />
+-                ))}
+-              </div>
+-            )}
+-          </div>
+-        )}
++          <Freshness
++            updatedAt={updatedAt}
++            now={now}
++            refreshing={refreshing}
++            hasError={hasError}
++            onRefresh={onRefresh}
++          />
++        </div>
+       </div>
+ 
++      {!data && !hasError && <Skeleton className="h-[76px] w-full" />}
++
+       {data && (
+         <div
+           className="rounded-lg border p-3 sm:p-4"
+@@ -343,17 +288,11 @@ export function OverviewHeader({
+             </span>
+ 
+             <div>
+-              <p
+-                className="text-xs font-semibold"
+-                style={{ color: 'var(--color-ink-900)' }}
+-              >
++              <p className="text-xs font-semibold" style={{ color: 'var(--color-ink-900)' }}>
+                 {items.length > 0 ? 'Needs attention' : 'All clear'}
+               </p>
+ 
+-              <p
+-                className="text-[11px]"
+-                style={{ color: 'var(--color-ink-600)' }}
+-              >
++              <p className="text-[11px]" style={{ color: 'var(--color-ink-600)' }}>
+                 {items.length > 0
+                   ? `${items.length} item${items.length === 1 ? '' : 's'} to review`
+                   : 'Nothing is flagged right now'}
+diff --git a/apps/web/src/components/dashboard/dashboard-derive.ts b/apps/web/src/components/dashboard/dashboard-derive.ts
+index c600b2f..e2d1b17 100644
+--- a/apps/web/src/components/dashboard/dashboard-derive.ts
++++ b/apps/web/src/components/dashboard/dashboard-derive.ts
+@@ -1,15 +1,27 @@
+ import type { ModuleKey } from '../../lib/constants';
+ import type { DashboardSummary } from '../../lib/dashboard-api';
+ 
++import { money as moneyLabel } from '../../lib/format';
++
+ export type ChartPoint = { date: string; total: number };
+ 
+ export { money } from '../../lib/format';
+ 
++/**
++ * Accepts both full timestamps and the API's date-only chart keys. A bare
++ * "2026-10-03" is built as a local calendar date — `new Date('2026-10-03')`
++ * is UTC midnight and shows the previous day west of Greenwich.
++ */
+ export function fmtDate(iso: string) {
++  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
++  const date = dateOnly
++    ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
++    : new Date(iso);
++
+   return new Intl.DateTimeFormat(undefined, {
+     day: 'numeric',
+     month: 'short',
+-  }).format(new Date(iso));
++  }).format(date);
+ }
+ 
+ export function plural(n: number, one: string, many = `${one}s`) {
+@@ -28,6 +40,15 @@ export function firstName(fullName: string) {
+   return first || fullName;
+ }
+ 
++export function timeAgo(then: number, now: number) {
++  const seconds = Math.max(0, Math.round((now - then) / 1000));
++  if (seconds < 45) return 'just now';
++  const minutes = Math.round(seconds / 60);
++  if (minutes < 60) return `${minutes} min ago`;
++  const hours = Math.round(minutes / 60);
++  return `${hours} h ago`;
++}
++
+ export interface Trend {
+   /** Absolute size of the change, already rounded to whole percent. */
+   pct: number;
+@@ -51,58 +72,47 @@ export function trendBetween(current: number, previous: number): Trend | null {
+   };
+ }
+ 
+-// The API builds its chart keys from `paidAt.toISOString().slice(0, 10)`, so
+-// every comparison below is done on the same UTC day boundary. Mixing in a
+-// local-midnight key would silently shift sales made late in the evening.
+-function utcDayKey(daysAgo: number, now: Date) {
+-  const d = new Date(now);
+-  d.setUTCDate(d.getUTCDate() - daysAgo);
+-  return d.toISOString().slice(0, 10);
+-}
++const sum = (points: ChartPoint[]) => points.reduce((total, p) => total + p.total, 0);
+ 
+-function keyedTotals(chart: ChartPoint[]) {
+-  const map = new Map<string, number>();
++// The API returns the chart oldest-first and ending with today on the
++// business calendar, so "today" is the last point and "yesterday" the one
++// before it — no day keys to rebuild (and get wrong) on the client.
++export function dayOverDay(chart: ChartPoint[] | undefined) {
++  if (!chart || chart.length < 2) return null;
+ 
+-  for (const point of chart) {
+-    map.set(point.date, point.total);
+-  }
++  const today = chart[chart.length - 1].total;
++  const yesterday = chart[chart.length - 2].total;
+ 
+-  return map;
++  return { today, yesterday, trend: trendBetween(today, yesterday) };
+ }
+ 
+-export function dayOverDay(chart: ChartPoint[] | undefined, now = new Date()) {
++export function weekOverWeek(chart: ChartPoint[] | undefined) {
+   if (!chart || chart.length === 0) return null;
+ 
+-  const totals = keyedTotals(chart);
+-  const today = totals.get(utcDayKey(0, now)) ?? 0;
+-  const yesterday = totals.get(utcDayKey(1, now)) ?? 0;
++  const current = sum(chart.slice(-7));
++  const previous = sum(chart.slice(-14, -7));
+ 
+-  return {
+-    today,
+-    yesterday,
+-    trend: trendBetween(today, yesterday),
+-  };
++  return { current, previous, trend: trendBetween(current, previous) };
+ }
+ 
+-export function weekOverWeek(chart: ChartPoint[] | undefined, now = new Date()) {
+-  if (!chart || chart.length === 0) return null;
+-
+-  const totals = keyedTotals(chart);
+-  let current = 0;
+-  let previous = 0;
+-
+-  for (let i = 0; i < 7; i++) {
+-    current += totals.get(utcDayKey(i, now)) ?? 0;
+-  }
++/**
++ * The last `days` points, the `days` before them, and their totals. The
++ * previous period only counts as comparable when it is complete and non-empty.
++ */
++export function splitPeriods(chart: ChartPoint[], days: number) {
++  const current = chart.slice(-days);
++  const earlier = chart.slice(-days * 2, -days);
+ 
+-  for (let i = 7; i < 14; i++) {
+-    previous += totals.get(utcDayKey(i, now)) ?? 0;
+-  }
++  const total = sum(current);
++  const previousTotal = sum(earlier);
++  const comparable = earlier.length === current.length && previousTotal > 0;
+ 
+   return {
+     current,
+-    previous,
+-    trend: trendBetween(current, previous),
++    previous: comparable ? earlier : [],
++    total,
++    previousTotal,
++    trend: comparable ? trendBetween(total, previousTotal) : null,
+   };
+ }
+ 
+@@ -131,73 +141,38 @@ export function attentionItems(data: DashboardSummary | null): AttentionItem[] {
+   // The API returns the full low-stock count separately from the
+   // ten low-stock rows displayed on the dashboard.
+   const lowStockCount = data.lowStockCount ?? 0;
++  const outOfStock = data.outOfStockCount ?? 0;
+ 
+   if (lowStockCount > 0) {
+     items.push({
+       id: 'low-stock',
+       icon: 'stock',
+-      label: `${lowStockCount} ${plural(lowStockCount, 'item')} running low`,
+-      tone: 'warn',
+-      href: '/inventory',
++      label:
++        `${lowStockCount} ${plural(lowStockCount, 'item')} running low` +
++        (outOfStock > 0 ? ` · ${outOfStock} out of stock` : ''),
++      tone: outOfStock > 0 ? 'bad' : 'warn',
++      href: '/inventory?filter=low',
+       module: 'INVENTORY',
+     });
+   }
+ 
+-  const recent = data.recentSales;
+-
+-  if (recent && recent.length > 0) {
+-    const unpaid = recent.filter((s) => s.status === 'INVOICED').length;
+-
+-    if (unpaid > 0) {
+-      items.push({
+-        id: 'unpaid',
+-        icon: 'invoice',
+-        label: `${unpaid} sale${unpaid === 1 ? '' : 's'} still to be settled today`,
+-        tone: 'warn',
+-        href: '/invoices',
+-        module: 'INVOICES',
+-      });
+-    }
++  if (data.unpaid && data.unpaid.count > 0) {
++    const { count, total } = data.unpaid;
++
++    items.push({
++      id: 'unpaid',
++      icon: 'invoice',
++      label: `${count} unpaid ${plural(count, 'invoice')} · ${moneyLabel(total)}`,
++      tone: 'warn',
++      href: '/invoices',
++      module: 'INVOICES',
++    });
+   }
+ 
+   return items;
+ }
+ 
+-export interface PaymentSlice {
+-  method: string;
+-  count: number;
+-  total: number;
+-}
+-
+-/**
+- * Payment split of the sales the summary actually returns.
+- * It is not a 30-day share.
+- */
+-export function paymentMix(
+-  recentSales: DashboardSummary['recentSales'],
+-): PaymentSlice[] {
+-  if (!recentSales || recentSales.length === 0) return [];
+-
+-  const byMethod = new Map<string, PaymentSlice>();
+-
+-  for (const sale of recentSales) {
+-    if (!sale.paymentMethod) continue;
+-
+-    const existing =
+-      byMethod.get(sale.paymentMethod) ?? {
+-        method: sale.paymentMethod,
+-        count: 0,
+-        total: 0,
+-      };
+-
+-    existing.count += 1;
+-    existing.total += sale.total;
+-
+-    byMethod.set(sale.paymentMethod, existing);
+-  }
+-
+-  return Array.from(byMethod.values()).sort((a, b) => b.total - a.total);
+-}
++export type PaymentSlice = NonNullable<DashboardSummary['paymentMix']>[number];
+ 
+ const PAYMENT_LABELS: Record<string, string> = {
+   CASH: 'Cash',
+@@ -223,4 +198,4 @@ export function paymentColor(method: string) {
+ 
+ export function truncate(value: string, max: number) {
+   return value.length > max ? `${value.slice(0, max - 1)}…` : value;
+-}
+\ No newline at end of file
++}
+diff --git a/apps/web/src/components/inventory/StockLevelsTable.tsx b/apps/web/src/components/inventory/StockLevelsTable.tsx
+index 5131bf1..e7d558d 100644
+--- a/apps/web/src/components/inventory/StockLevelsTable.tsx
++++ b/apps/web/src/components/inventory/StockLevelsTable.tsx
+@@ -31,6 +31,11 @@ export function StockLevelsTable({ onOpenProduct }: { onOpenProduct: (id: string
+   const [lowOnly, setLowOnly] = useState(false);
+   const [adjusting, setAdjusting] = useState<Product | null>(null);
+ 
++  // The dashboard links here with ?filter=low.
++  useEffect(() => {
++    if (new URLSearchParams(window.location.search).get('filter') === 'low') setLowOnly(true);
++  }, []);
++
+   async function load() {
+     const list = await productsApi.list({ search: search || undefined, categoryId: categoryId || undefined });
+     setProducts(list);
+diff --git a/apps/web/src/lib/dashboard-api.ts b/apps/web/src/lib/dashboard-api.ts
+index 6e68e29..dcb4f84 100644
+--- a/apps/web/src/lib/dashboard-api.ts
++++ b/apps/web/src/lib/dashboard-api.ts
+@@ -16,11 +16,25 @@ export interface DashboardSummary {
+     };
+   };
+ 
++  /** Daily paid totals, oldest first, ending with today (business calendar). */
+   chart?: {
+     date: string;
+     total: number;
+   }[];
+ 
++  /** Open (invoiced, unpaid) documents — the true count and value. */
++  unpaid?: {
++    count: number;
++    total: number;
++  };
++
++  /** Payment split of paid sales over the last 30 days. */
++  paymentMix?: {
++    method: string;
++    count: number;
++    total: number;
++  }[];
++
+   recentSales?: {
+     id: string;
+     customerLabel: string;
+@@ -40,6 +54,7 @@ export interface DashboardSummary {
+   }[];
+ 
+   lowStockCount?: number;
++  outOfStockCount?: number;
+ 
+   outstandingCredit?: {
+     total: number;
+diff --git a/apps/web/src/lib/use-reduced-motion.ts b/apps/web/src/lib/use-reduced-motion.ts
+new file mode 100644
+index 0000000..78f64fc
+--- /dev/null
++++ b/apps/web/src/lib/use-reduced-motion.ts
+@@ -0,0 +1,20 @@
++'use client';
++
++import { useEffect, useState } from 'react';
++
++/** True when the user's OS asks for less motion. Used to switch off chart animation. */
++export function useReducedMotion() {
++  const [reduced, setReduced] = useState(false);
++
++  useEffect(() => {
++    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
++    setReduced(query.matches);
++
++    const onChange = (event: MediaQueryListEvent) => setReduced(event.matches);
++    query.addEventListener('change', onChange);
++
++    return () => query.removeEventListener('change', onChange);
++  }, []);
++
++  return reduced;
++}
