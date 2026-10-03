@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from 'recharts';
 import type { LucideIcon } from 'lucide-react';
 import {
   AlertTriangle,
@@ -19,6 +20,7 @@ import {
   attentionItems,
   dayOverDay,
   firstName,
+  fmtDate,
   greetingFor,
   money,
   type AttentionItem,
@@ -130,6 +132,82 @@ function AttentionChip({
   );
 }
 
+/** Compact 7-day paid-sales trend for the header. Hidden until there is something to draw. */
+function WeekSparkline({
+  chart,
+  weekTotal,
+}: {
+  chart: NonNullable<DashboardSummary['chart']>;
+  weekTotal?: number;
+}) {
+  const points = chart.slice(-7);
+
+  if (points.length < 2 || !points.some((p) => p.total > 0)) return null;
+
+  return (
+    <div
+      className="flex w-full flex-col gap-1 rounded-lg border px-3 pb-1 pt-2.5 sm:w-60"
+      style={{
+        borderColor: 'var(--color-border)',
+        backgroundColor: 'var(--color-surface)',
+      }}
+    >
+      <div className="flex items-baseline justify-between gap-2">
+        <span
+          className="text-[11px] font-semibold uppercase tracking-[0.06em]"
+          style={{ color: 'var(--color-ink-600)' }}
+        >
+          Last 7 days
+        </span>
+        {weekTotal != null && (
+          <span
+            className="data-num text-xs font-medium"
+            style={{ color: 'var(--color-ink-900)' }}
+          >
+            {money(weekTotal)}
+          </span>
+        )}
+      </div>
+
+      <div className="h-12 w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={points} margin={{ top: 4, right: 2, bottom: 2, left: 2 }}>
+            <defs>
+              <linearGradient id="overview-spark-fill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" style={{ stopColor: 'var(--color-accent)', stopOpacity: 0.3 }} />
+                <stop offset="100%" style={{ stopColor: 'var(--color-accent)', stopOpacity: 0 }} />
+              </linearGradient>
+            </defs>
+            <YAxis hide domain={[0, 'dataMax']} />
+            <Tooltip
+              formatter={(v: number) => money(v)}
+              labelFormatter={fmtDate}
+              contentStyle={{
+                fontSize: 11,
+                borderRadius: 6,
+                padding: '4px 8px',
+                border: '1px solid var(--color-border)',
+                backgroundColor: 'var(--color-surface)',
+                color: 'var(--color-ink-900)',
+              }}
+              cursor={{ stroke: 'var(--color-border)' }}
+            />
+            <Area
+              type="monotone"
+              dataKey="total"
+              stroke="var(--color-accent)"
+              strokeWidth={1.75}
+              fill="url(#overview-spark-fill)"
+              dot={false}
+              activeDot={{ r: 3 }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
 /**
  * Greeting, one sentence of sales context, quick actions, and the
  * "needs attention" strip. Every line here is conditional: if the underlying
@@ -215,11 +293,19 @@ export function OverviewHeader({
           )}
         </div>
 
-        {actions.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {actions.map((a) => (
-              <QuickAction key={a.href} {...a} />
-            ))}
+        {(actions.length > 0 || (data?.sales && data.chart)) && (
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:items-end">
+            {data?.sales && data.chart && (
+              <WeekSparkline chart={data.chart} weekTotal={data.sales.week.total} />
+            )}
+
+            {actions.length > 0 && (
+              <div className="flex flex-wrap gap-2 sm:justify-end">
+                {actions.map((a) => (
+                  <QuickAction key={a.href} {...a} />
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
