@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Ban, Eye, FileCheck2, Truck } from 'lucide-react';
+import { Ban, Eye, FileCheck2, Pencil, Truck } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { documentsApi, type SaleDocument } from '../../lib/documents-api';
+import { canEditQuote, documentsApi, type SaleDocument } from '../../lib/documents-api';
 import { ApiError } from '../../lib/api';
 import { readStockShortfalls } from '../../lib/pos-api';
 
@@ -37,11 +37,14 @@ function ActionButton({ label, icon: Icon, onClick, disabled, tone }: { label: s
 export function DocumentRowActions({
   doc,
   onOpen,
+  onEdit,
   onChanged,
   onError,
 }: {
   doc: SaleDocument;
   onOpen: (id: string) => void;
+  // Only the Quotes screen passes this — it's what opens the quote form.
+  onEdit?: (id: string) => void;
   onChanged: () => void;
   onError: (message: string) => void;
 }) {
@@ -50,6 +53,7 @@ export function DocumentRowActions({
   const canConvert = doc.status === 'QUOTED';
   const canDeliveryNote = doc.type !== 'DELIVERY_NOTE' && (doc.status === 'QUOTED' || doc.status === 'INVOICED' || doc.status === 'PAID');
   const canCancel = doc.status === 'QUOTED' || doc.status === 'INVOICED';
+  const canEdit = !!onEdit && canEditQuote(doc);
 
   async function run(fn: () => Promise<unknown>, opts?: { detectStockShortfall?: boolean }) {
     setBusy(true);
@@ -75,6 +79,7 @@ export function DocumentRowActions({
   return (
     <div className="flex items-center justify-end gap-1.5">
       <ActionButton label="Open document" icon={Eye} onClick={() => onOpen(doc.id)} />
+        {canEdit && <ActionButton label="Edit quote" icon={Pencil} disabled={busy} onClick={() => onEdit!(doc.id)} />}
         {canConvert && (
           <ActionButton
             label="Convert to invoice"

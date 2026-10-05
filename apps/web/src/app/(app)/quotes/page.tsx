@@ -23,6 +23,7 @@ const STATUS_BADGE: Record<string, { bg: string; fg: string }> = {
 export default function QuotesPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Lets global search (Ctrl/Cmd+K) land straight on a quote's detail drawer
@@ -102,7 +103,7 @@ export default function QuotesPage() {
                   </td>
                   <td className="px-4 py-3 text-right font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>KSh {fmtNumber(d.total)}</td>
                   <td className="px-2 py-2">
-                    <DocumentRowActions doc={d} onOpen={setDetailId} onChanged={load} onError={setError} />
+                    <DocumentRowActions doc={d} onOpen={setDetailId} onEdit={setEditId} onChanged={load} onError={setError} />
                   </td>
                 </tr>
               );
@@ -136,7 +137,7 @@ export default function QuotesPage() {
                   <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: badge.bg, color: badge.fg }}>{d.status === 'CANCELLED' ? 'Cancelled' : 'Quote'}</span>
                 </div>
                 <div className="mt-1.5">
-                  <DocumentRowActions doc={d} onOpen={setDetailId} onChanged={load} onError={setError} />
+                  <DocumentRowActions doc={d} onOpen={setDetailId} onEdit={setEditId} onChanged={load} onError={setError} />
                 </div>
               </div>
             );
@@ -145,8 +146,16 @@ export default function QuotesPage() {
         <ListFooter hasMore={hasMore} loadingMore={loadingMore} error={listError} onMore={loadMore} onRetry={load} />
       </div>
 
-      <QuoteFormDrawer open={formOpen} onClose={() => setFormOpen(false)} onCreated={(id) => { load(); setDetailId(id); }} />
-      <DocumentDetailDrawer documentId={detailId} onClose={() => setDetailId(null)} onChanged={load} onNavigate={setDetailId} />
+      <QuoteFormDrawer
+        open={formOpen || !!editId}
+        editId={editId}
+        onClose={() => { setFormOpen(false); setEditId(null); }}
+        onCreated={(id) => { load(); setDetailId(id); }}
+        onUpdated={(id) => { load(); setDetailId(id); }}
+      />
+      {/* Editing hands off from the detail drawer to the form (one drawer at a
+          time); saving reopens the detail so the new numbers are what you see. */}
+      <DocumentDetailDrawer documentId={detailId} onClose={() => setDetailId(null)} onChanged={load} onNavigate={setDetailId} onEdit={(id) => { setDetailId(null); setEditId(id); }} />
     </div>
   );
 }

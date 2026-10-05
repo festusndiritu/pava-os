@@ -5,7 +5,7 @@ import { Trash2, Truck, X } from 'lucide-react';
 import { Drawer } from '../ui/Drawer';
 import { ProductPicker } from '../products/ProductPicker';
 import { customersApi, type Customer } from '../../lib/customers-api';
-import { documentsApi } from '../../lib/documents-api';
+import { canEditQuote, documentsApi, type CreateDocumentInput, type SaleDocument } from '../../lib/documents-api';
 import type { Product } from '../../lib/products-api';
 import { ApiError } from '../../lib/api';
 import { TransportDialog, type TransportSettings } from '../pos/TransportDialog';
@@ -22,7 +22,35 @@ const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(-
 const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase';
 const labelStyle = { color: 'var(--color-ink-600)', letterSpacing: '0.06em' };
 
-export function QuoteFormDrawer({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (id: string) => void }) {
+/**
+ * What the person typed for a saved line, recovered from what was stored.
+ * With transport folded into prices the stored unit price already includes
+ * its share of transport plus rounding, so the negotiated price is rebuilt by
+ * taking those back out of the line total. Otherwise it is stored as typed.
+ */
+function negotiatedUnitPrice(doc: SaleDocument, item: SaleDocument['items'][number]) {
+  if (doc.transportMode !== 'DISTRIBUTED') return item.unitPrice;
+  return Math.round((item.lineTotal - item.transportAllocated - item.roundingAdjustment) / item.qty);
+}
+
+/**
+ * Creates a quote, or — when `editId` is given — edits that quote in place
+ * (same quote number). The same form either way, so a change can never be
+ * priced differently from how it would have been the first time.
+ */
+export function QuoteFormDrawer({
+  open,
+  onClose,
+  onCreated,
+  editId,
+  onUpdated,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onCreated: (id: string) => void;
+  editId?: string | null;
+  onUpdated?: (id: string) => void;
+}) {
   const [customerMode, setCustomerMode] = useState<'walkin' | 'existing'>('walkin');
   const [walkinName, setWalkinName] = useState('');
   const [customerQuery, setCustomerQuery] = useState('');
@@ -35,6 +63,11 @@ export function QuoteFormDrawer({ open, onClose, onCreated }: { open: boolean; o
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [loadingQuote, setLoadingQuote] = useState(false);
+  const [quoteNumber, setQuoteNumber] = useState<string | null>(null);
+  // Edit mode only: true once the quote has been fetched and prefilled, so a
+  // failed load can never be saved over the real quote with an empty form.
+  const [editReady, setEditReady] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -45,8 +78,64 @@ export function QuoteFormDrawer({ open, onClose, onCreated }: { open: boolean; o
       setTransport(null);
       setNotes('');
       setError(null);
+      setQuoteNumber(null);
+      setEditReady(false);
+      setLoadingQuote(false);
     }
   }, [open]);
+
+  // Edit mode: fetch the quote by id (the list rows don't carry full product
+  // details) and prefill every field from it.
+  useEffect(() => {
+    if (!open || !editId) return;
+    let stale = false;
+    setLoadingQuote(true);
+    setError(null);
+    documentsApi
+      .get(editId)
+      .then((doc) => {
+        if (stale) return;
+        if (!canEditQuote(doc) || doc.items.some((i) => !i.product)) {
+          setError(doc.status === 'QUOTED' ? 'This quote has lines the form cannot edit.' : 'Only a quote that has not been invoiced can be edited.');
+          return;
+        }
+        setQuoteNumber(doc.quoteNumber);
+        setEditReady(true);
+        if (doc.customerId && doc.customer) {
+          setCustomerMode('existing');
+          setSelectedCustomer(doc.customer);
+          setWalkinName('');
+        } else {
+          setCustomerMode('walkin');
+          setSelectedCustomer(null);
+          setWalkinName(doc.customerName ?? '');
+        }
+        setLines(doc.items.map((i) => ({ product: i.product!, qty: String(i.qty), unitPrice: String(negotiatedUnitPrice(doc, i)) })));
+        const folded = doc.transportMode === 'DISTRIBUTED';
+        if (doc.transportAmount > 0) {
+          const absorbing = doc.items.filter((i) => i.transportAllocated > 0).map((i) => i.productId!);
+          setTransport({
+            amount: doc.transportAmount,
+            allocation: 'QUANTITY',
+            applyTo: folded && absorbing.length > 0 ? absorbing : doc.items.map((i) => i.productId!),
+            manualAllocations: {},
+            fold: folded,
+          });
+        } else {
+          setTransport(null);
+        }
+        setNotes(doc.notes ?? '');
+      })
+      .catch((err) => {
+        if (!stale) setError(err instanceof ApiError ? err.message : 'Could not load this quote.');
+      })
+      .finally(() => {
+        if (!stale) setLoadingQuote(false);
+      });
+    return () => {
+      stale = true;
+    };
+  }, [open, editId]);
 
   useEffect(() => {
     if (customerMode !== 'existing' || customerQuery.trim().length < 1) {
@@ -81,7 +170,7 @@ export function QuoteFormDrawer({ open, onClose, onCreated }: { open: boolean; o
     setSaving(true);
     setError(null);
     try {
-      const doc = await documentsApi.create({
+      const payload: CreateDocumentInput = {
         customerId: customerMode === 'existing' ? selectedCustomer?.id : undefined,
         customerName: customerMode === 'walkin' ? walkinName || undefined : undefined,
         items: lines.map((l) => ({
@@ -95,11 +184,17 @@ export function QuoteFormDrawer({ open, onClose, onCreated }: { open: boolean; o
         manualAllocations: undefined,
         foldTransportIntoPrices: transport?.fold ?? true,
         notes: notes || undefined,
-      });
-      onCreated(doc.id);
+      };
+      if (editId) {
+        const doc = await documentsApi.update(editId, payload);
+        onUpdated?.(doc.id);
+      } else {
+        const doc = await documentsApi.create(payload);
+        onCreated(doc.id);
+      }
       onClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not create this quote.');
+      setError(err instanceof ApiError ? err.message : editId ? 'Could not save these changes.' : 'Could not create this quote.');
     } finally {
       setSaving(false);
     }
@@ -110,7 +205,7 @@ export function QuoteFormDrawer({ open, onClose, onCreated }: { open: boolean; o
       guardUnsaved
       open={open}
       onClose={onClose}
-      title="New quote"
+      title={editId ? `Edit quote${quoteNumber ? ` ${quoteNumber}` : ''}` : 'New quote'}
       wide
       footer={
         <div className="flex items-center justify-between">
@@ -123,14 +218,20 @@ export function QuoteFormDrawer({ open, onClose, onCreated }: { open: boolean; o
                 {error}
               </span>
             )}
-            <button type="submit" form="quote-form" disabled={saving} className="rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
-              {saving ? 'Saving…' : 'Create quote'}
+            <button type="submit" form="quote-form" disabled={saving || loadingQuote || (!!editId && !editReady)} className="rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
+              {saving ? 'Saving…' : editId ? 'Save changes' : 'Create quote'}
             </button>
           </div>
         </div>
       }
     >
-      <form id="quote-form" onSubmit={handleSubmit} className="flex flex-col gap-5">
+      {loadingQuote && (
+        <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
+          Loading quote…
+        </p>
+      )}
+
+      <form id="quote-form" onSubmit={handleSubmit} className={loadingQuote ? 'hidden' : 'flex flex-col gap-5'}>
         <div>
           <label className={labelClass} style={labelStyle}>
             Customer

@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { DocumentStatus, DocumentType } from '../../generated/prisma/client.js';
 import { DocumentsService } from './documents.service.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
@@ -6,7 +6,7 @@ import { PermissionsGuard } from '../auth/permissions.guard.js';
 import { Permissions } from '../auth/permissions.decorator.js';
 import { Module } from '../../generated/prisma/client.js';
 import { CreatePosSaleDto, SuspendOrderDto } from './dto/pos-sale.dto.js';
-import { CreateDocumentDto, ConvertToInvoiceDto, MarkPaidDto, CreateDeliveryNoteDto } from './dto/document.dto.js';
+import { CreateDocumentDto, UpdateDocumentDto, ConvertToInvoiceDto, MarkPaidDto, CreateDeliveryNoteDto } from './dto/document.dto.js';
 import { CreateReturnDto } from './dto/return.dto.js';
 import { ReturnsService } from './returns.service.js';
 import { parsePaging } from '../common/paging.js';
@@ -113,6 +113,16 @@ export class DocumentsController {
   @Post()
   create(@Req() req: any, @Body() body: CreateDocumentDto) {
     return this.documents.create(req.user.sub, req.user.role, body);
+  }
+
+  // Edits a quote in place (same id, same quote number). Only a quote that is
+  // still QUOTED can change — once it is invoiced, stock and the customer's
+  // ledger have moved, so that is cancel-and-reissue territory, not an edit.
+  @UseGuards(PermissionsGuard)
+  @Permissions(Module.QUOTES, Module.INVOICES)
+  @Patch(':id')
+  update(@Param('id') id: string, @Req() req: any, @Body() body: UpdateDocumentDto) {
+    return this.documents.update(id, req.user.sub, req.user.role, body);
   }
 
   @UseGuards(PermissionsGuard)

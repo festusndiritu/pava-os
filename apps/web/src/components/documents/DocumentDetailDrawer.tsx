@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Receipt, Share2, Truck } from 'lucide-react';
+import { Pencil, Receipt, Share2, Truck } from 'lucide-react';
 import { Drawer } from '../ui/Drawer';
-import { documentsApi, type SaleDocument } from '../../lib/documents-api';
+import { canEditQuote, documentsApi, type SaleDocument } from '../../lib/documents-api';
 import { settingsApi, type BusinessSettings } from '../../lib/settings-api';
 import { buildDocumentViewModel } from '../../lib/document-view-model';
 import { ThermalDocument } from './ThermalDocument';
@@ -37,11 +37,14 @@ export function DocumentDetailDrawer({
   onClose,
   onChanged,
   onNavigate,
+  onEdit,
 }: {
   documentId: string | null;
   onClose: () => void;
   onChanged: () => void;
   onNavigate?: (id: string) => void;
+  // Only the Quotes screen passes this; without it no Edit button is shown.
+  onEdit?: (id: string) => void;
 }) {
   const [doc, setDoc] = useState<SaleDocument | null>(null);
   const [loading, setLoading] = useState(false);
@@ -215,6 +218,12 @@ export function DocumentDetailDrawer({
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
+                {onEdit && canEditQuote(doc) && (
+                  <button type="button" disabled={busy} onClick={() => onEdit(doc.id)} className="flex flex-1 items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
+                    <Pencil size={14} strokeWidth={2} />
+                    Edit quote
+                  </button>
+                )}
                 {doc.type !== 'DELIVERY_NOTE' && (doc.status === 'QUOTED' || doc.status === 'INVOICED' || doc.status === 'PAID') && (
                   <button type="button" disabled={busy} onClick={() => setAskingDeliveryLocation(true)} className="flex flex-1 items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
                     <Truck size={14} strokeWidth={2} />

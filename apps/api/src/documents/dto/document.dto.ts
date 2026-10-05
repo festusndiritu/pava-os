@@ -118,3 +118,9 @@ export class CreateDocumentDto {
   @IsString()
   notes?: string;
 }
+
+// Editing a quote is a full replacement of everything the create form
+// captures (customer, lines, transport, notes) — the same shape and the same
+// validation as creating one, so the two can never drift apart. Anything left
+// out is cleared, exactly as it would be on a fresh quote.
+export class UpdateDocumentDto extends CreateDocumentDto {}

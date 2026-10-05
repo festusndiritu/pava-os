@@ -222,7 +222,10 @@ export class DocumentsService {
     return shortfalls;
   }
 
-  async create(createdById: string, actorRole: Role, input: CreateDocumentInput) {
+  // Everything that turns a quote form into priced lines — product lookup,
+  // pricing, the discount-limit check. Shared by create() and update() so an
+  // edited quote is priced by exactly the same rules as a new one.
+  private async priceQuoteInput(actorId: string, actorRole: Role, input: CreateDocumentInput) {
     if (!input.items || input.items.length === 0) {
       throw new BadRequestException('A document needs at least one item');
     }
@@ -234,10 +237,10 @@ export class DocumentsService {
       if (!productMap.has(id)) throw new NotFoundException(`Product ${id} not found`);
     }
 
-    const actor = actorRole !== Role.ADMIN ? await this.prisma.user.findUnique({ where: { id: createdById } }) : null;
+    const actor = actorRole !== Role.ADMIN ? await this.prisma.user.findUnique({ where: { id: actorId } }) : null;
 
     const businessSettings = await this.settings.get();
-    const { lines, subtotalAtNegotiatedPrice, subtotalAtListPrice, impliedDiscountTotal, roundingAdjustmentTotal, total, transportMode } = this.priceDocumentLines(
+    const priced = this.priceDocumentLines(
       input.items,
       productMap,
       {
@@ -250,7 +253,12 @@ export class DocumentsService {
       input.roundingIncrement || businessSettings.roundingIncrement,
     );
 
-    this.assertDiscountWithinLimit(actorRole, actor, subtotalAtListPrice, impliedDiscountTotal);
+    this.assertDiscountWithinLimit(actorRole, actor, priced.subtotalAtListPrice, priced.impliedDiscountTotal);
+    return priced;
+  }
+
+  async create(createdById: string, actorRole: Role, input: CreateDocumentInput) {
+    const { lines, subtotalAtNegotiatedPrice, roundingAdjustmentTotal, total, transportMode } = await this.priceQuoteInput(createdById, actorRole, input);
 
     const doc = await this.prisma.$transaction(async (tx) => {
       const quoteNumber = await this.settings.nextNumber('QUOTE', tx);
@@ -283,6 +291,74 @@ export class DocumentsService {
     });
 
     return doc;
+  }
+
+  // Edit a quote in place. Same record, same id, same quote number, same
+  // author and creation date — only what the create form captures changes.
+  //
+  // Safe only while the quote is still QUOTED: a quote moves no stock and
+  // posts nothing to a customer's ledger (that happens at convertToInvoice),
+  // so re-pricing it is just rewriting its lines. After invoicing, stock and
+  // the credit ledger have moved, so that stays cancel-and-reissue.
+  //
+  // A delivery note already raised from this quote is a frozen copy by design
+  // (see createDeliveryNote) and is deliberately left alone; the count is
+  // recorded in the audit entry so it's visible that it may now differ.
+  async update(id: string, actorId: string, actorRole: Role, input: CreateDocumentInput) {
+    const existing = await this.findOne(id);
+    if (existing.type !== DocumentType.QUOTE) {
+      throw new BadRequestException('Only quotes can be edited');
+    }
+    if (existing.status === DocumentStatus.CANCELLED) {
+      throw new BadRequestException('A cancelled quote cannot be edited');
+    }
+    if (existing.status !== DocumentStatus.QUOTED) {
+      throw new BadRequestException('Only a quote that has not been invoiced can be edited — cancel it and issue a new one instead');
+    }
+
+    const { lines, subtotalAtNegotiatedPrice, roundingAdjustmentTotal, total, transportMode } = await this.priceQuoteInput(actorId, actorRole, input);
+
+    await this.prisma.$transaction(async (tx) => {
+      // The status condition is what makes this safe against a quote being
+      // converted or cancelled in another tab between the check above and
+      // now: if it moved on, nothing matches and nothing is written.
+      const claimed = await tx.document.updateMany({
+        where: { id, type: DocumentType.QUOTE, status: DocumentStatus.QUOTED },
+        data: {
+          customerId: input.customerId || null,
+          customerName: input.customerName?.trim() || null,
+          transportMode,
+          transportAmount: input.transportAmount || 0,
+          roundingAdjustment: roundingAdjustmentTotal,
+          subtotal: subtotalAtNegotiatedPrice,
+          total,
+          notes: input.notes?.trim() || null,
+        },
+      });
+      if (claimed.count === 0) {
+        throw new BadRequestException('This quote was changed by someone else while you were editing — reopen it and try again');
+      }
+      await tx.documentItem.deleteMany({ where: { documentId: id } });
+      await tx.documentItem.createMany({ data: lines.map((l) => ({ ...l, documentId: id })) });
+    });
+
+    const deliveryNotesIssued = await this.prisma.document.count({ where: { sourceDocumentId: id, type: DocumentType.DELIVERY_NOTE } });
+    await this.audit.log({
+      actorId,
+      action: 'document.quote_edited',
+      entityType: 'Document',
+      entityId: id,
+      metadata: {
+        quoteNumber: existing.quoteNumber,
+        previousTotal: existing.total,
+        total,
+        previousItemCount: existing.items.length,
+        itemCount: lines.length,
+        deliveryNotesIssued,
+      },
+    });
+
+    return this.findOne(id);
   }
 
   async findOne(id: string) {

@@ -66,6 +66,19 @@ export interface CreateDocumentInput {
   notes?: string;
 }
 
+/**
+ * Whether a quote can be edited in the quote form. Only a live quote can
+ * change (once invoiced, stock and the credit ledger have moved), and the form
+ * edits catalogue products one line each — so a quote with a one-off manual
+ * line, or the same product twice (only possible via the API), is left alone
+ * rather than silently dropping or merging lines.
+ */
+export function canEditQuote(doc: Pick<SaleDocument, 'type' | 'status' | 'items'>): boolean {
+  if (doc.type !== 'QUOTE' || doc.status !== 'QUOTED') return false;
+  const ids = doc.items.map((i) => i.productId);
+  return ids.length > 0 && ids.every((id): id is string => !!id) && new Set(ids).size === ids.length;
+}
+
 export const documentsApi = {
   // `from`/`to` are YYYY-MM-DD calendar days, inclusive at both ends — the
   // backend widens `to` to the end of that day. The API has always accepted
@@ -87,6 +100,8 @@ export const documentsApi = {
   },
   get: (id: string) => api.get<SaleDocument>(`/documents/${id}`),
   create: (data: CreateDocumentInput) => api.post<SaleDocument>('/documents', data),
+  // Replaces a QUOTED quote's customer, lines, transport and notes in place — same id and quote number.
+  update: (id: string, data: CreateDocumentInput) => api.patch<SaleDocument>(`/documents/${id}`, data),
   convertToInvoice: (id: string, allowNegativeStock?: boolean) => api.post<SaleDocument>(`/documents/${id}/convert-to-invoice`, { allowNegativeStock }),
   // paymentMethod records how the customer actually settled — PAVA's credit
   // is same-day, so an invoice raised at the till is closed off here.
