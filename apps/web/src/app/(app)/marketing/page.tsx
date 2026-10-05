@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCheck, Download, Image as ImageIcon, Search, Share2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CheckCheck, Download, FileText, Image as ImageIcon, RotateCcw, Search, Share2 } from 'lucide-react';
 import { productsApi, type Product } from '../../../lib/products-api';
 import { thicknessLabel } from '../../../lib/shape-config';
 import { settingsApi, type BusinessSettings } from '../../../lib/settings-api';
@@ -9,6 +9,7 @@ import { shareImageBlob } from '../../../lib/pdf';
 import { drawPoster, posterCategoriesFromProducts, posterToBlob } from '../../../lib/poster';
 import { fmtNumber } from '../../../lib/format';
 import { Checkbox } from '../../../components/ui/Checkbox';
+import { NumericInput, toNumber } from '../../../components/ui/inputs';
 
 // Mirrors the row-density tiers in lib/poster.ts (16 / 22 / 30 items) so the
 // picker can tell the person when they're about to leave the roomiest tier —
@@ -25,6 +26,10 @@ export default function MarketingPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Prices typed for THIS poster / pricelist only (productId -> what's in the
+  // box). The catalogue price is never touched; anything not here, or equal to
+  // the list price, is just the list price.
+  const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [pickerSearch, setPickerSearch] = useState('');
   const [settings, setSettings] = useState<BusinessSettings | null>(null);
 
@@ -82,7 +87,29 @@ export default function MarketingPage() {
     });
   }
 
+  const priceOf = useCallback(
+    (p: Product) => {
+      const n = toNumber(overrides[p.id] ?? '');
+      return n !== null && n > 0 ? n : p.basePrice;
+    },
+    [overrides],
+  );
+  const isCustom = (p: Product) => priceOf(p) !== p.basePrice;
+
+  // On leaving the box: an empty, zero or unchanged entry goes back to the
+  // list price instead of lingering as a blank field.
+  function settlePrice(p: Product) {
+    const n = toNumber(overrides[p.id] ?? '');
+    if (n === null || n <= 0 || n === p.basePrice) {
+      setOverrides((prev) => {
+        const { [p.id]: _drop, ...rest } = prev;
+        return rest;
+      });
+    }
+  }
+
   const selectedProducts = products.filter((p) => selected.has(p.id));
+  const customCount = selectedProducts.filter(isCustom).length;
   const densityHint = posterDensityHint(selectedProducts.length);
 
   const groupedSelected = useMemo(() => {
@@ -105,9 +132,9 @@ export default function MarketingPage() {
       businessName: settings?.businessName || 'Pava Steel Hardware',
       headline: headline.trim() || "This week's prices",
       phone: settings?.phone ?? null,
-      categories: posterCategoriesFromProducts(groupedSelected),
+      categories: posterCategoriesFromProducts(groupedSelected, priceOf),
     });
-  }, [groupedSelected, headline, settings]);
+  }, [groupedSelected, headline, settings, priceOf]);
 
   async function handlePosterShare() {
     const canvas = canvasRef.current;
@@ -127,6 +154,27 @@ export default function MarketingPage() {
     }
   }
 
+  async function handlePricelistPdf() {
+    setPosterBusy(true);
+    setPosterNotice(null);
+    try {
+      // Loaded on demand — the PDF renderer is heavy and most visits never export one.
+      const { sharePricelistAsPdf } = await import('../../../lib/pdf/document-pdf');
+      const result = await sharePricelistAsPdf({
+        title: headline.trim() || "This week's prices",
+        address: settings?.address ?? null,
+        phone: settings?.phone ?? null,
+        email: settings?.email ?? null,
+        categories: posterCategoriesFromProducts(groupedSelected, priceOf),
+      });
+      setPosterNotice(result === 'shared' ? 'Shared.' : 'Downloaded — attach the PDF wherever you need it.');
+    } catch {
+      setPosterNotice('Could not generate the PDF.');
+    } finally {
+      setPosterBusy(false);
+    }
+  }
+
   return (
     <div className="p-6">
       <div className="flex items-center justify-between">
@@ -135,7 +183,7 @@ export default function MarketingPage() {
             Marketing
           </h1>
           <p className="mt-0.5 text-sm" style={{ color: 'var(--color-ink-600)' }}>
-            Pick products, then export them as a shareable poster.
+            Pick products, set any special prices, then export a poster or a PDF pricelist.
           </p>
         </div>
       </div>
@@ -143,6 +191,14 @@ export default function MarketingPage() {
       {selectedProducts.length > 0 && (
         <div className="mt-4 flex items-center gap-2 text-xs font-medium" style={{ color: 'var(--color-ink-600)' }}>
           <span>{selectedProducts.length} item{selectedProducts.length === 1 ? '' : 's'} selected</span>
+          {customCount > 0 && (
+            <>
+              <button type="button" onClick={() => setOverrides({})} className="flex items-center gap-1" style={{ color: 'var(--color-ink-600)' }}>
+                <RotateCcw size={12} strokeWidth={2} />
+                Reset to list prices
+              </button>
+            </>
+          )}
           {densityHint && (
             <span
               className="rounded-full px-2 py-0.5"
@@ -226,7 +282,22 @@ export default function MarketingPage() {
                               {gauge ? <span style={{ color: 'var(--color-ink-600)' }}> · {gauge}</span> : null}
                             </span>
                           </span>
-                          <span className="data-num shrink-0" style={{ color: 'var(--color-ink-600)' }}>KSh {fmtNumber(p.basePrice)}</span>
+                          {selected.has(p.id) ? (
+                            <span className="flex shrink-0 items-center gap-1.5">
+                              <span className="text-xs" style={{ color: 'var(--color-ink-600)' }}>KSh</span>
+                              <NumericInput
+                                aria-label={`Price for ${p.displayName ?? p.name}`}
+                                value={overrides[p.id] ?? String(p.basePrice)}
+                                onChange={(v) => setOverrides((prev) => ({ ...prev, [p.id]: v }))}
+                                onBlur={() => settlePrice(p)}
+                                title="Type the price to show on the poster / pricelist. The catalogue price is not changed."
+                                className="w-24 rounded border px-2 py-1 text-right text-sm outline-none data-num focus:border-[var(--color-accent)]"
+                                style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}
+                              />
+                            </span>
+                          ) : (
+                            <span className="data-num shrink-0" style={{ color: 'var(--color-ink-600)' }}>KSh {fmtNumber(p.basePrice)}</span>
+                          )}
                         </label>
                       );
                     })}
@@ -246,9 +317,9 @@ export default function MarketingPage() {
             style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)', color: 'var(--color-ink-900)' }}
           />
           <div className="sticky top-4 rounded-lg border p-5" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
-            <div className="mb-3 flex items-center justify-between">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>Preview</h2>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={async () => {
@@ -271,6 +342,16 @@ export default function MarketingPage() {
                 >
                   <Download size={13} strokeWidth={2} />
                   Download
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePricelistPdf}
+                  disabled={selectedProducts.length === 0 || posterBusy}
+                  className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium disabled:opacity-40"
+                  style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}
+                >
+                  <FileText size={13} strokeWidth={2} />
+                  Pricelist PDF
                 </button>
                 <button
                   type="button"

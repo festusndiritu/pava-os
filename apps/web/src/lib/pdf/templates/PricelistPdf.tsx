@@ -40,10 +40,13 @@ export function PricelistPdf({ vm }: { vm: PricelistViewModel }) {
           <Text style={styles.muted}>{[vm.phone, vm.email].filter(Boolean).join('  ·  ')}</Text>
         </View>
         {vm.categories.map((cat) => (
-          <View key={cat.name} style={styles.category} wrap={false}>
-            <Text style={styles.categoryTitle}>{cat.name}</Text>
+          // A category can run longer than a page, so it must be allowed to
+          // break across pages — only the heading is kept with its first rows
+          // and each row is kept whole.
+          <View key={cat.name} style={styles.category}>
+            <Text style={styles.categoryTitle} minPresenceAhead={40}>{cat.name}</Text>
             {cat.items.map((item) => (
-              <View key={item.id} style={styles.row}>
+              <View key={item.id} style={styles.row} wrap={false}>
                 <Text>{item.label}</Text>
                 <Text style={styles.price}>KSh {fmtNumber(item.price)}</Text>
               </View>
