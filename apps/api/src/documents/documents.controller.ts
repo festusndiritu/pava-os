@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { DocumentStatus, DocumentType } from '../../generated/prisma/client.js';
 import { DocumentsService } from './documents.service.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
@@ -9,7 +9,7 @@ import { CreatePosSaleDto, SuspendOrderDto } from './dto/pos-sale.dto.js';
 import { CreateDocumentDto, UpdateDocumentDto, ConvertToInvoiceDto, MarkPaidDto, CreateDeliveryNoteDto } from './dto/document.dto.js';
 import { CreateReturnDto } from './dto/return.dto.js';
 import { ReturnsService } from './returns.service.js';
-import { parsePaging } from '../common/paging.js';
+import { parsePaging, sendTotal } from '../common/paging.js';
 
 @UseGuards(JwtAuthGuard)
 @Controller('documents')
@@ -30,12 +30,14 @@ export class DocumentsController {
   @UseGuards(PermissionsGuard)
   @Permissions(Module.QUOTES, Module.INVOICES, Module.POS, Module.REPORTS)
   @Get()
-  findAll(
+  async findAll(
+    @Res({ passthrough: true }) res: { setHeader(name: string, value: string | number): unknown },
     @Query('status') status?: string,
     @Query('type') type?: DocumentType,
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('search') search?: string,
+    @Query('sort') sort?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
@@ -45,7 +47,9 @@ export class DocumentsController {
     const statuses = status ? status.split(',').map((s) => s.trim()).filter(Boolean) : [];
     const bad = statuses.find((s) => !valid.has(s));
     if (bad) throw new BadRequestException(`Unknown status "${bad}"`);
-    return this.documents.findAll({ statuses: statuses as DocumentStatus[], type, from, to, search, ...parsePaging(limit, offset) });
+    const { rows, total } = await this.documents.findPage({ statuses: statuses as DocumentStatus[], type, from, to, search, sort, ...parsePaging(limit, offset) });
+    sendTotal(res, total);
+    return rows;
   }
 
   // Same reasoning as findAll above — a sales aggregate shouldn't be

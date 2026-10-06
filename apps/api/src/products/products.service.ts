@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { normalizeSearchTerm, parseSearchHints } from './search-normalize.js';
+import { nullsLast, parseSort, type SortDir } from '../common/paging.js';
 import { SettingsService } from '../settings/settings.service.js';
 
 const INCLUDE = {
@@ -14,17 +15,31 @@ const INCLUDE = {
 
 // restock = at or below the low-stock threshold (low + out), what "needs ordering" means.
 export type StockFilter = 'in' | 'low' | 'out' | 'restock';
-export type ProductSort = 'name' | 'price_asc' | 'price_desc' | 'stock_asc' | 'stock_desc' | 'newest';
+// What a table header can sort the catalogue by. `sort` arrives as `field:dir`
+// (see parseSort); anything not listed here falls back to name order.
+// `id` is the final tiebreaker so paging by offset never skips or repeats a row.
+const SORT_FIELDS: Record<string, (dir: SortDir) => object> = {
+  name: (d) => ({ name: d }),
+  price: (d) => ({ basePrice: d }),
+  stock: (d) => ({ stockQuantity: d }),
+  cost: (d) => ({ lastCost: nullsLast(d) }),
+  created: (d) => ({ createdAt: d }),
+  category: (d) => ({ category: { name: d } }),
+  brand: (d) => ({ brand: { name: d } }),
+};
 
-// `id` is the tiebreaker so paging by offset never skips or repeats a row.
-const ORDER_BY = {
-  name: [{ name: 'asc' }, { id: 'asc' }],
-  price_asc: [{ basePrice: 'asc' }, { name: 'asc' }, { id: 'asc' }],
-  price_desc: [{ basePrice: 'desc' }, { name: 'asc' }, { id: 'asc' }],
-  stock_asc: [{ stockQuantity: 'asc' }, { name: 'asc' }, { id: 'asc' }],
-  stock_desc: [{ stockQuantity: 'desc' }, { name: 'asc' }, { id: 'asc' }],
-  newest: [{ createdAt: 'desc' }, { id: 'asc' }],
-} as const;
+function resolveSort(raw: string | undefined, canViewCost: boolean) {
+  const parsed = parseSort(raw);
+  // Ordering by cost would reveal cost to someone who isn't allowed to see it.
+  if (!parsed || !SORT_FIELDS[parsed.field] || (parsed.field === 'cost' && !canViewCost)) return undefined;
+  return parsed;
+}
+
+function orderByFor(raw: string | undefined, canViewCost: boolean): any[] {
+  const sort = resolveSort(raw, canViewCost);
+  const primary = sort ? [SORT_FIELDS[sort.field](sort.dir)] : [];
+  return [...primary, ...(sort?.field === 'name' ? [] : [{ name: 'asc' }]), { id: 'asc' }];
+}
 
 interface ProductInput {
   name: string;
@@ -75,7 +90,14 @@ export class ProductsService {
     }
   }
 
-  async findAll(params: {
+  async findAll(params: Parameters<ProductsService['findPage']>[0]) {
+    return (await this.findPage(params)).rows;
+  }
+
+  // One page of the catalogue plus how many products match in all, so a table
+  // can say "51–100 of 1,240". While searching, ranking happens in app code on
+  // at most 200 candidates, so the total is capped the same way.
+  async findPage(params: {
     search?: string;
     brandId?: string;
     categoryId?: string;
@@ -83,7 +105,7 @@ export class ProductsService {
     canViewCost: boolean;
     status?: 'active' | 'archived' | 'all';
     stock?: StockFilter;
-    sort?: ProductSort;
+    sort?: string;
     limit?: number;
     offset?: number;
   }) {
@@ -113,16 +135,17 @@ export class ProductsService {
       ...stockWhere,
     };
 
-    const orderBy = ORDER_BY[sort && sort in ORDER_BY ? sort : 'name'] as any;
-
     if (!search) {
-      const rows = await this.prisma.product.findMany({
-        where: baseWhere,
-        include: INCLUDE,
-        orderBy,
-        ...(limit ? { take: limit, skip: offset } : {}),
-      });
-      return rows.map((p) => this.redactCost(p, canViewCost));
+      const [rows, counted] = await Promise.all([
+        this.prisma.product.findMany({
+          where: baseWhere,
+          include: INCLUDE,
+          orderBy: orderByFor(sort, canViewCost),
+          ...(limit ? { take: limit, skip: offset } : {}),
+        }),
+        limit ? this.prisma.product.count({ where: baseWhere }) : Promise.resolve(null),
+      ]);
+      return { rows: rows.map((p) => this.redactCost(p, canViewCost)), total: counted ?? rows.length };
     }
 
     const normalized = normalizeSearchTerm(search);
@@ -164,23 +187,34 @@ export class ProductsService {
       return 4;
     }
 
-    // Relevance stays the default while searching; an explicit sort wins.
-    const byExplicitSort = (a: (typeof candidates)[number], b: (typeof candidates)[number]) => {
-      switch (sort) {
-        case 'price_asc': return a.basePrice - b.basePrice;
-        case 'price_desc': return b.basePrice - a.basePrice;
-        case 'stock_asc': return a.stockQuantity - b.stockQuantity;
-        case 'stock_desc': return b.stockQuantity - a.stockQuantity;
-        case 'newest': return b.createdAt.getTime() - a.createdAt.getTime();
-        default: return 0;
+    // Relevance stays the default while searching; a column the person chose wins.
+    const chosen = resolveSort(sort, canViewCost);
+    type Candidate = (typeof candidates)[number];
+    const value = (p: Candidate): string | number | null => {
+      switch (chosen?.field) {
+        case 'price': return p.basePrice;
+        case 'stock': return p.stockQuantity;
+        case 'cost': return p.lastCost ?? null;
+        case 'created': return p.createdAt.getTime();
+        case 'category': return p.category?.name.toLowerCase() ?? null;
+        case 'brand': return p.brand?.name.toLowerCase() ?? null;
+        default: return p.name.toLowerCase();
       }
     };
+    const byChosen = (a: Candidate, b: Candidate) => {
+      if (!chosen) return 0;
+      const x = value(a);
+      const y = value(b);
+      if (x === y) return 0;
+      if (x === null) return 1; // blanks last either way
+      if (y === null) return -1;
+      const order = x < y ? -1 : 1;
+      return chosen.dir === 'desc' ? -order : order;
+    };
 
-    const ranked = candidates.sort((a, b) =>
-      (sort && sort !== 'name' ? byExplicitSort(a, b) : 0) || score(a) - score(b) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id),
-    );
-
-    return (limit ? ranked.slice(offset, offset + limit) : ranked).map((p) => this.redactCost(p, canViewCost));
+    const ranked = candidates.sort((a, b) => byChosen(a, b) || (chosen ? 0 : score(a) - score(b)) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+    const page = limit ? ranked.slice(offset, offset + limit) : ranked;
+    return { rows: page.map((p) => this.redactCost(p, canViewCost)), total: ranked.length };
   }
 
   async findOne(id: string, canViewCost = true) {

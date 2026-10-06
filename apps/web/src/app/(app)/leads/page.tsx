@@ -1,12 +1,18 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Archive, MapPin, MessageCircle, Pencil, Phone, Plus, RotateCcw, Search, Target } from 'lucide-react';
+import { Archive, Download, MapPin, MessageCircle, Pencil, Phone, Plus, RotateCcw, Search, Target, X } from 'lucide-react';
 import { leadsApi, type Lead } from '../../../lib/leads-api';
 import { LeadFormDrawer } from '../../../components/leads/LeadFormDrawer';
 import { ApiError } from '../../../lib/api';
 import { fmtNumber } from '../../../lib/format';
-import { activateOnKey } from '../../../lib/a11y';
+import { useClientTable, useRowSelection } from '../../../lib/use-data-table';
+import { bulkSummary, runBulk } from '../../../lib/bulk';
+import { downloadCsv } from '../../../lib/csv';
+import { DataTable, type Column } from '../../../components/ui/DataTable';
+import { IconAction } from '../../../components/ui/RowActions';
+import { toast } from '../../../components/ui/Toast';
+import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 
 /**
  * This used to be an 8-stage Kanban board. What people here actually do with
@@ -36,17 +42,6 @@ function followUpInfo(iso: string | null): { label: string; color: string } {
   return { label: `Follow up ${fmtDate(iso)}`, color: 'var(--color-ink-900)' };
 }
 
-function byFollowUpSoonest(a: Lead, b: Lead) {
-  if (!a.followUpAt && !b.followUpAt) return 0;
-  if (!a.followUpAt) return 1;
-  if (!b.followUpAt) return -1;
-  return new Date(a.followUpAt).getTime() - new Date(b.followUpAt).getTime();
-}
-
-function byRecentlyUpdated(a: Lead, b: Lead) {
-  return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-}
-
 function waHref(phone: string) {
   const digits = phone.replace(/\D/g, '');
   return `https://wa.me/${digits.startsWith('0') ? `254${digits.slice(1)}` : digits}`;
@@ -67,6 +62,8 @@ export default function LeadsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Lead | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [bulkConfirm, setBulkConfirm] = useState<'archive' | 'restore' | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   async function load() {
     setLeads(await leadsApi.list('active'));
@@ -129,10 +126,196 @@ export default function LeadsPage() {
     const filtered = q
       ? bucketed.filter((l) => [l.name, l.company, l.phone, l.location, l.notes].some((v) => v?.toLowerCase().includes(q)))
       : bucketed;
-    return [...filtered].sort(tab === 'open' ? byFollowUpSoonest : byRecentlyUpdated);
+    return filtered;
   }, [tab, leads, archived, q]);
 
   const overdueCount = leads?.filter((l) => l.stage !== 'WON' && l.stage !== 'LOST' && l.followUpAt && new Date(l.followUpAt) < new Date()).length ?? 0;
+
+  // Follow-up soonest first on the open tab (leads with no follow-up last), most recently touched first elsewhere.
+  const table = useClientTable<Lead>({
+    rows,
+    sortValues: {
+      name: (l) => l.name,
+      contact: (l) => l.phone,
+      note: (l) => l.notes,
+      when: (l) => (tab === 'open' ? l.followUpAt : l.updatedAt),
+    },
+    defaultSort: { id: 'when', dir: tab === 'open' ? 'asc' : 'desc' },
+    deps: [tab, q],
+  });
+  const selection = useRowSelection<Lead>((l) => l.id, [tab, q]);
+
+  async function runBulkArchive(action: 'archive' | 'restore') {
+    setBulkBusy(true);
+    setError(null);
+    try {
+      const result = await runBulk(selection.items, (l) => (action === 'archive' ? leadsApi.archive(l.id) : leadsApi.restore(l.id)));
+      const text = bulkSummary(action === 'archive' ? 'Archived' : 'Restored', 'lead', result);
+      if (result.failed.length === 0) toast.success(text);
+      else setError(text);
+      selection.replace(result.failed.map((f) => f.item)); // what failed stays ticked, to retry
+      setBulkConfirm(null);
+      setArchived(null);
+      await load();
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  function exportRows(list: Lead[]) {
+    const head = ['Name', 'Company', 'Phone', 'Location', 'Stage', 'Follow-up', 'Expected value (KSh)', 'Notes'];
+    downloadCsv(
+      `leads-${new Date().toISOString().slice(0, 10)}.csv`,
+      [head, ...list.map((l) => [l.name, l.company, l.phone, l.location, l.stage, l.followUpAt?.slice(0, 10), l.expectedValue, l.notes])],
+    );
+    toast.success(`Exported ${list.length} lead${list.length === 1 ? '' : 's'}`);
+  }
+
+  const columns: Column<Lead>[] = [
+    {
+      id: 'name',
+      header: 'Lead',
+      sortable: true,
+      cell: (lead) => (
+        <>
+          <p className="font-medium" style={{ color: 'var(--color-ink-900)' }}>{lead.name}</p>
+          {lead.company && <p className="text-xs" style={{ color: 'var(--color-ink-600)' }}>{lead.company}</p>}
+          {lead.expectedValue != null && <p className="text-xs data-num" style={{ color: 'var(--color-ink-600)' }}>KSh {fmtNumber(lead.expectedValue)}</p>}
+        </>
+      ),
+    },
+    {
+      id: 'contact',
+      header: 'Contact',
+      sortable: true,
+      cell: (lead) => (
+        <div style={{ color: 'var(--color-ink-600)' }}>
+          {lead.phone ? (
+            <div className="flex items-center gap-2">
+              <a href={`tel:${lead.phone}`} className="hover:underline" style={{ color: 'var(--color-ink-900)' }}>{lead.phone}</a>
+              <a href={waHref(lead.phone)} target="_blank" rel="noreferrer" title="Message on WhatsApp" aria-label={`Message ${lead.name} on WhatsApp`} className="flex h-7 w-7 items-center justify-center rounded-md border" style={{ borderColor: 'var(--color-border)', color: 'var(--color-status-ok)' }}>
+                <MessageCircle size={13} strokeWidth={2} />
+              </a>
+            </div>
+          ) : (
+            '—'
+          )}
+          {lead.location && <p className="mt-0.5 flex items-center gap-1 text-xs"><MapPin size={11} strokeWidth={2} />{lead.location}</p>}
+        </div>
+      ),
+    },
+    {
+      id: 'note',
+      header: 'Note',
+      sortable: true,
+      hideBelow: 'lg',
+      cell: (lead) => (
+        <p className="max-w-xs truncate text-xs" title={lead.notes ?? undefined} style={{ color: 'var(--color-ink-600)' }}>
+          {lead.notes || '—'}
+        </p>
+      ),
+    },
+    {
+      id: 'when',
+      header: tab === 'open' ? 'Follow-up' : 'Updated',
+      sortable: true,
+      defaultDir: tab === 'open' ? 'asc' : 'desc',
+      cell: (lead) => {
+        const fu = followUpInfo(lead.followUpAt);
+        return (
+          <span className="text-xs font-medium" style={{ color: tab === 'open' ? fu.color : 'var(--color-ink-600)' }}>
+            {tab === 'open' ? fu.label : fmtDate(lead.updatedAt)}
+          </span>
+        );
+      },
+    },
+  ];
+
+  const rowActions = (lead: Lead) => (
+    <>
+      {lead.stage === 'WON' && !lead.convertedCustomerId && (
+        <button type="button" onClick={() => convert(lead)} className="min-h-11 shrink-0 rounded-md px-2.5 text-xs font-medium text-white md:min-h-9" style={{ backgroundColor: 'var(--color-accent)' }}>
+          To customer
+        </button>
+      )}
+      {lead.convertedCustomerId && <span className="shrink-0 text-xs font-medium" style={{ color: 'var(--color-status-ok)' }}>Converted</span>}
+      <IconAction label={`Edit ${lead.name}`} icon={Pencil} onClick={() => openEdit(lead)} />
+      {tab === 'archived' ? (
+        <IconAction label={`Restore ${lead.name}`} icon={RotateCcw} tone="accent" onClick={() => restoreLead(lead)} />
+      ) : (
+        <IconAction label={`Archive ${lead.name}`} icon={Archive} tone="danger" onClick={() => archiveLead(lead)} />
+      )}
+    </>
+  );
+
+  // On a phone the contact buttons come first: calling someone is what a lead card is for.
+  const cardActions = (lead: Lead) => (
+    <>
+      {lead.phone && (
+        <>
+          <a href={`tel:${lead.phone}`} className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-md border text-xs font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
+            <Phone size={13} strokeWidth={2} /> Call
+          </a>
+          <a href={waHref(lead.phone)} target="_blank" rel="noreferrer" className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-md border text-xs font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-status-ok)' }}>
+            <MessageCircle size={13} strokeWidth={2} /> WhatsApp
+          </a>
+        </>
+      )}
+      {rowActions(lead)}
+    </>
+  );
+
+  const renderCard = (lead: Lead) => {
+    const fu = followUpInfo(lead.followUpAt);
+    return (
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate font-medium" style={{ color: 'var(--color-ink-900)' }}>{lead.name}</p>
+            {lead.company && <p className="truncate text-xs" style={{ color: 'var(--color-ink-600)' }}>{lead.company}</p>}
+          </div>
+          <p className="shrink-0 text-xs font-medium" style={{ color: tab === 'open' ? fu.color : 'var(--color-ink-600)' }}>
+            {tab === 'open' ? fu.label : fmtDate(lead.updatedAt)}
+          </p>
+        </div>
+        {lead.location && <p className="flex items-center gap-1 text-xs" style={{ color: 'var(--color-ink-600)' }}><MapPin size={11} strokeWidth={2} />{lead.location}</p>}
+        {lead.notes && <p className="truncate text-xs" style={{ color: 'var(--color-ink-600)' }}>{lead.notes}</p>}
+      </div>
+    );
+  };
+
+  const buttonStyle = { borderColor: 'var(--color-border)', color: 'var(--color-ink-900)', backgroundColor: 'var(--color-surface)' };
+  const bulkActions = (
+    <>
+      <button type="button" onClick={() => exportRows(selection.items)} className="flex min-h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium" style={buttonStyle}>
+        <Download size={14} strokeWidth={2} />
+        Export selected
+      </button>
+      <button
+        type="button"
+        onClick={() => setBulkConfirm(tab === 'archived' ? 'restore' : 'archive')}
+        className="flex min-h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium"
+        style={{ ...buttonStyle, color: tab === 'archived' ? 'var(--color-accent)' : 'var(--color-status-bad)' }}
+      >
+        {tab === 'archived' ? <RotateCcw size={14} strokeWidth={2} /> : <Archive size={14} strokeWidth={2} />}
+        {tab === 'archived' ? 'Restore selected' : 'Archive selected'}
+      </button>
+    </>
+  );
+
+  const emptyState = (
+    <>
+      <Target size={28} strokeWidth={1.5} className="mx-auto mb-2" style={{ color: 'var(--color-ink-600)' }} />
+      <p className="text-sm font-medium" style={{ color: 'var(--color-ink-900)' }}>
+        {q ? 'No leads match your search' : tab === 'open' ? 'Nothing to follow up on' : tab === 'archived' ? 'No archived leads' : `No ${tab} leads yet`}
+      </p>
+      {!q && tab === 'open' && (
+        <p className="mt-1 text-sm" style={{ color: 'var(--color-ink-600)' }}>
+          Add a lead to start tracking who to call back.
+        </p>
+      )}
+    </>
+  );
 
   return (
     <div className="p-6">
@@ -188,180 +371,50 @@ export default function LeadsPage() {
       <div className="relative mt-3 max-w-sm">
         <Search size={15} strokeWidth={2} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-ink-600)' }} />
         <input
+          type="search"
+          aria-label="Search leads"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search name, phone, location, note…"
-          className="w-full rounded-md border py-2 pl-8 pr-3 text-sm outline-none focus:border-[var(--color-accent)]"
+          className="w-full rounded-md border py-2 pl-8 pr-9 text-sm outline-none focus:border-[var(--color-accent)] [&::-webkit-search-cancel-button]:hidden"
           style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}
+        />
+        {search && (
+          <button type="button" aria-label="Clear search" onClick={() => setSearch('')} className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md" style={{ color: 'var(--color-ink-600)' }}>
+            <X size={14} strokeWidth={2} />
+          </button>
+        )}
+      </div>
+
+      <div className="mt-5">
+        <DataTable<Lead>
+          {...table.tableProps}
+          caption="Leads"
+          columns={columns}
+          rowKey={(l) => l.id}
+          rowLabel={(l) => l.name}
+          onRowClick={openEdit}
+          rowActions={rowActions}
+          cardActions={cardActions}
+          renderCard={renderCard}
+          selection={selection}
+          bulkActions={bulkActions}
+          empty={emptyState}
         />
       </div>
 
-      <div className="mt-5 overflow-hidden rounded-lg border" style={{ borderColor: 'var(--color-border)' }}>
-        {/* Desktop/tablet */}
-        <table className="hidden w-full text-sm md:table">
-          <thead>
-            <tr className="border-b text-left" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)' }}>
-              <th className="px-4 py-2.5 font-medium" style={{ color: 'var(--color-ink-600)' }}>Lead</th>
-              <th className="px-4 py-2.5 font-medium" style={{ color: 'var(--color-ink-600)' }}>Contact</th>
-              <th className="px-4 py-2.5 font-medium" style={{ color: 'var(--color-ink-600)' }}>Note</th>
-              <th className="px-4 py-2.5 font-medium" style={{ color: 'var(--color-ink-600)' }}>{tab === 'open' ? 'Follow-up' : 'Updated'}</th>
-              <th className="px-4 py-2.5 text-right font-medium" style={{ color: 'var(--color-ink-600)' }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows === null &&
-              [...Array(4)].map((_, i) => (
-                <tr key={i} className="border-b" style={{ borderColor: 'var(--color-border)' }}>
-                  <td className="px-4 py-3" colSpan={5}>
-                    <div className="h-4 w-2/3 animate-pulse rounded" style={{ backgroundColor: 'var(--color-border)' }} />
-                  </td>
-                </tr>
-              ))}
-
-            {rows?.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-12 text-center">
-                  <Target size={28} strokeWidth={1.5} className="mx-auto mb-2" style={{ color: 'var(--color-ink-600)' }} />
-                  <p className="text-sm font-medium" style={{ color: 'var(--color-ink-900)' }}>
-                    {tab === 'open' ? 'Nothing to follow up on' : tab === 'archived' ? 'No archived leads' : `No ${tab} leads yet`}
-                  </p>
-                  <p className="mt-1 text-sm" style={{ color: 'var(--color-ink-600)' }}>
-                    {tab === 'open' ? 'Add a lead to start tracking who to call back.' : ' '}
-                  </p>
-                </td>
-              </tr>
-            )}
-
-            {rows?.map((lead) => {
-              const fu = followUpInfo(lead.followUpAt);
-              return (
-                <tr key={lead.id} onClick={() => openEdit(lead)} className="cursor-pointer border-b transition-colors last:border-0 hover:bg-[var(--color-bg)]" style={{ borderColor: 'var(--color-border)' }}>
-                  <td className="px-4 py-3">
-                    <p className="font-medium" style={{ color: 'var(--color-ink-900)' }}>{lead.name}</p>
-                    {lead.company && <p className="text-xs" style={{ color: 'var(--color-ink-600)' }}>{lead.company}</p>}
-                    {lead.expectedValue != null && (
-                      <p className="text-xs data-num" style={{ color: 'var(--color-ink-600)' }}>KSh {fmtNumber(lead.expectedValue)}</p>
-                    )}
-                  </td>
-                  <td className="px-4 py-3" style={{ color: 'var(--color-ink-600)' }} onClick={(e) => e.stopPropagation()}>
-                    {lead.phone ? (
-                      <div className="flex items-center gap-2">
-                        <a href={`tel:${lead.phone}`} className="hover:underline" style={{ color: 'var(--color-ink-900)' }}>{lead.phone}</a>
-                        <a href={waHref(lead.phone)} target="_blank" rel="noreferrer" title="Message on WhatsApp" className="flex h-7 w-7 items-center justify-center rounded-md border" style={{ borderColor: 'var(--color-border)', color: 'var(--color-status-ok)' }}>
-                          <MessageCircle size={13} strokeWidth={2} />
-                        </a>
-                      </div>
-                    ) : (
-                      '—'
-                    )}
-                    {lead.location && <p className="mt-0.5 flex items-center gap-1 text-xs"><MapPin size={11} strokeWidth={2} />{lead.location}</p>}
-                  </td>
-                  <td className="max-w-xs px-4 py-3">
-                    <p className="truncate text-xs" title={lead.notes ?? undefined} style={{ color: 'var(--color-ink-600)' }}>
-                      {lead.notes || '—'}
-                    </p>
-                  </td>
-                  <td className="px-4 py-3 text-xs font-medium" style={{ color: tab === 'open' ? fu.color : 'var(--color-ink-600)' }}>
-                    {tab === 'open' ? fu.label : fmtDate(lead.updatedAt)}
-                  </td>
-                  <td className="px-2 py-2">
-                    <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-                      {lead.stage === 'WON' && !lead.convertedCustomerId && (
-                        <button type="button" onClick={() => convert(lead)} className="shrink-0 rounded-md px-2.5 py-1.5 text-xs font-medium text-white" style={{ backgroundColor: 'var(--color-accent)' }}>
-                          To customer
-                        </button>
-                      )}
-                      {lead.convertedCustomerId && (
-                        <span className="shrink-0 text-xs font-medium" style={{ color: 'var(--color-status-ok)' }}>Converted</span>
-                      )}
-                      <button type="button" title="Edit lead" aria-label="Edit lead" onClick={() => openEdit(lead)} className="flex h-9 w-9 items-center justify-center rounded-md border" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-600)' }}>
-                        <Pencil size={15} strokeWidth={2} />
-                      </button>
-                      {tab === 'archived' ? (
-                        <button type="button" title="Restore lead" aria-label="Restore lead" onClick={() => restoreLead(lead)} className="flex h-9 w-9 items-center justify-center rounded-md border" style={{ borderColor: 'var(--color-border)', color: 'var(--color-accent)' }}>
-                          <RotateCcw size={15} strokeWidth={2} />
-                        </button>
-                      ) : (
-                        <button type="button" title="Archive lead" aria-label="Archive lead" onClick={() => archiveLead(lead)} className="flex h-9 w-9 items-center justify-center rounded-md border" style={{ borderColor: 'var(--color-border)', color: 'var(--color-status-bad)' }}>
-                          <Archive size={15} strokeWidth={2} />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-
-        {/* Mobile */}
-        <div className="divide-y divide-[var(--color-border)] md:hidden">
-          {rows === null &&
-            [...Array(3)].map((_, i) => (
-              <div key={i} className="p-4">
-                <div className="h-4 w-2/3 animate-pulse rounded" style={{ backgroundColor: 'var(--color-border)' }} />
-              </div>
-            ))}
-
-          {rows?.length === 0 && (
-            <div className="px-4 py-12 text-center">
-              <Target size={28} strokeWidth={1.5} className="mx-auto mb-2" style={{ color: 'var(--color-ink-600)' }} />
-              <p className="text-sm font-medium" style={{ color: 'var(--color-ink-900)' }}>
-                {tab === 'open' ? 'Nothing to follow up on' : tab === 'archived' ? 'No archived leads' : `No ${tab} leads yet`}
-              </p>
-            </div>
-          )}
-
-          {rows?.map((lead) => {
-            const fu = followUpInfo(lead.followUpAt);
-            return (
-              <div key={lead.id} className="flex flex-col gap-1.5 p-4">
-                <div onClick={() => openEdit(lead)} onKeyDown={activateOnKey(() => openEdit(lead))} tabIndex={0} role="button" className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate font-medium" style={{ color: 'var(--color-ink-900)' }}>{lead.name}</p>
-                    {lead.company && <p className="truncate text-xs" style={{ color: 'var(--color-ink-600)' }}>{lead.company}</p>}
-                  </div>
-                  <p className="shrink-0 text-xs font-medium" style={{ color: tab === 'open' ? fu.color : 'var(--color-ink-600)' }}>
-                    {tab === 'open' ? fu.label : fmtDate(lead.updatedAt)}
-                  </p>
-                </div>
-
-                {lead.location && <p className="flex items-center gap-1 text-xs" style={{ color: 'var(--color-ink-600)' }}><MapPin size={11} strokeWidth={2} />{lead.location}</p>}
-                {lead.notes && <p className="truncate text-xs" style={{ color: 'var(--color-ink-600)' }}>{lead.notes}</p>}
-
-                <div className="mt-1 flex items-center gap-2">
-                  {lead.phone && (
-                    <>
-                      <a href={`tel:${lead.phone}`} className="flex flex-1 items-center justify-center gap-1.5 rounded-md border py-2 text-xs font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
-                        <Phone size={13} strokeWidth={2} /> Call
-                      </a>
-                      <a href={waHref(lead.phone)} target="_blank" rel="noreferrer" className="flex flex-1 items-center justify-center gap-1.5 rounded-md border py-2 text-xs font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-status-ok)' }}>
-                        <MessageCircle size={13} strokeWidth={2} /> WhatsApp
-                      </a>
-                    </>
-                  )}
-                  {lead.stage === 'WON' && !lead.convertedCustomerId && (
-                    <button type="button" onClick={() => convert(lead)} className="shrink-0 rounded-md px-3 py-2 text-xs font-medium text-white" style={{ backgroundColor: 'var(--color-accent)' }}>
-                      To customer
-                    </button>
-                  )}
-                  {tab === 'archived' ? (
-                    <button type="button" aria-label="Restore lead" onClick={() => restoreLead(lead)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border" style={{ borderColor: 'var(--color-border)', color: 'var(--color-accent)' }}>
-                      <RotateCcw size={15} strokeWidth={2} />
-                    </button>
-                  ) : (
-                    <button type="button" aria-label="Archive lead" onClick={() => archiveLead(lead)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border" style={{ borderColor: 'var(--color-border)', color: 'var(--color-status-bad)' }}>
-                      <Archive size={15} strokeWidth={2} />
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
       <LeadFormDrawer open={formOpen} onClose={() => setFormOpen(false)} onSaved={() => { load(); setArchived(null); }} lead={editing} />
+
+      {bulkConfirm && (
+        <ConfirmDialog
+          title={`${bulkConfirm === 'archive' ? 'Archive' : 'Restore'} ${selection.count} lead${selection.count === 1 ? '' : 's'}?`}
+          description={bulkConfirm === 'archive' ? 'They leave the active list. They can be restored from the Archived tab any time.' : 'They return to the lists they were archived from.'}
+          confirmLabel={bulkConfirm === 'archive' ? 'Archive' : 'Restore'}
+          busy={bulkBusy}
+          onCancel={() => setBulkConfirm(null)}
+          onConfirm={() => runBulkArchive(bulkConfirm)}
+        />
+      )}
     </div>
   );
 }

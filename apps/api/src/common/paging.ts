@@ -14,3 +14,32 @@ export function parsePaging(limit?: string, offset?: string): { limit?: number; 
     offset: Number.isFinite(o) && o > 0 ? o : undefined,
   };
 }
+
+/**
+ * `sort=field:dir` from a table header. Only the shape is checked here; each
+ * service maps `field` through its own whitelist, so an unknown field (or a
+ * hand-edited URL) falls back to that list's default order instead of
+ * reaching the database.
+ */
+export type SortDir = 'asc' | 'desc';
+
+/** Prisma ordering for a nullable column: empty values go last whichever way it sorts. */
+export const nullsLast = (dir: SortDir) => ({ sort: dir, nulls: 'last' as const });
+
+export function parseSort(raw?: string): { field: string; dir: SortDir } | undefined {
+  if (!raw) return undefined;
+  const [field, dir] = raw.split(':');
+  if (!field || !/^[a-zA-Z]+$/.test(field)) return undefined;
+  return { field, dir: dir === 'desc' ? 'desc' : 'asc' };
+}
+
+/**
+ * The size of the whole result set, for list endpoints that are paged. Sent
+ * as a header so the response body stays the plain array every other caller
+ * of these endpoints already reads.
+ */
+export const TOTAL_COUNT_HEADER = 'X-Total-Count';
+
+export function sendTotal(res: { setHeader(name: string, value: string | number): unknown }, total: number) {
+  res.setHeader(TOTAL_COUNT_HEADER, total);
+}

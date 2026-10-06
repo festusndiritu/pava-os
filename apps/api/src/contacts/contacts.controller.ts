@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { ContactsService } from './contacts.service.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { PermissionsGuard } from '../auth/permissions.guard.js';
@@ -7,7 +7,7 @@ import { RolesGuard } from '../auth/roles.guard.js';
 import { Roles } from '../auth/roles.decorator.js';
 import { Module, Role } from '../../generated/prisma/client.js';
 import { CreateContactDto, UpdateContactDto } from './dto/contact.dto.js';
-import { parsePaging } from '../common/paging.js';
+import { parsePaging, sendTotal } from '../common/paging.js';
 
 @UseGuards(JwtAuthGuard)
 @Controller('contacts')
@@ -20,8 +20,17 @@ export class ContactsController {
   @UseGuards(PermissionsGuard)
   @Permissions(Module.CONTACTS)
   @Get()
-  findAll(@Query('search') search?: string, @Query('status') status?: 'active' | 'archived' | 'all', @Query('limit') limit?: string, @Query('offset') offset?: string) {
-    return this.contacts.findAll(search, status, parsePaging(limit, offset));
+  async findAll(
+    @Res({ passthrough: true }) res: { setHeader(name: string, value: string | number): unknown },
+    @Query('search') search?: string,
+    @Query('status') status?: 'active' | 'archived' | 'all',
+    @Query('sort') sort?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    const { rows, total } = await this.contacts.findPage(search, status, { sort, ...parsePaging(limit, offset) });
+    sendTotal(res, total);
+    return rows;
   }
 
   @UseGuards(PermissionsGuard)

@@ -11,7 +11,7 @@ import { ApiError } from '../../lib/api';
 import { NumericInput, toNumber } from '../ui/inputs';
 import { toast } from '../ui/Toast';
 import { useAuth } from '../../lib/auth-context';
-import { useDebounced } from '../../lib/use-paged-list';
+import { useDebounced } from '../../lib/use-debounced';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
 const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase';

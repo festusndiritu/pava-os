@@ -120,6 +120,25 @@ export interface InventorySummary {
   uncostedProducts: number | null;
 }
 
+export interface ReceiptListParams {
+  search?: string;
+  kind?: ReceiptKind;
+  /** `field:dir`, where field is date, supplier or reference. */
+  sort?: string;
+  limit?: number;
+  offset?: number;
+}
+
+function receiptQuery(params: ReceiptListParams) {
+  const qs = new URLSearchParams();
+  if (params.search) qs.set('search', params.search);
+  if (params.kind) qs.set('kind', params.kind);
+  if (params.sort) qs.set('sort', params.sort);
+  if (params.limit) qs.set('limit', String(params.limit));
+  if (params.offset) qs.set('offset', String(params.offset));
+  return qs.toString() ? `?${qs.toString()}` : '';
+}
+
 export interface ReceiveLineResult {
   productId: string;
   productName: string;
@@ -131,22 +150,36 @@ export interface ReceiveLineResult {
 export type CatalogueStatus = 'active' | 'archived' | 'all';
 // restock = at or below the low-stock threshold (low and out together).
 export type StockFilter = 'in' | 'low' | 'out' | 'restock';
-export type ProductSort = 'name' | 'price_asc' | 'price_desc' | 'stock_asc' | 'stock_desc' | 'newest';
+
+export interface ProductListParams {
+  search?: string;
+  brandId?: string;
+  categoryId?: string;
+  status?: CatalogueStatus;
+  stock?: StockFilter;
+  /** `field:dir`, where field is name, price, stock, cost, created, category or brand. */
+  sort?: string;
+  limit?: number;
+  offset?: number;
+}
+
+function productQuery(params: ProductListParams) {
+  const qs = new URLSearchParams();
+  if (params.search) qs.set('search', params.search);
+  if (params.brandId) qs.set('brandId', params.brandId);
+  if (params.categoryId) qs.set('categoryId', params.categoryId);
+  if (params.status) qs.set('status', params.status);
+  if (params.stock) qs.set('stock', params.stock);
+  if (params.sort) qs.set('sort', params.sort);
+  if (params.limit) qs.set('limit', String(params.limit));
+  if (params.offset) qs.set('offset', String(params.offset));
+  return qs.toString() ? `?${qs.toString()}` : '';
+}
 
 export const productsApi = {
-  list: (params: { search?: string; brandId?: string; categoryId?: string; status?: CatalogueStatus; stock?: StockFilter; sort?: ProductSort; limit?: number; offset?: number } = {}) => {
-    const qs = new URLSearchParams();
-    if (params.search) qs.set('search', params.search);
-    if (params.brandId) qs.set('brandId', params.brandId);
-    if (params.categoryId) qs.set('categoryId', params.categoryId);
-    if (params.status) qs.set('status', params.status);
-    if (params.stock) qs.set('stock', params.stock);
-    if (params.sort) qs.set('sort', params.sort);
-    if (params.limit) qs.set('limit', String(params.limit));
-    if (params.offset) qs.set('offset', String(params.offset));
-    const suffix = qs.toString() ? `?${qs.toString()}` : '';
-    return api.get<Product[]>(`/products${suffix}`);
-  },
+  list: (params: ProductListParams = {}) => api.get<Product[]>(`/products${productQuery(params)}`),
+  // One page plus how many products match in all.
+  listPage: (params: ProductListParams = {}) => api.getPage<Product>(`/products${productQuery(params)}`),
   get: (id: string) => api.get<Product>(`/products/${id}`),
   create: (data: Partial<Omit<Product, 'aliases'>> & { aliases?: string[] }) => api.post<Product>('/products', data),
   update: (id: string, data: Partial<Omit<Product, 'aliases'>> & { aliases?: string[] }) => api.patch<Product>(`/products/${id}`, data),
@@ -181,15 +214,8 @@ export const productsApi = {
 };
 
 export const inventoryApi = {
-  receipts: (params: { search?: string; kind?: ReceiptKind; limit?: number; offset?: number } = {}) => {
-    const qs = new URLSearchParams();
-    if (params.search) qs.set('search', params.search);
-    if (params.kind) qs.set('kind', params.kind);
-    if (params.limit) qs.set('limit', String(params.limit));
-    if (params.offset) qs.set('offset', String(params.offset));
-    const suffix = qs.toString() ? `?${qs.toString()}` : '';
-    return api.get<InventoryReceipt[]>(`/inventory/receipts${suffix}`);
-  },
+  receipts: (params: ReceiptListParams = {}) => api.get<InventoryReceipt[]>(`/inventory/receipts${receiptQuery(params)}`),
+  receiptsPage: (params: ReceiptListParams = {}) => api.getPage<InventoryReceipt>(`/inventory/receipts${receiptQuery(params)}`),
   summary: () => api.get<InventorySummary>('/inventory/summary'),
   receiptDetail: (id: string) => api.get<InventoryReceipt>(`/inventory/receipts/${id}`),
   receive: (data: { supplier: string; reference?: string; notes?: string; lines: { productId: string; quantity: number; unitCost: number }[] }) =>

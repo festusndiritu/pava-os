@@ -4,6 +4,7 @@ import { AuditService } from '../audit/audit.service.js';
 import { MovementType } from '../../generated/prisma/client.js';
 import { roundMoney } from '../common/money.js';
 import { SettingsService } from '../settings/settings.service.js';
+import { nullsLast, parseSort, type SortDir } from '../common/paging.js';
 
 // Simple markup-preserving suggestion for the "update selling price?" prompt
 // on receiving (brief §23) — not a general rounding/pricing engine (that's
@@ -37,6 +38,19 @@ interface AdjustInput {
   note?: string;
   allowNegative?: boolean;
   unitCost?: number; // per-unit cost of added stock; ignored when reducing
+}
+
+// What a table header can sort receipts by (`field:dir`, see parseSort). Newest first stays the default.
+const RECEIPT_SORT_FIELDS: Record<string, (dir: SortDir) => object> = {
+  date: (d) => ({ receivedAt: d }),
+  supplier: (d) => ({ supplier: d }),
+  reference: (d) => ({ reference: nullsLast(d) }),
+};
+
+function receiptOrderBy(raw?: string): any[] {
+  const sort = parseSort(raw);
+  const make = sort && RECEIPT_SORT_FIELDS[sort.field];
+  return [...(make && sort ? [make(sort.dir)] : []), ...(sort?.field === 'date' && make ? [] : [{ receivedAt: 'desc' }]), { id: 'desc' }];
 }
 
 @Injectable()
@@ -385,12 +399,19 @@ export class InventoryService {
 
   async receipts(
     canViewCost: boolean,
-    params: { search?: string; kind?: 'delivery' | 'other'; limit?: number; offset?: number } = {},
+    params: { search?: string; kind?: 'delivery' | 'other'; sort?: string; limit?: number; offset?: number } = {},
   ) {
-    const { search, kind, limit, offset = 0 } = params;
+    return (await this.receiptsPage(canViewCost, params)).rows;
+  }
+
+  // One page of receipts plus how many match in all.
+  async receiptsPage(
+    canViewCost: boolean,
+    params: { search?: string; kind?: 'delivery' | 'other'; sort?: string; limit?: number; offset?: number } = {},
+  ) {
+    const { search, kind, sort, limit, offset = 0 } = params;
     const term = search?.trim();
-    const receipts = await this.prisma.inventoryReceipt.findMany({
-      where: {
+    const where = {
         ...(kind === 'delivery' ? { supplier: { notIn: SYSTEM_SUPPLIERS } } : {}),
         ...(kind === 'other' ? { supplier: { in: SYSTEM_SUPPLIERS } } : {}),
         ...(term
@@ -413,16 +434,23 @@ export class InventoryService {
               ],
             }
           : {}),
-      },
-      include: {
-        receivedBy: { select: { name: true } },
-        batches: { include: { product: { select: { id: true, name: true, displayName: true } } } },
-      },
-      // id breaks ties so paging by offset never skips or repeats a row.
-      orderBy: [{ receivedAt: 'desc' }, { id: 'desc' }],
-      ...(limit ? { take: limit, skip: offset } : {}),
-    });
-    return receipts.map((r) => ({ ...r, batches: r.batches.map((b) => this.redactBatchCost(b, canViewCost)) }));
+    };
+    const [receipts, counted] = await Promise.all([
+      this.prisma.inventoryReceipt.findMany({
+        where,
+        include: {
+          receivedBy: { select: { name: true } },
+          batches: { include: { product: { select: { id: true, name: true, displayName: true } } } },
+        },
+        orderBy: receiptOrderBy(sort),
+        ...(limit ? { take: limit, skip: offset } : {}),
+      }),
+      limit ? this.prisma.inventoryReceipt.count({ where }) : Promise.resolve(null),
+    ]);
+    return {
+      rows: receipts.map((r) => ({ ...r, batches: r.batches.map((b) => this.redactBatchCost(b, canViewCost)) })),
+      total: counted ?? receipts.length,
+    };
   }
 
   // The numbers behind the Inventory header: how healthy stock is, and what it

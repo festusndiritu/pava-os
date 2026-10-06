@@ -31,17 +31,23 @@ export interface CustomerLedgerEntry {
 
 export type CustomerStatus = 'active' | 'archived' | 'all';
 
+function customerQuery(search: string | undefined, status: CustomerStatus, page?: { offset: number; limit: number }, sort?: string) {
+  const qs = new URLSearchParams();
+  if (search) qs.set('search', search);
+  qs.set('status', status);
+  if (sort) qs.set('sort', sort);
+  if (page) {
+    qs.set('limit', String(page.limit));
+    qs.set('offset', String(page.offset));
+  }
+  return `?${qs.toString()}`;
+}
+
 export const customersApi = {
-  list: (search?: string, status: CustomerStatus = 'active', page?: { offset: number; limit: number }) => {
-    const qs = new URLSearchParams();
-    if (search) qs.set('search', search);
-    qs.set('status', status);
-    if (page) {
-      qs.set('limit', String(page.limit));
-      qs.set('offset', String(page.offset));
-    }
-    return api.get<Customer[]>(`/customers?${qs.toString()}`);
-  },
+  list: (search?: string, status: CustomerStatus = 'active', page?: { offset: number; limit: number }) => api.get<Customer[]>(`/customers${customerQuery(search, status, page)}`),
+  // One page plus how many customers match in all. `sort` is `field:dir`: name, phone, type or balance.
+  listPage: (search: string | undefined, status: CustomerStatus, page: { offset: number; limit: number }, sort?: string) =>
+    api.getPage<Customer>(`/customers${customerQuery(search, status, page, sort)}`),
   get: (id: string) => api.get<Customer>(`/customers/${id}`),
   create: (data: Partial<Customer>) => api.post<Customer>('/customers', data),
   update: (id: string, data: Partial<Customer>) => api.patch<Customer>(`/customers/${id}`, data),

@@ -83,10 +83,13 @@ async function refreshOnce(): Promise<boolean> {
 
 interface ApiOptions extends RequestInit {
   auth?: boolean; // default true
+  // Called with the response headers of a successful request. Lets a caller
+  // read metadata (the total of a paged list) without changing the body shape.
+  onHeaders?: (headers: Headers) => void;
 }
 
 export async function apiFetch<T = unknown>(path: string, options: ApiOptions = {}): Promise<T> {
-  const { auth = true, headers, ...rest } = options;
+  const { auth = true, headers, onHeaders, ...rest } = options;
 
   const buildHeaders = () => {
     const h = new Headers(headers);
@@ -126,6 +129,7 @@ export async function apiFetch<T = unknown>(path: string, options: ApiOptions = 
     throw new ApiError(res.status, Array.isArray(message) ? message.join(', ') : message, details);
   }
 
+  onHeaders?.(res.headers);
   if (res.status === 204) return undefined as T;
   return res.json();
 }
@@ -141,4 +145,19 @@ export const api = {
   patch: <T = unknown>(path: string, body?: unknown, options?: ApiOptions) =>
     apiFetch<T>(path, { ...options, method: 'PATCH', body: body !== undefined ? JSON.stringify(body) : undefined }),
   delete: <T = unknown>(path: string, options?: ApiOptions) => apiFetch<T>(path, { ...options, method: 'DELETE' }),
+  // One page of a list plus how many rows match in all (the X-Total-Count
+  // header). Without the header, the page itself is all there is.
+  getPage: async <T = unknown>(path: string, options?: ApiOptions) => {
+    const meta: { total: number | null } = { total: null };
+    const items = await apiFetch<T[]>(path, {
+      ...options,
+      method: 'GET',
+      onHeaders: (h) => {
+        const raw = h.get('X-Total-Count');
+        const n = raw === null ? NaN : Number(raw);
+        meta.total = Number.isFinite(n) ? n : null;
+      },
+    });
+    return { items, total: meta.total ?? items.length };
+  },
 };

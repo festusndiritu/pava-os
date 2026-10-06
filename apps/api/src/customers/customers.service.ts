@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { LedgerEntryType } from '../../generated/prisma/client.js';
 import { normalizePhoneSearch } from '../common/validation/phone.validator.js';
+import { nullsLast, parseSort, type SortDir } from '../common/paging.js';
 
 interface CustomerInput {
   name: string;
@@ -16,6 +17,21 @@ interface CustomerInput {
   creditLimit?: number;
 }
 
+// What a table header can sort customers by (`field:dir`, see parseSort).
+// `id` is the final tiebreaker so paging by offset never skips or repeats a row.
+const SORT_FIELDS: Record<string, (dir: SortDir) => object> = {
+  name: (d) => ({ name: d }),
+  phone: (d) => ({ phone: nullsLast(d) }),
+  type: (d) => ({ isCredit: d }),
+  balance: (d) => ({ creditBalance: d }),
+};
+
+function orderByFor(raw?: string): any[] {
+  const sort = parseSort(raw);
+  const make = sort && SORT_FIELDS[sort.field];
+  return [...(make && sort ? [make(sort.dir)] : []), ...(sort?.field === 'name' && make ? [] : [{ name: 'asc' }]), { id: 'asc' }];
+}
+
 @Injectable()
 export class CustomersService {
   constructor(
@@ -23,25 +39,34 @@ export class CustomersService {
     private audit: AuditService,
   ) {}
 
-  findAll(params: { search?: string; status?: 'active' | 'archived' | 'all'; limit?: number; offset?: number } = {}) {
-    const { search, status = 'active', limit, offset } = params;
-    return this.prisma.customer.findMany({
-      where: {
-        ...(status === 'all' ? {} : { active: status === 'archived' ? false : true }),
-        ...(search
-          ? {
-              OR: [
-                { name: { contains: search, mode: 'insensitive' as const } },
-                { businessName: { contains: search, mode: 'insensitive' as const } },
-                { phone: { contains: normalizePhoneSearch(search) } },
-              ],
-            }
-          : {}),
-      },
-      // id breaks ties so paging by offset never skips or repeats a row.
-      orderBy: [{ name: 'asc' }, { id: 'asc' }],
-      ...(limit ? { take: limit, skip: offset ?? 0 } : {}),
-    });
+  async findAll(params: Parameters<CustomersService['findPage']>[0] = {}) {
+    return (await this.findPage(params)).rows;
+  }
+
+  // One page of customers plus how many match in all.
+  async findPage(params: { search?: string; status?: 'active' | 'archived' | 'all'; sort?: string; limit?: number; offset?: number } = {}) {
+    const { search, status = 'active', sort, limit, offset } = params;
+    const where = {
+      ...(status === 'all' ? {} : { active: status === 'archived' ? false : true }),
+      ...(search
+        ? {
+            OR: [
+              { name: { contains: search, mode: 'insensitive' as const } },
+              { businessName: { contains: search, mode: 'insensitive' as const } },
+              { phone: { contains: normalizePhoneSearch(search) } },
+            ],
+          }
+        : {}),
+    };
+    const [rows, counted] = await Promise.all([
+      this.prisma.customer.findMany({
+        where,
+        orderBy: orderByFor(sort),
+        ...(limit ? { take: limit, skip: offset ?? 0 } : {}),
+      }),
+      limit ? this.prisma.customer.count({ where }) : Promise.resolve(null),
+    ]);
+    return { rows, total: counted ?? rows.length };
   }
 
   async findOne(id: string) {

@@ -1,17 +1,17 @@
 'use client';
 
-import { useEffect, useState, Fragment, type KeyboardEvent } from 'react';
+import { useEffect, useState, type KeyboardEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Boxes, ClipboardList, Plus, Search, X } from 'lucide-react';
 import { inventoryApi, type InventoryReceipt, type InventorySummary, type Product, type ReceiptKind, type StockFilter } from '../../../lib/products-api';
 import { ReceiveInventoryDrawer } from '../../../components/inventory/ReceiveInventoryDrawer';
 import { StockLevelsTable } from '../../../components/inventory/StockLevelsTable';
 import { ProductDetailDrawer } from '../../../components/products/ProductDetailDrawer';
-import { ListFooter } from '../../../components/ui/ListFooter';
+import { DataTable, type Column } from '../../../components/ui/DataTable';
 import { useAuth } from '../../../lib/auth-context';
 import { fmtNumber } from '../../../lib/format';
-import { activateOnKey } from '../../../lib/a11y';
-import { usePagedList, useDebounced } from '../../../lib/use-paged-list';
+import { useDebounced } from '../../../lib/use-debounced';
+import { useServerTable } from '../../../lib/use-data-table';
 
 function fmtDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(iso));
@@ -66,9 +66,8 @@ function SummaryCard({ label, value, hint, tone = 'default', onClick }: { label:
 
 export default function InventoryPage() {
   const [tab, setTab] = useState<TabKey>('levels');
-  const [expanded, setExpanded] = useState<string | null>(null);
   const [receiveOpen, setReceiveOpen] = useState(false);
-  const [receiveFor, setReceiveFor] = useState<Product | null>(null);
+  const [receiveFor, setReceiveFor] = useState<Product[] | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [stock, setStock] = useState<StockFilter | ''>('');
   const [stockRefresh, setStockRefresh] = useState(0);
@@ -99,21 +98,19 @@ export default function InventoryPage() {
   }, [summaryTick]);
 
   const debouncedReceiptSearch = useDebounced(receiptSearch);
-  const {
-    items: receipts,
-    hasMore,
-    loadingMore,
-    error: receiptsError,
-    loadMore,
-    reload: reloadReceipts,
-  } = usePagedList((offset, limit) => inventoryApi.receipts({ search: debouncedReceiptSearch || undefined, kind: kind || undefined, offset, limit }), [debouncedReceiptSearch, kind]);
+  const receiptsTable = useServerTable<InventoryReceipt>({
+    fetcher: (q) => inventoryApi.receiptsPage({ search: debouncedReceiptSearch || undefined, kind: kind || undefined, sort: q.sort, offset: q.offset, limit: q.limit }),
+    deps: [debouncedReceiptSearch, kind],
+    defaultSort: { id: 'date', dir: 'desc' },
+  });
+  const { rows: receipts, reload: reloadReceipts } = receiptsTable;
 
   const suppliers = [...new Set((receipts ?? []).map((r) => r.supplier).filter((s) => !SYSTEM_SUPPLIERS.has(s)))].sort((a, b) => a.localeCompare(b));
 
   function stockChanged() {
     setSummaryTick((t) => t + 1);
     setStockRefresh((k) => k + 1);
-    void reloadReceipts();
+    reloadReceipts();
   }
 
   function showStock(filter: StockFilter | '') {
@@ -130,7 +127,6 @@ export default function InventoryPage() {
     document.getElementById(`inventory-tab-${next.key}`)?.focus();
   }
 
-  const colSpan = showCost ? 5 : 4;
   const receiptsFiltered = !!(receiptSearch || kind);
   const emptyReceipts = (
     <>
@@ -163,6 +159,52 @@ export default function InventoryPage() {
 
   const lineTotal = (r: InventoryReceipt) => r.batches.reduce((sum, b) => sum + b.quantityReceived * b.unitCost, 0);
   const totalText = (r: InventoryReceipt) => (lineTotal(r) > 0 ? `KSh ${fmtNumber(lineTotal(r))}` : '—');
+
+  const receiptColumns: Column<InventoryReceipt>[] = [
+    { id: 'date', header: 'Date', sortable: true, defaultDir: 'desc', cell: (r) => <span style={{ color: 'var(--color-ink-900)' }}>{fmtDate(r.receivedAt)}</span> },
+    { id: 'supplier', header: 'Supplier', sortable: true, cell: (r) => <span className="font-medium" style={{ color: 'var(--color-ink-900)' }}>{r.supplier}</span> },
+    { id: 'reference', header: 'Reference', sortable: true, cell: (r) => <span style={{ color: 'var(--color-ink-600)' }}>{r.reference ?? '—'}</span> },
+    { id: 'by', header: 'Received by', cell: (r) => <span style={{ color: 'var(--color-ink-600)' }}>{r.receivedBy.name}</span> },
+    ...(showCost
+      ? [{ id: 'total', header: 'Total value', align: 'right' as const, cell: (r: InventoryReceipt) => <span className="font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>{totalText(r)}</span> }]
+      : []),
+  ];
+
+  const receiptDetail = (r: InventoryReceipt) => (
+    <div className="flex flex-col gap-1.5">
+      {r.notes && (
+        <p className="text-xs" style={{ color: 'var(--color-ink-600)' }}>
+          Note: {r.notes}
+        </p>
+      )}
+      {r.batches.map((b) => (
+        <div key={b.id} className="flex items-center justify-between gap-3 text-xs">
+          <span style={{ color: 'var(--color-ink-900)' }}>{b.product.displayName ?? b.product.name}</span>
+          <span className="data-num" style={{ color: 'var(--color-ink-600)' }}>
+            {showCost && b.unitCost > 0 ? `${b.quantityReceived} × KSh ${fmtNumber(b.unitCost)}` : `${b.quantityReceived} received`}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+
+  const receiptCard = (r: InventoryReceipt) => (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-start justify-between gap-3">
+        <p className="font-medium" style={{ color: 'var(--color-ink-900)' }}>
+          {r.supplier}
+        </p>
+        {showCost && (
+          <p className="shrink-0 font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>
+            {totalText(r)}
+          </p>
+        )}
+      </div>
+      <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
+        {fmtDate(r.receivedAt)} {r.reference ? `· ${r.reference}` : ''} · {r.receivedBy.name}
+      </p>
+    </div>
+  );
 
   return (
     <div className="p-6">
@@ -244,7 +286,11 @@ export default function InventoryPage() {
           <StockLevelsTable
             onOpenProduct={setDetailId}
             onReceive={(p) => {
-              setReceiveFor(p);
+              setReceiveFor([p]);
+              setReceiveOpen(true);
+            }}
+            onReceiveMany={(ps) => {
+              setReceiveFor(ps);
               setReceiveOpen(true);
             }}
             stock={stock}
@@ -252,7 +298,7 @@ export default function InventoryPage() {
             refreshKey={stockRefresh}
             onChanged={() => {
               setSummaryTick((t) => t + 1);
-              void reloadReceipts();
+              reloadReceipts();
             }}
           />
         </div>
@@ -296,136 +342,19 @@ export default function InventoryPage() {
                 {k.label}
               </button>
             ))}
-            {receipts && receipts.length > 0 && (
-              <span className="ml-auto text-xs" aria-live="polite" style={{ color: 'var(--color-ink-600)' }}>
-                Showing {receipts.length}
-                {hasMore ? '+' : ''}
-              </span>
-            )}
           </div>
 
-          <div className="mt-4 overflow-hidden rounded-lg border" style={{ borderColor: 'var(--color-border)' }}>
-            {/* Desktop/tablet table */}
-            <table className="hidden w-full text-sm md:table">
-              <thead>
-                <tr className="border-b text-left" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)' }}>
-                  <th scope="col" className="px-4 py-2.5 font-medium" style={{ color: 'var(--color-ink-600)' }}>Date</th>
-                  <th scope="col" className="px-4 py-2.5 font-medium" style={{ color: 'var(--color-ink-600)' }}>Supplier</th>
-                  <th scope="col" className="px-4 py-2.5 font-medium" style={{ color: 'var(--color-ink-600)' }}>Reference</th>
-                  <th scope="col" className="px-4 py-2.5 font-medium" style={{ color: 'var(--color-ink-600)' }}>Received by</th>
-                  {showCost && (
-                    <th scope="col" className="px-4 py-2.5 text-right font-medium" style={{ color: 'var(--color-ink-600)' }}>Total value</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {receipts === null &&
-                  [...Array(4)].map((_, i) => (
-                    <tr key={i} className="border-b" style={{ borderColor: 'var(--color-border)' }}>
-                      <td className="px-4 py-3" colSpan={colSpan}>
-                        <div className="h-4 w-2/3 animate-pulse rounded" style={{ backgroundColor: 'var(--color-border)' }} />
-                      </td>
-                    </tr>
-                  ))}
-
-                {receipts?.length === 0 && (
-                  <tr>
-                    <td colSpan={colSpan} className="px-4 py-12 text-center">
-                      {emptyReceipts}
-                    </td>
-                  </tr>
-                )}
-
-                {receipts?.map((r) => {
-                  const isOpen = expanded === r.id;
-                  const toggle = () => setExpanded(isOpen ? null : r.id);
-                  return (
-                    <Fragment key={r.id}>
-                      <tr onClick={toggle} onKeyDown={activateOnKey(toggle)} tabIndex={0} aria-expanded={isOpen} className="cursor-pointer border-b transition-colors hover:bg-[var(--color-bg)] focus-visible:bg-[var(--color-bg)]" style={{ borderColor: 'var(--color-border)' }}>
-                        <td className="px-4 py-3" style={{ color: 'var(--color-ink-900)' }}>{fmtDate(r.receivedAt)}</td>
-                        <td className="px-4 py-3 font-medium" style={{ color: 'var(--color-ink-900)' }}>{r.supplier}</td>
-                        <td className="px-4 py-3" style={{ color: 'var(--color-ink-600)' }}>{r.reference ?? '—'}</td>
-                        <td className="px-4 py-3" style={{ color: 'var(--color-ink-600)' }}>{r.receivedBy.name}</td>
-                        {showCost && (
-                          <td className="px-4 py-3 text-right font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>{totalText(r)}</td>
-                        )}
-                      </tr>
-                      {isOpen && (
-                        <tr style={{ backgroundColor: 'var(--color-bg)' }}>
-                          <td colSpan={colSpan} className="px-4 py-3">
-                            <div className="flex flex-col gap-1.5">
-                              {r.notes && (
-                                <p className="text-xs" style={{ color: 'var(--color-ink-600)' }}>
-                                  Note: {r.notes}
-                                </p>
-                              )}
-                              {r.batches.map((b) => (
-                                <div key={b.id} className="flex items-center justify-between text-xs">
-                                  <span style={{ color: 'var(--color-ink-900)' }}>{b.product.displayName ?? b.product.name}</span>
-                                  <span className="data-num" style={{ color: 'var(--color-ink-600)' }}>
-                                    {showCost && b.unitCost > 0 ? `${b.quantityReceived} × KSh ${fmtNumber(b.unitCost)}` : `${b.quantityReceived} received`}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-
-            {/* Mobile: stacked cards, tap to expand line items (brief §63) */}
-            <div className="divide-y divide-[var(--color-border)] md:hidden">
-              {receipts === null &&
-                [...Array(3)].map((_, i) => (
-                  <div key={i} className="p-4">
-                    <div className="h-4 w-2/3 animate-pulse rounded" style={{ backgroundColor: 'var(--color-border)' }} />
-                  </div>
-                ))}
-
-              {receipts?.length === 0 && <div className="px-4 py-12 text-center">{emptyReceipts}</div>}
-
-              {receipts?.map((r) => {
-                const isOpen = expanded === r.id;
-                return (
-                  <div key={r.id}>
-                    <button type="button" aria-expanded={isOpen} onClick={() => setExpanded(isOpen ? null : r.id)} className="flex min-h-11 w-full flex-col gap-1 p-4 text-left transition-colors active:bg-[var(--color-bg)]">
-                      <div className="flex items-start justify-between gap-3">
-                        <p className="font-medium" style={{ color: 'var(--color-ink-900)' }}>{r.supplier}</p>
-                        {showCost && (
-                          <p className="shrink-0 font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>{totalText(r)}</p>
-                        )}
-                      </div>
-                      <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
-                        {fmtDate(r.receivedAt)} {r.reference ? `· ${r.reference}` : ''} · {r.receivedBy.name}
-                      </p>
-                    </button>
-                    {isOpen && (
-                      <div className="flex flex-col gap-1.5 px-4 pb-4" style={{ backgroundColor: 'var(--color-bg)' }}>
-                        {r.notes && (
-                          <p className="pt-2 text-xs" style={{ color: 'var(--color-ink-600)' }}>
-                            Note: {r.notes}
-                          </p>
-                        )}
-                        {r.batches.map((b) => (
-                          <div key={b.id} className="flex items-center justify-between pt-2 text-xs">
-                            <span style={{ color: 'var(--color-ink-900)' }}>{b.product.displayName ?? b.product.name}</span>
-                            <span className="data-num" style={{ color: 'var(--color-ink-600)' }}>
-                              {showCost && b.unitCost > 0 ? `${b.quantityReceived} × KSh ${fmtNumber(b.unitCost)}` : `${b.quantityReceived} received`}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            <ListFooter hasMore={hasMore} loadingMore={loadingMore} error={receiptsError} onMore={loadMore} onRetry={reloadReceipts} />
+          <div className="mt-4">
+            <DataTable<InventoryReceipt>
+              {...receiptsTable.tableProps}
+              caption="Inventory receipts"
+              columns={receiptColumns}
+              rowKey={(r) => r.id}
+              rowLabel={(r) => `${r.supplier} ${fmtDate(r.receivedAt)}`}
+              detail={receiptDetail}
+              renderCard={receiptCard}
+              empty={emptyReceipts}
+            />
           </div>
         </div>
       )}
@@ -436,14 +365,14 @@ export default function InventoryPage() {
         onClose={() => setDetailId(null)}
         onEdit={isAdmin ? (p) => router.push(`/products?edit=${p.id}`) : undefined}
         onReceive={(p) => {
-          setReceiveFor(p);
+          setReceiveFor([p]);
           setReceiveOpen(true);
         }}
         onChanged={stockChanged}
       />
       <ReceiveInventoryDrawer
         open={receiveOpen}
-        initialProduct={receiveFor}
+        initialProducts={receiveFor}
         suppliers={suppliers}
         onClose={() => {
           setReceiveOpen(false);

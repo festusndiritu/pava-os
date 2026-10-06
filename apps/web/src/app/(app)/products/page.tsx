@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Archive, Copy, Download, Eye, Package, PackagePlus, Pencil, Plus, RotateCcw, Search, X } from 'lucide-react';
-import { productsApi, type Brand, type CatalogueStatus, type Category, type Product, type ProductFamily, type ProductSort, type StockFilter, type Unit } from '../../../lib/products-api';
+import { Archive, Copy, Download, Eye, Package, PackagePlus, Pencil, Plus, RotateCcw, Search, Truck, X } from 'lucide-react';
+import { productsApi, type Brand, type CatalogueStatus, type Category, type Product, type ProductFamily, type StockFilter, type Unit } from '../../../lib/products-api';
 import { AdjustStockDialog } from '../../../components/inventory/AdjustStockDialog';
 import { ReceiveInventoryDrawer } from '../../../components/inventory/ReceiveInventoryDrawer';
 import { StockBadge } from '../../../components/inventory/StockBadge';
@@ -13,11 +13,13 @@ import { thicknessLabel } from '../../../lib/shape-config';
 import { ProductFormDrawer } from '../../../components/products/ProductFormDrawer';
 import { ProductDetailDrawer } from '../../../components/products/ProductDetailDrawer';
 import { fmtNumber } from '../../../lib/format';
-import { activateOnKey } from '../../../lib/a11y';
 import { downloadCsv } from '../../../lib/csv';
 import { availability, stockLevel, useLowStockThreshold } from '../../../lib/stock';
-import { usePagedList, useDebounced } from '../../../lib/use-paged-list';
-import { ListFooter } from '../../../components/ui/ListFooter';
+import { useDebounced } from '../../../lib/use-debounced';
+import { useRowSelection, useServerTable } from '../../../lib/use-data-table';
+import { bulkSummary, runBulk } from '../../../lib/bulk';
+import { DataTable, type Column } from '../../../components/ui/DataTable';
+import { IconAction } from '../../../components/ui/RowActions';
 import { toast } from '../../../components/ui/Toast';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)', color: 'var(--color-ink-900)' };
@@ -28,18 +30,6 @@ const STOCK_CHIPS: { value: StockFilter | ''; label: string }[] = [
   { value: 'low', label: 'Low' },
   { value: 'out', label: 'Out' },
 ];
-
-const SORT_OPTIONS: { value: ProductSort; label: string }[] = [
-  { value: 'name', label: 'Name A–Z' },
-  { value: 'newest', label: 'Newest first' },
-  { value: 'price_asc', label: 'Price: low to high' },
-  { value: 'price_desc', label: 'Price: high to low' },
-  { value: 'stock_asc', label: 'Stock: low to high' },
-  { value: 'stock_desc', label: 'Stock: high to low' },
-];
-
-const iconButton = 'flex h-9 w-9 items-center justify-center rounded-md border';
-const iconButtonStyle = { borderColor: 'var(--color-border)', color: 'var(--color-ink-600)' };
 
 export default function ProductsPage() {
   const { user, hasPermission, canViewCost } = useAuth();
@@ -60,13 +50,15 @@ export default function ProductsPage() {
   const [categoryId, setCategoryId] = useState('');
   const [status, setStatus] = useState<CatalogueStatus>('active');
   const [stock, setStock] = useState<StockFilter | ''>('');
-  const [sort, setSort] = useState<ProductSort>('name');
   const [error, setError] = useState<string | null>(null);
   const [adjusting, setAdjusting] = useState<Product | null>(null);
   const [receiving, setReceiving] = useState<Product | null>(null);
   const [confirmArchive, setConfirmArchive] = useState<Product | null>(null);
   const [archiveBusy, setArchiveBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [bulkConfirm, setBulkConfirm] = useState<'archive' | 'restore' | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [receivingMany, setReceivingMany] = useState<Product[] | null>(null);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -124,28 +116,26 @@ export default function ProductsPage() {
     brandId: brandId || undefined,
     categoryId: categoryId || undefined,
     stock: stock || undefined,
-    // With a search term the server ranks by relevance; only send a sort
-    // when the user picked something other than the default.
-    sort: sort === 'name' ? undefined : sort,
     status,
   } as const;
 
-  const {
-    items: products,
-    hasMore,
-    loadingMore,
-    error: listError,
-    loadMore,
-    reload: loadProducts,
-  } = usePagedList((offset, limit) => productsApi.list({ ...filters, offset, limit }), [debouncedSearch, brandId, categoryId, stock, sort, status]);
+  const table = useServerTable<Product>({
+    // While searching, the server ranks by relevance; that only changes once a column header is clicked.
+    fetcher: async (q) => productsApi.listPage({ ...filters, sort: q.sortIsDefault && debouncedSearch ? undefined : q.sort, offset: q.offset, limit: q.limit }),
+    deps: [debouncedSearch, brandId, categoryId, stock, status],
+    defaultSort: { id: 'name', dir: 'asc' },
+  });
+  const { rows: products, reload: loadProducts } = table;
 
-  const filtersActive = !!(search || brandId || categoryId || stock || sort !== 'name');
+  // Ticked rows are forgotten when the filters change: a selection should never quietly include rows that are no longer on screen.
+  const selection = useRowSelection<Product>((p) => p.id, [debouncedSearch, brandId, categoryId, stock, status]);
+
+  const filtersActive = !!(search || brandId || categoryId || stock);
   function clearFilters() {
     setSearch('');
     setBrandId('');
     setCategoryId('');
     setStock('');
-    setSort('name');
   }
 
   async function archiveProduct(p: Product) {
@@ -154,7 +144,7 @@ export default function ProductsPage() {
       await productsApi.archive(p.id);
       setConfirmArchive(null);
       toast.success('Product archived');
-      void loadProducts();
+      loadProducts();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not archive this product.');
       setConfirmArchive(null);
@@ -168,7 +158,7 @@ export default function ProductsPage() {
     try {
       await productsApi.restore(p.id);
       toast.success('Product restored');
-      void loadProducts();
+      loadProducts();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not restore this product.');
     }
@@ -176,26 +166,29 @@ export default function ProductsPage() {
 
   // Everything the current filters match, not just the pages loaded so far:
   // the point is a stocktake sheet or a price list that is actually complete.
+  function exportRows(rows: Product[], name: string) {
+    const head = ['Product', 'Display name', 'Category', 'Brand', 'Size', 'Unit', 'Selling price (KSh)', 'In stock', 'Status', ...(showCost ? ['Last cost (KSh)', 'Value at last cost (KSh)'] : [])];
+    const body = rows.map((p) => [
+      p.name,
+      p.displayName,
+      p.category?.name,
+      p.brand?.name,
+      [p.nominalSize, thicknessLabel(p.shape, p.thicknessMm)].filter(Boolean).join(' · '),
+      p.unit.symbol,
+      p.basePrice,
+      p.stockQuantity,
+      p.active ? availabilityLabel(p, threshold ?? 0) : 'Archived',
+      ...(showCost ? [p.lastCost ?? '', p.lastCost ? p.lastCost * p.stockQuantity : ''] : []),
+    ]);
+    downloadCsv(`${name}-${new Date().toISOString().slice(0, 10)}.csv`, [head, ...body]);
+    toast.success(`Exported ${rows.length} product${rows.length === 1 ? '' : 's'}`);
+  }
+
   async function exportCsv() {
     setExporting(true);
     setError(null);
     try {
-      const rows = await productsApi.list(filters);
-      const head = ['Product', 'Display name', 'Category', 'Brand', 'Size', 'Unit', 'Selling price (KSh)', 'In stock', 'Status', ...(showCost ? ['Last cost (KSh)', 'Value at last cost (KSh)'] : [])];
-      const body = rows.map((p) => [
-        p.name,
-        p.displayName,
-        p.category?.name,
-        p.brand?.name,
-        [p.nominalSize, thicknessLabel(p.shape, p.thicknessMm)].filter(Boolean).join(' · '),
-        p.unit.symbol,
-        p.basePrice,
-        p.stockQuantity,
-        p.active ? availabilityLabel(p, threshold ?? 0) : 'Archived',
-        ...(showCost ? [p.lastCost ?? '', p.lastCost ? p.lastCost * p.stockQuantity : ''] : []),
-      ]);
-      downloadCsv(`products-${new Date().toISOString().slice(0, 10)}.csv`, [head, ...body]);
-      toast.success(`Exported ${rows.length} product${rows.length === 1 ? '' : 's'}`);
+      exportRows(await productsApi.list(filters), 'products');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not export products.');
     } finally {
@@ -236,6 +229,141 @@ export default function ProductsPage() {
     </>
   );
 
+  const productName = (p: Product) => p.displayName ?? p.name;
+
+  const columns: Column<Product>[] = [
+    {
+      id: 'name',
+      header: 'Product',
+      sortable: true,
+      cell: (p) => {
+        const sub = [p.displayName ? p.name : null, p.brand?.name].filter(Boolean).join(' · ');
+        return (
+          <>
+            <p className="font-medium" style={{ color: 'var(--color-ink-900)' }}>
+              {productName(p)}
+            </p>
+            {sub && (
+              <p className="text-xs" style={{ color: 'var(--color-ink-600)' }}>
+                {sub}
+              </p>
+            )}
+          </>
+        );
+      },
+    },
+    { id: 'category', header: 'Category', sortable: true, hideBelow: 'lg', cell: (p) => <span style={{ color: 'var(--color-ink-600)' }}>{p.category?.name ?? '—'}</span> },
+    {
+      id: 'size',
+      label: 'Size',
+      header: 'Gauge / thickness',
+      cell: (p) => <span style={{ color: 'var(--color-ink-600)' }}>{[p.nominalSize, thicknessLabel(p.shape, p.thicknessMm)].filter(Boolean).join(' · ') || '—'}</span>,
+    },
+    { id: 'price', header: 'Price', sortable: true, align: 'right', cell: (p) => <span className="font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>KSh {fmtNumber(p.basePrice)}</span> },
+    { id: 'stock', header: 'Stock', sortable: true, align: 'right', cell: stockText },
+    ...(showCost
+      ? [
+          {
+            id: 'cost',
+            header: 'Last cost',
+            sortable: true,
+            align: 'right' as const,
+            hideBelow: 'xl' as const,
+            cell: (p: Product) => <span className="data-num" style={{ color: 'var(--color-ink-600)' }}>{p.lastCost ? `KSh ${fmtNumber(p.lastCost)}` : '—'}</span>,
+          },
+        ]
+      : []),
+    { id: 'status', header: 'Status', cell: (p) => <StockBadge level={availability(p, threshold ?? 0)} /> },
+  ];
+
+  function renderCard(p: Product) {
+    const sub = [p.displayName ? p.name : null, p.category?.name, p.brand?.name].filter(Boolean).join(' · ');
+    return (
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate font-medium" style={{ color: 'var(--color-ink-900)' }}>
+              {productName(p)}
+            </p>
+            {sub && (
+              <p className="truncate text-xs" style={{ color: 'var(--color-ink-600)' }}>
+                {sub}
+              </p>
+            )}
+          </div>
+          <p className="shrink-0 font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>
+            KSh {fmtNumber(p.basePrice)}
+          </p>
+        </div>
+        <div className="flex items-center justify-between gap-2 text-sm">
+          <span style={{ color: 'var(--color-ink-600)' }}>
+            {[p.nominalSize, thicknessLabel(p.shape, p.thicknessMm)].filter(Boolean).join(' · ') || '—'} · {stockText(p)}
+          </span>
+          <StockBadge level={availability(p, threshold ?? 0)} />
+        </div>
+      </div>
+    );
+  }
+
+  const rowActions = (p: Product) => (
+    <>
+      <IconAction label={`View ${productName(p)}`} icon={Eye} onClick={() => setDetailId(p.id)} />
+      {isAdmin && <IconAction label={`Edit ${productName(p)}`} icon={Pencil} onClick={() => openEdit(p)} />}
+      {isAdmin && <IconAction label={`Duplicate ${productName(p)}`} icon={Copy} onClick={() => openCreate(p)} />}
+      {canAdjust && <IconAction label={`Adjust stock for ${productName(p)}`} icon={PackagePlus} onClick={() => setAdjusting(p)} />}
+      {isAdmin &&
+        (p.active ? (
+          <IconAction label={`Archive ${productName(p)}`} icon={Archive} tone="danger" onClick={() => setConfirmArchive(p)} />
+        ) : (
+          <IconAction label={`Restore ${productName(p)}`} icon={RotateCcw} tone="accent" onClick={() => restoreProduct(p)} />
+        ))}
+    </>
+  );
+
+  async function runBulkArchive(action: 'archive' | 'restore') {
+    const targets = selection.items;
+    setBulkBusy(true);
+    setError(null);
+    try {
+      const result = await runBulk(targets, (p) => (action === 'archive' ? productsApi.archive(p.id) : productsApi.restore(p.id)));
+      const text = bulkSummary(action === 'archive' ? 'Archived' : 'Restored', 'product', result);
+      if (result.failed.length === 0) toast.success(text);
+      else setError(text);
+      // Whatever failed stays ticked, so it can be tried again.
+      selection.replace(result.failed.map((f) => f.item));
+      setBulkConfirm(null);
+      loadProducts();
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  const bulkActions = (
+    <>
+      <button type="button" onClick={() => exportRows(selection.items, 'products-selected')} className="flex min-h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)', backgroundColor: 'var(--color-surface)' }}>
+        <Download size={14} strokeWidth={2} />
+        Export selected
+      </button>
+      {canAdjust && (
+        <button type="button" onClick={() => setReceivingMany(selection.items)} className="flex min-h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)', backgroundColor: 'var(--color-surface)' }}>
+          <Truck size={14} strokeWidth={2} />
+          Receive stock
+        </button>
+      )}
+      {isAdmin && (
+        <button
+          type="button"
+          onClick={() => setBulkConfirm(status === 'active' ? 'archive' : 'restore')}
+          className="flex min-h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium"
+          style={{ borderColor: 'var(--color-border)', color: status === 'active' ? 'var(--color-status-bad)' : 'var(--color-accent)', backgroundColor: 'var(--color-surface)' }}
+        >
+          {status === 'active' ? <Archive size={14} strokeWidth={2} /> : <RotateCcw size={14} strokeWidth={2} />}
+          {status === 'active' ? 'Archive selected' : 'Restore selected'}
+        </button>
+      )}
+    </>
+  );
+
   return (
     <div className="p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -251,7 +379,7 @@ export default function ProductsPage() {
           <button
             type="button"
             onClick={exportCsv}
-            disabled={exporting || products?.length === 0}
+            disabled={exporting || !products || products.length === 0}
             className="flex min-h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium disabled:opacity-50"
             style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}
           >
@@ -326,13 +454,6 @@ export default function ProductsPage() {
             </option>
           ))}
         </select>
-        <select value={sort} onChange={(e) => setSort(e.target.value as ProductSort)} aria-label="Sort products" className="rounded-md border px-3 py-2 text-sm" style={inputStyle}>
-          {SORT_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter by stock level">
@@ -358,207 +479,29 @@ export default function ProductsPage() {
             Clear filters
           </button>
         )}
-        {products && products.length > 0 && (
-          <span className="ml-auto text-xs" aria-live="polite" style={{ color: 'var(--color-ink-600)' }}>
-            Showing {products.length}
-            {hasMore ? '+' : ''}
-          </span>
-        )}
       </div>
 
-      <div className="mt-5 overflow-hidden rounded-lg border" style={{ borderColor: 'var(--color-border)' }}>
-        {/* Desktop/tablet: full comparison table */}
-        <table className="hidden w-full text-sm md:table">
-          <thead>
-            <tr className="border-b text-left" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)' }}>
-              <th scope="col" className="px-4 py-2.5 font-medium" style={{ color: 'var(--color-ink-600)' }}>
-                Product
-              </th>
-              <th scope="col" className="px-4 py-2.5 font-medium" style={{ color: 'var(--color-ink-600)' }}>
-                Gauge / thickness
-              </th>
-              <th scope="col" className="px-4 py-2.5 text-right font-medium" style={{ color: 'var(--color-ink-600)' }}>
-                Price
-              </th>
-              <th scope="col" className="px-4 py-2.5 text-right font-medium" style={{ color: 'var(--color-ink-600)' }}>
-                Stock
-              </th>
-              <th scope="col" className="px-4 py-2.5 font-medium" style={{ color: 'var(--color-ink-600)' }}>
-                Status
-              </th>
-              <th scope="col" className="px-4 py-2.5 text-right font-medium" style={{ color: 'var(--color-ink-600)' }}>
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {products === null &&
-              [...Array(5)].map((_, i) => (
-                <tr key={i} className="border-b" style={{ borderColor: 'var(--color-border)' }}>
-                  <td className="px-4 py-3" colSpan={6}>
-                    <div className="h-4 w-2/3 animate-pulse rounded" style={{ backgroundColor: 'var(--color-border)' }} />
-                  </td>
-                </tr>
-              ))}
-
-            {products?.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-12 text-center">
-                  {emptyState}
-                </td>
-              </tr>
-            )}
-
-            {products?.map((p) => {
-              const gauge = thicknessLabel(p.shape, p.thicknessMm);
-              const sub = [p.category?.name, p.brand?.name].filter(Boolean).join(' · ');
-              return (
-                <tr
-                  key={p.id}
-                  onClick={() => setDetailId(p.id)}
-                  onKeyDown={activateOnKey(() => setDetailId(p.id))}
-                  tabIndex={0}
-                  className="cursor-pointer border-b transition-colors last:border-0 hover:bg-[var(--color-bg)] focus-visible:bg-[var(--color-bg)]"
-                  style={{ borderColor: 'var(--color-border)' }}
-                >
-                  <td className="px-4 py-3">
-                    <p className="font-medium" style={{ color: 'var(--color-ink-900)' }}>
-                      {p.displayName ?? p.name}
-                    </p>
-                    {(p.displayName || sub) && (
-                      <p className="text-xs" style={{ color: 'var(--color-ink-600)' }}>
-                        {[p.displayName ? p.name : null, sub].filter(Boolean).join(' · ')}
-                      </p>
-                    )}
-                  </td>
-                  <td className="px-4 py-3" style={{ color: 'var(--color-ink-600)' }}>
-                    {[p.nominalSize, gauge].filter(Boolean).join(' · ') || '—'}
-                  </td>
-                  <td className="px-4 py-3 text-right font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>
-                    KSh {fmtNumber(p.basePrice)}
-                  </td>
-                  <td className="px-4 py-3 text-right">{stockText(p)}</td>
-                  <td className="px-4 py-3">
-                    <StockBadge level={availability(p, threshold ?? 0)} />
-                  </td>
-                  <td className="px-2 py-2">
-                    <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-                      <button type="button" title="View" aria-label={`View ${p.displayName ?? p.name}`} onClick={() => setDetailId(p.id)} className={iconButton} style={iconButtonStyle}>
-                        <Eye size={15} strokeWidth={2} />
-                      </button>
-                      {isAdmin && (
-                        <button type="button" title="Edit product" aria-label={`Edit ${p.displayName ?? p.name}`} onClick={() => openEdit(p)} className={iconButton} style={iconButtonStyle}>
-                          <Pencil size={15} strokeWidth={2} />
-                        </button>
-                      )}
-                      {isAdmin && (
-                        <button type="button" title="Duplicate product" aria-label={`Duplicate ${p.displayName ?? p.name}`} onClick={() => openCreate(p)} className={iconButton} style={iconButtonStyle}>
-                          <Copy size={15} strokeWidth={2} />
-                        </button>
-                      )}
-                      {canAdjust && (
-                        <button type="button" title="Adjust stock" aria-label={`Adjust stock for ${p.displayName ?? p.name}`} onClick={() => setAdjusting(p)} className={iconButton} style={iconButtonStyle}>
-                          <PackagePlus size={15} strokeWidth={2} />
-                        </button>
-                      )}
-                      {isAdmin &&
-                        (p.active ? (
-                          <button type="button" title="Archive product" aria-label={`Archive ${p.displayName ?? p.name}`} onClick={() => setConfirmArchive(p)} className={iconButton} style={{ ...iconButtonStyle, color: 'var(--color-status-bad)' }}>
-                            <Archive size={15} strokeWidth={2} />
-                          </button>
-                        ) : (
-                          <button type="button" title="Restore product" aria-label={`Restore ${p.displayName ?? p.name}`} onClick={() => restoreProduct(p)} className={iconButton} style={{ ...iconButtonStyle, color: 'var(--color-accent)' }}>
-                            <RotateCcw size={15} strokeWidth={2} />
-                          </button>
-                        ))}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-
-        {/* Mobile: stacked cards instead of a squeezed table (brief §63) */}
-        <div className="divide-y divide-[var(--color-border)] md:hidden">
-          {products === null &&
-            [...Array(3)].map((_, i) => (
-              <div key={i} className="p-4">
-                <div className="h-4 w-2/3 animate-pulse rounded" style={{ backgroundColor: 'var(--color-border)' }} />
-              </div>
-            ))}
-
-          {products?.length === 0 && <div className="px-4 py-12 text-center">{emptyState}</div>}
-
-          {products?.map((p) => {
-            const gauge = thicknessLabel(p.shape, p.thicknessMm);
-            const sub = [p.category?.name, p.brand?.name].filter(Boolean).join(' · ');
-            return (
-              <div key={p.id} onClick={() => setDetailId(p.id)} onKeyDown={activateOnKey(() => setDetailId(p.id))} tabIndex={0} role="button" className="flex w-full flex-col gap-1.5 p-4 text-left transition-colors active:bg-[var(--color-bg)]">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate font-medium" style={{ color: 'var(--color-ink-900)' }}>
-                      {p.displayName ?? p.name}
-                    </p>
-                    {(p.displayName || sub) && (
-                      <p className="truncate text-xs" style={{ color: 'var(--color-ink-600)' }}>
-                        {[p.displayName ? p.name : null, sub].filter(Boolean).join(' · ')}
-                      </p>
-                    )}
-                  </div>
-                  <p className="shrink-0 font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>
-                    KSh {fmtNumber(p.basePrice)}
-                  </p>
-                </div>
-                <div className="flex items-center justify-between gap-2 text-sm">
-                  <span style={{ color: 'var(--color-ink-600)' }}>
-                    {[p.nominalSize, gauge].filter(Boolean).join(' · ') || '—'} · {stockText(p)}
-                  </span>
-                  <StockBadge level={availability(p, threshold ?? 0)} />
-                </div>
-                {(isAdmin || canAdjust) && (
-                  <div className="mt-1.5 flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                    {isAdmin && (
-                      <button type="button" onClick={() => openEdit(p)} className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-md border text-xs font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
-                        <Pencil size={13} strokeWidth={2} />
-                        Edit
-                      </button>
-                    )}
-                    {canAdjust && (
-                      <button type="button" onClick={() => setAdjusting(p)} className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-md border text-xs font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
-                        <PackagePlus size={13} strokeWidth={2} />
-                        Stock
-                      </button>
-                    )}
-                    {isAdmin && (
-                      <button type="button" onClick={() => openCreate(p)} aria-label={`Duplicate ${p.displayName ?? p.name}`} title="Duplicate product" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border" style={iconButtonStyle}>
-                        <Copy size={14} strokeWidth={2} />
-                      </button>
-                    )}
-                    {isAdmin &&
-                      (p.active ? (
-                        <button type="button" onClick={() => setConfirmArchive(p)} aria-label={`Archive ${p.displayName ?? p.name}`} title="Archive product" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border" style={{ ...iconButtonStyle, color: 'var(--color-status-bad)' }}>
-                          <Archive size={14} strokeWidth={2} />
-                        </button>
-                      ) : (
-                        <button type="button" onClick={() => restoreProduct(p)} aria-label={`Restore ${p.displayName ?? p.name}`} title="Restore product" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border" style={{ ...iconButtonStyle, color: 'var(--color-accent)' }}>
-                          <RotateCcw size={14} strokeWidth={2} />
-                        </button>
-                      ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        <ListFooter hasMore={hasMore} loadingMore={loadingMore} error={listError} onMore={loadMore} onRetry={loadProducts} />
+      <div className="mt-5">
+        <DataTable<Product>
+          {...table.tableProps}
+          caption="Products"
+          columns={columns}
+          rowKey={(p) => p.id}
+          rowLabel={productName}
+          onRowClick={(p) => setDetailId(p.id)}
+          rowActions={rowActions}
+          renderCard={renderCard}
+          selection={selection}
+          selectAllMatching={() => productsApi.list(filters)}
+          bulkActions={bulkActions}
+          empty={emptyState}
+        />
       </div>
 
       <ProductFormDrawer
         open={formOpen}
         onClose={() => setFormOpen(false)}
-        onSaved={() => void loadProducts()}
+        onSaved={() => loadProducts()}
         product={editingProduct}
         duplicateFrom={duplicateFrom}
         brands={brands}
@@ -590,19 +533,39 @@ export default function ProductsPage() {
             : undefined
         }
         onReceive={canAdjust ? (p) => setReceiving(p) : undefined}
-        onChanged={() => void loadProducts()}
+        onChanged={() => loadProducts()}
       />
 
       <ReceiveInventoryDrawer
-        open={!!receiving}
-        initialProduct={receiving}
-        onClose={() => setReceiving(null)}
+        open={!!receiving || !!receivingMany}
+        initialProducts={receivingMany ?? (receiving ? [receiving] : null)}
+        onClose={() => {
+          setReceiving(null);
+          setReceivingMany(null);
+        }}
         onDone={() => {
           setReceiving(null);
+          setReceivingMany(null);
+          selection.clear();
           setDetailRefresh((k) => k + 1);
-          void loadProducts();
+          loadProducts();
         }}
       />
+
+      {bulkConfirm && (
+        <ConfirmDialog
+          title={bulkConfirm === 'archive' ? `Archive ${selection.count} product${selection.count === 1 ? '' : 's'}?` : `Restore ${selection.count} product${selection.count === 1 ? '' : 's'}?`}
+          description={
+            bulkConfirm === 'archive'
+              ? 'They will drop out of the catalogue and POS search. Past documents and price history are unaffected, and they can be restored any time.'
+              : 'They will return to the catalogue and POS search.'
+          }
+          confirmLabel={bulkConfirm === 'archive' ? 'Archive' : 'Restore'}
+          busy={bulkBusy}
+          onCancel={() => setBulkConfirm(null)}
+          onConfirm={() => runBulkArchive(bulkConfirm)}
+        />
+      )}
 
       {adjusting && (
         <AdjustStockDialog
@@ -611,7 +574,7 @@ export default function ProductsPage() {
           onDone={() => {
             setAdjusting(null);
             setDetailRefresh((k) => k + 1);
-            void loadProducts();
+            loadProducts();
           }}
         />
       )}

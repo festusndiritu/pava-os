@@ -1,9 +1,9 @@
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { PermissionsGuard } from '../auth/permissions.guard.js';
 import { Permissions } from '../auth/permissions.decorator.js';
 import { Module } from '../../generated/prisma/client.js';
-import { parsePaging } from '../common/paging.js';
+import { parsePaging, sendTotal } from '../common/paging.js';
 import { InventoryService } from './inventory.service.js';
 import { AdjustInventoryDto, OpeningBalanceDto, ReceiveInventoryDto } from './dto/inventory.dto.js';
 
@@ -24,18 +24,23 @@ export class InventoryController {
   @UseGuards(PermissionsGuard)
   @Permissions(Module.INVENTORY)
   @Get('receipts')
-  receipts(
+  async receipts(
     @Req() req: any,
+    @Res({ passthrough: true }) res: { setHeader(name: string, value: string | number): unknown },
     @Query('search') search?: string,
     @Query('kind') kind?: string,
+    @Query('sort') sort?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
-    return this.inventory.receipts(req.user.role === 'ADMIN' || !!req.user.canViewCost, {
+    const { rows, total } = await this.inventory.receiptsPage(req.user.role === 'ADMIN' || !!req.user.canViewCost, {
       search,
       kind: kind === 'delivery' || kind === 'other' ? kind : undefined,
+      sort,
       ...parsePaging(limit, offset),
     });
+    sendTotal(res, total);
+    return rows;
   }
 
   // Declared before receipts/:id so "summary" is never read as an id.

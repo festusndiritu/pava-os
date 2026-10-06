@@ -79,6 +79,32 @@ export function canEditQuote(doc: Pick<SaleDocument, 'type' | 'status' | 'items'
   return ids.length > 0 && ids.every((id): id is string => !!id) && new Set(ids).size === ids.length;
 }
 
+export interface DocumentListParams {
+  status?: DocumentStatus | DocumentStatus[];
+  type?: DocumentType;
+  search?: string;
+  from?: string;
+  to?: string;
+  /** `field:dir`: quoteNumber, invoiceNumber, deliveryNoteNumber, customer, created, invoiced, status or total. */
+  sort?: string;
+  limit?: number;
+  offset?: number;
+}
+
+function documentQuery(params: DocumentListParams) {
+  const qs = new URLSearchParams();
+  if (params.status) qs.set('status', Array.isArray(params.status) ? params.status.join(',') : params.status);
+  if (params.limit) qs.set('limit', String(params.limit));
+  if (params.offset) qs.set('offset', String(params.offset));
+  if (params.type) qs.set('type', params.type);
+  if (params.search) qs.set('search', params.search);
+  if (params.from) qs.set('from', params.from);
+  if (params.to) qs.set('to', params.to);
+  if (params.sort) qs.set('sort', params.sort);
+  const s = qs.toString();
+  return s ? `?${s}` : '';
+}
+
 export const documentsApi = {
   // `from`/`to` are YYYY-MM-DD calendar days, inclusive at both ends — the
   // backend widens `to` to the end of that day. The API has always accepted
@@ -86,18 +112,9 @@ export const documentsApi = {
   // `status` may be several (`['INVOICED', 'PAID']`) so a screen that shows
   // them together can page through one ordered list. No limit = everything,
   // which is what Reports needs.
-  list: (params: { status?: DocumentStatus | DocumentStatus[]; type?: DocumentType; search?: string; from?: string; to?: string; limit?: number; offset?: number } = {}) => {
-    const qs = new URLSearchParams();
-    if (params.status) qs.set('status', Array.isArray(params.status) ? params.status.join(',') : params.status);
-    if (params.limit) qs.set('limit', String(params.limit));
-    if (params.offset) qs.set('offset', String(params.offset));
-    if (params.type) qs.set('type', params.type);
-    if (params.search) qs.set('search', params.search);
-    if (params.from) qs.set('from', params.from);
-    if (params.to) qs.set('to', params.to);
-    const s = qs.toString();
-    return api.get<SaleDocument[]>(`/documents${s ? `?${s}` : ''}`);
-  },
+  list: (params: DocumentListParams = {}) => api.get<SaleDocument[]>(`/documents${documentQuery(params)}`),
+  // One page plus how many documents match in all.
+  listPage: (params: DocumentListParams = {}) => api.getPage<SaleDocument>(`/documents${documentQuery(params)}`),
   get: (id: string) => api.get<SaleDocument>(`/documents/${id}`),
   create: (data: CreateDocumentInput) => api.post<SaleDocument>('/documents', data),
   // Replaces a QUOTED quote's customer, lines, transport and notes in place — same id and quote number.

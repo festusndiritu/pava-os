@@ -1,17 +1,20 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { PackagePlus, Search, TruckIcon, X } from 'lucide-react';
-import { productsApi, type Category, type Product, type ProductSort, type StockFilter } from '../../lib/products-api';
+import { Download, PackagePlus, Search, Truck, X } from 'lucide-react';
+import { productsApi, type Category, type Product, type StockFilter } from '../../lib/products-api';
 import { ProductIcon } from '../pos/ProductIcon';
 import { AdjustStockDialog } from './AdjustStockDialog';
 import { StockBadge } from './StockBadge';
-import { ListFooter } from '../ui/ListFooter';
-import { activateOnKey } from '../../lib/a11y';
+import { DataTable, type Column } from '../ui/DataTable';
+import { IconAction } from '../ui/RowActions';
 import { useAuth } from '../../lib/auth-context';
 import { fmtNumber } from '../../lib/format';
 import { availability, stockLevel, useLowStockThreshold } from '../../lib/stock';
-import { usePagedList, useDebounced } from '../../lib/use-paged-list';
+import { useDebounced } from '../../lib/use-debounced';
+import { useRowSelection, useServerTable } from '../../lib/use-data-table';
+import { downloadCsv } from '../../lib/csv';
+import { toast } from '../ui/Toast';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)', color: 'var(--color-ink-900)' };
 
@@ -20,13 +23,6 @@ export const STOCK_VIEWS: { value: StockFilter | ''; label: string }[] = [
   { value: 'restock', label: 'Needs restock' },
   { value: 'out', label: 'Out of stock' },
   { value: 'in', label: 'In stock' },
-];
-
-// '' is the default: lowest stock first when browsing, best match first when searching.
-const SORTS: { value: ProductSort | ''; label: string }[] = [
-  { value: '', label: 'Lowest stock first' },
-  { value: 'stock_desc', label: 'Highest stock first' },
-  { value: 'name', label: 'Name A–Z' },
 ];
 
 /**
@@ -39,6 +35,7 @@ const SORTS: { value: ProductSort | ''; label: string }[] = [
 export function StockLevelsTable({
   onOpenProduct,
   onReceive,
+  onReceiveMany,
   stock,
   onStockChange,
   refreshKey = 0,
@@ -47,6 +44,8 @@ export function StockLevelsTable({
   onOpenProduct: (id: string) => void;
   /** Starts a receipt with this product on it. Omit if the person can't receive stock. */
   onReceive?: (p: Product) => void;
+  /** Starts a receipt with several products on it (the ticked rows). */
+  onReceiveMany?: (products: Product[]) => void;
   stock: StockFilter | '';
   onStockChange: (next: StockFilter | '') => void;
   /** Bump to refresh the rows on screen after stock changed elsewhere. */
@@ -61,7 +60,6 @@ export function StockLevelsTable({
   const [categories, setCategories] = useState<Category[]>([]);
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState('');
-  const [sort, setSort] = useState<ProductSort | ''>('');
   const [adjusting, setAdjusting] = useState<Product | null>(null);
 
   useEffect(() => {
@@ -69,41 +67,138 @@ export function StockLevelsTable({
   }, []);
 
   const debouncedSearch = useDebounced(search);
-  const {
-    items: products,
-    hasMore,
-    loadingMore,
-    error: listError,
-    loadMore,
-    reload,
-  } = usePagedList(
-    (offset, limit) =>
-      productsApi.list({
-        search: debouncedSearch || undefined,
-        categoryId: categoryId || undefined,
-        stock: stock || undefined,
-        sort: sort || (debouncedSearch ? undefined : 'stock_asc'),
-        status: 'active',
-        offset,
-        limit,
-      }),
-    [debouncedSearch, categoryId, stock, sort],
-  );
+  const filters = {
+    search: debouncedSearch || undefined,
+    categoryId: categoryId || undefined,
+    stock: stock || undefined,
+    status: 'active',
+  } as const;
+
+  const table = useServerTable<Product>({
+    // Lowest stock first is the default, so what needs ordering is at the top.
+    // While searching, the server's relevance order wins until a header is clicked.
+    fetcher: (q) => productsApi.listPage({ ...filters, sort: q.sortIsDefault && debouncedSearch ? undefined : q.sort, offset: q.offset, limit: q.limit }),
+    deps: [debouncedSearch, categoryId, stock],
+    defaultSort: { id: 'stock', dir: 'asc' },
+  });
+  const { reload } = table;
+  const selection = useRowSelection<Product>((p) => p.id, [debouncedSearch, categoryId, stock]);
 
   useEffect(() => {
-    if (refreshKey > 0) void reload();
+    if (refreshKey > 0) {
+      reload();
+      selection.clear(); // quantities just changed; ticked rows would be stale
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
 
-  const filtersActive = !!(search || categoryId || stock || sort);
+  const filtersActive = !!(search || categoryId || stock);
   function clearFilters() {
     setSearch('');
     setCategoryId('');
     onStockChange('');
-    setSort('');
   }
 
-  const cols = showCost ? 6 : 5;
+  const name = (p: Product) => p.displayName ?? p.name;
+
+  const columns: Column<Product>[] = [
+    {
+      id: 'name',
+      header: 'Product',
+      sortable: true,
+      cell: (p) => (
+        <div className="flex items-center gap-2.5">
+          <ProductIcon product={p} size={32} />
+          <div className="min-w-0">
+            <p className="truncate font-medium" style={{ color: 'var(--color-ink-900)' }}>
+              {name(p)}
+            </p>
+            {p.category && (
+              <p className="truncate text-xs" style={{ color: 'var(--color-ink-600)' }}>
+                {p.category.name}
+              </p>
+            )}
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'stock',
+      header: 'On hand',
+      sortable: true,
+      align: 'right',
+      cell: (p) => {
+        const lvl = stockLevel(p.stockQuantity, threshold ?? 0);
+        return (
+          <span className="data-num font-medium" style={{ color: lvl === 'out' ? 'var(--color-status-bad)' : lvl === 'low' ? 'var(--color-status-warn)' : 'var(--color-ink-900)' }}>
+            {fmtNumber(p.stockQuantity)} {p.unit.symbol}
+          </span>
+        );
+      },
+    },
+    ...(showCost
+      ? [
+          {
+            id: 'cost',
+            header: 'Last cost',
+            sortable: true,
+            align: 'right' as const,
+            cell: (p: Product) => <span className="data-num" style={{ color: 'var(--color-ink-600)' }}>{p.lastCost ? `KSh ${fmtNumber(p.lastCost)}` : '—'}</span>,
+          },
+        ]
+      : []),
+    { id: 'status', header: 'Status', cell: (p) => <StockBadge level={availability(p, threshold ?? 0)} /> },
+  ];
+
+  // A count sheet: what the system thinks is on the shelf, with a blank column to write what is actually there.
+  function exportSheet(rows: Product[]) {
+    const head = ['Product', 'Category', 'Unit', 'On hand (system)', 'Counted', ...(showCost ? ['Last cost (KSh)'] : [])];
+    const body = rows.map((p) => [name(p), p.category?.name, p.unit.symbol, p.stockQuantity, '', ...(showCost ? [p.lastCost ?? ''] : [])]);
+    downloadCsv(`stock-${new Date().toISOString().slice(0, 10)}.csv`, [head, ...body]);
+    toast.success(`Exported ${rows.length} product${rows.length === 1 ? '' : 's'}`);
+  }
+
+  const rowActions = (p: Product) => (
+    <>
+      {onReceive && <IconAction label={`Receive stock for ${name(p)}`} icon={Truck} onClick={() => onReceive(p)} />}
+      <IconAction label={`Adjust stock for ${name(p)}`} icon={PackagePlus} onClick={() => setAdjusting(p)} />
+    </>
+  );
+
+  const renderCard = (p: Product) => (
+    <div className="flex items-center gap-2.5">
+      <ProductIcon product={p} size={36} />
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-medium" style={{ color: 'var(--color-ink-900)' }}>
+          {name(p)}
+        </p>
+        <p className="truncate text-xs" style={{ color: 'var(--color-ink-600)' }}>
+          {p.category?.name ?? '—'}
+        </p>
+        <div className="mt-1">
+          <StockBadge level={availability(p, threshold ?? 0)} />
+        </div>
+      </div>
+      <p className="shrink-0 data-num font-medium" style={{ color: 'var(--color-ink-900)' }}>
+        {fmtNumber(p.stockQuantity)} {p.unit.symbol}
+      </p>
+    </div>
+  );
+
+  const bulkActions = (
+    <>
+      <button type="button" onClick={() => exportSheet(selection.items)} className="flex min-h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)', backgroundColor: 'var(--color-surface)' }}>
+        <Download size={14} strokeWidth={2} />
+        Export count sheet
+      </button>
+      {onReceiveMany && (
+        <button type="button" onClick={() => onReceiveMany(selection.items)} className="flex min-h-10 items-center gap-1.5 rounded-md px-3 text-sm font-medium text-white" style={{ backgroundColor: 'var(--color-accent)' }}>
+          <Truck size={14} strokeWidth={2} />
+          Receive stock
+        </button>
+      )}
+    </>
+  );
 
   const emptyState = (
     <>
@@ -118,33 +213,6 @@ export function StockLevelsTable({
           Clear filters
         </button>
       )}
-    </>
-  );
-
-  const rowActions = (p: Product) => (
-    <>
-      {onReceive && (
-        <button
-          type="button"
-          title="Receive stock"
-          aria-label={`Receive stock for ${p.displayName ?? p.name}`}
-          onClick={() => onReceive(p)}
-          className="flex h-9 w-9 items-center justify-center rounded-md border"
-          style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-600)' }}
-        >
-          <TruckIcon size={15} strokeWidth={2} />
-        </button>
-      )}
-      <button
-        type="button"
-        title="Adjust stock"
-        aria-label={`Adjust stock for ${p.displayName ?? p.name}`}
-        onClick={() => setAdjusting(p)}
-        className="flex h-9 w-9 items-center justify-center rounded-md border"
-        style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-600)' }}
-      >
-        <PackagePlus size={15} strokeWidth={2} />
-      </button>
     </>
   );
 
@@ -176,13 +244,6 @@ export function StockLevelsTable({
             </option>
           ))}
         </select>
-        <select value={sort} onChange={(e) => setSort(e.target.value as ProductSort | '')} aria-label="Sort stock" className="rounded-md border px-3 py-2 text-sm" style={inputStyle}>
-          {SORTS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter by stock level">
@@ -210,126 +271,24 @@ export function StockLevelsTable({
         )}
         <span className="ml-auto text-xs" style={{ color: 'var(--color-ink-600)' }} aria-live="polite">
           {threshold !== null && `Low at ${fmtNumber(threshold)} or fewer`}
-          {products && products.length > 0 && ` · Showing ${products.length}${hasMore ? '+' : ''}`}
         </span>
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-lg border" style={{ borderColor: 'var(--color-border)' }}>
-        {/* Desktop table */}
-        <table className="hidden w-full text-sm md:table">
-          <thead>
-            <tr className="border-b text-left" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)' }}>
-              <th scope="col" className="px-4 py-2.5 font-medium" style={{ color: 'var(--color-ink-600)' }}>Product</th>
-              <th scope="col" className="px-4 py-2.5 text-right font-medium" style={{ color: 'var(--color-ink-600)' }}>On hand</th>
-              {showCost && (
-                <th scope="col" className="px-4 py-2.5 text-right font-medium" style={{ color: 'var(--color-ink-600)' }}>Last cost</th>
-              )}
-              <th scope="col" className="px-4 py-2.5 font-medium" style={{ color: 'var(--color-ink-600)' }}>Status</th>
-              <th scope="col" className="px-4 py-2.5 text-right font-medium" style={{ color: 'var(--color-ink-600)' }}>
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {products === null &&
-              [...Array(5)].map((_, i) => (
-                <tr key={i} className="border-b" style={{ borderColor: 'var(--color-border)' }}>
-                  <td className="px-4 py-3" colSpan={cols - 1}>
-                    <div className="h-4 w-2/3 animate-pulse rounded" style={{ backgroundColor: 'var(--color-border)' }} />
-                  </td>
-                </tr>
-              ))}
-
-            {products?.length === 0 && (
-              <tr>
-                <td colSpan={cols - 1} className="px-4 py-12 text-center">
-                  {emptyState}
-                </td>
-              </tr>
-            )}
-
-            {products?.map((p) => {
-              const level = availability(p, threshold ?? 0);
-              const lvl = stockLevel(p.stockQuantity, threshold ?? 0);
-              return (
-                <tr key={p.id} onClick={() => onOpenProduct(p.id)} onKeyDown={activateOnKey(() => onOpenProduct(p.id))} tabIndex={0} className="cursor-pointer border-b transition-colors last:border-0 hover:bg-[var(--color-bg)] focus-visible:bg-[var(--color-bg)]" style={{ borderColor: 'var(--color-border)' }}>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2.5">
-                      <ProductIcon product={p} size={32} />
-                      <div className="min-w-0">
-                        <p className="truncate font-medium" style={{ color: 'var(--color-ink-900)' }}>{p.displayName ?? p.name}</p>
-                        {p.category && <p className="truncate text-xs" style={{ color: 'var(--color-ink-600)' }}>{p.category.name}</p>}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-right data-num font-medium" style={{ color: lvl === 'out' ? 'var(--color-status-bad)' : lvl === 'low' ? 'var(--color-status-warn)' : 'var(--color-ink-900)' }}>
-                    {fmtNumber(p.stockQuantity)} {p.unit.symbol}
-                  </td>
-                  {showCost && (
-                    <td className="px-4 py-3 text-right data-num" style={{ color: 'var(--color-ink-600)' }}>
-                      {p.lastCost ? `KSh ${fmtNumber(p.lastCost)}` : '—'}
-                    </td>
-                  )}
-                  <td className="px-4 py-3">
-                    <StockBadge level={level} />
-                  </td>
-                  <td className="px-2 py-2">
-                    <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-                      {rowActions(p)}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-
-        {/* Mobile cards */}
-        <div className="divide-y divide-[var(--color-border)] md:hidden">
-          {products === null &&
-            [...Array(3)].map((_, i) => (
-              <div key={i} className="p-4">
-                <div className="h-4 w-2/3 animate-pulse rounded" style={{ backgroundColor: 'var(--color-border)' }} />
-              </div>
-            ))}
-
-          {products?.length === 0 && <div className="px-4 py-12 text-center">{emptyState}</div>}
-
-          {products?.map((p) => {
-            const level = availability(p, threshold ?? 0);
-            return (
-              <div key={p.id} onClick={() => onOpenProduct(p.id)} onKeyDown={activateOnKey(() => onOpenProduct(p.id))} tabIndex={0} role="button" className="flex w-full flex-col gap-2 p-4 text-left active:bg-[var(--color-bg)]">
-                <div className="flex items-center gap-2.5">
-                  <ProductIcon product={p} size={36} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium" style={{ color: 'var(--color-ink-900)' }}>{p.displayName ?? p.name}</p>
-                    <p className="truncate text-xs" style={{ color: 'var(--color-ink-600)' }}>{p.category?.name ?? '—'}</p>
-                  </div>
-                  <p className="shrink-0 data-num font-medium" style={{ color: 'var(--color-ink-900)' }}>
-                    {fmtNumber(p.stockQuantity)} {p.unit.symbol}
-                  </p>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <StockBadge level={level} />
-                  <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                    {onReceive && (
-                      <button type="button" onClick={() => onReceive(p)} className="flex min-h-11 items-center gap-1.5 rounded-md border px-3 text-xs font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
-                        <TruckIcon size={13} strokeWidth={2} />
-                        Receive
-                      </button>
-                    )}
-                    <button type="button" onClick={() => setAdjusting(p)} className="flex min-h-11 items-center gap-1.5 rounded-md border px-3 text-xs font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
-                      <PackagePlus size={13} strokeWidth={2} />
-                      Adjust
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <ListFooter hasMore={hasMore} loadingMore={loadingMore} error={listError} onMore={loadMore} onRetry={reload} />
+      <div className="mt-4">
+        <DataTable<Product>
+          {...table.tableProps}
+          caption="Stock levels"
+          columns={columns}
+          rowKey={(p) => p.id}
+          rowLabel={name}
+          onRowClick={(p) => onOpenProduct(p.id)}
+          rowActions={rowActions}
+          renderCard={renderCard}
+          selection={selection}
+          selectAllMatching={() => productsApi.list(filters)}
+          bulkActions={bulkActions}
+          empty={emptyState}
+        />
       </div>
 
       {adjusting && (
@@ -338,7 +297,7 @@ export function StockLevelsTable({
           onClose={() => setAdjusting(null)}
           onDone={() => {
             setAdjusting(null);
-            void reload();
+            reload();
             onChanged?.();
           }}
         />

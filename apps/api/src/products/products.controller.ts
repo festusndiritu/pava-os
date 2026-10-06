@@ -1,7 +1,7 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards, Delete } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, Res, UseGuards, Delete } from '@nestjs/common';
 import { Role, Module } from '../../generated/prisma/client.js';
-import { ProductsService, type ProductSort, type StockFilter } from './products.service.js';
-import { parsePaging } from '../common/paging.js';
+import { ProductsService, type StockFilter } from './products.service.js';
+import { parsePaging, sendTotal } from '../common/paging.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/roles.guard.js';
 import { Roles } from '../auth/roles.decorator.js';
@@ -15,20 +15,23 @@ export class ProductsController {
   constructor(private products: ProductsService) {}
 
   @Get()
-  findAll(
+  async findAll(
     @Req() req: any,
+    @Res({ passthrough: true }) res: { setHeader(name: string, value: string | number): unknown },
     @Query('search') search?: string,
     @Query('brandId') brandId?: string,
     @Query('categoryId') categoryId?: string,
     @Query('familyId') familyId?: string,
     @Query('status') status?: 'active' | 'archived' | 'all',
     @Query('stock') stock?: StockFilter,
-    @Query('sort') sort?: ProductSort,
+    @Query('sort') sort?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
     const canViewCost = req.user.role === Role.ADMIN || !!req.user.canViewCost;
-    return this.products.findAll({ search, brandId, categoryId, familyId, canViewCost, status, stock, sort, ...parsePaging(limit, offset) });
+    const { rows, total } = await this.products.findPage({ search, brandId, categoryId, familyId, canViewCost, status, stock, sort, ...parsePaging(limit, offset) });
+    sendTotal(res, total);
+    return rows;
   }
 
   @Get('families')

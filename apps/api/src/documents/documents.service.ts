@@ -5,6 +5,7 @@ import { InventoryService } from '../inventory/inventory.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { roundMoney } from '../common/money.js';
+import { nullsLast, parseSort, type SortDir } from '../common/paging.js';
 import type { CreatePosSaleDto } from './dto/pos-sale.dto.js';
 
 /** Exclusive upper bound covering the whole of the given calendar day. */
@@ -33,6 +34,26 @@ type CreateDocumentInput = {
   roundingIncrement?: number;
   notes?: string;
 };
+
+// What a table header can sort documents by (`field:dir`, see parseSort).
+// Newest first stays the default; `id` is the final tiebreaker so paging by
+// offset never skips or repeats a row.
+const SORT_FIELDS: Record<string, (dir: SortDir) => object> = {
+  quoteNumber: (d) => ({ quoteNumber: nullsLast(d) }),
+  invoiceNumber: (d) => ({ invoiceNumber: nullsLast(d) }),
+  deliveryNoteNumber: (d) => ({ deliveryNoteNumber: nullsLast(d) }),
+  customer: (d) => ({ customer: { name: d } }),
+  created: (d) => ({ createdAt: d }),
+  invoiced: (d) => ({ invoicedAt: nullsLast(d) }),
+  status: (d) => ({ status: d }),
+  total: (d) => ({ total: d }),
+};
+
+function orderByFor(raw?: string): any[] {
+  const sort = parseSort(raw);
+  const make = sort && SORT_FIELDS[sort.field];
+  return [...(make && sort ? [make(sort.dir)] : []), ...(sort?.field === 'created' && make ? [] : [{ createdAt: 'desc' }]), { id: 'desc' }];
+}
 
 @Injectable()
 export class DocumentsService {
@@ -440,44 +461,54 @@ export class DocumentsService {
     return doc;
   }
 
-  findAll(params: { statuses?: DocumentStatus[]; type?: DocumentType; from?: string; to?: string; search?: string; limit?: number; offset?: number }) {
-    const { statuses, type, from, to, search, limit, offset } = params;
+  async findAll(params: Parameters<DocumentsService['findPage']>[0]) {
+    return (await this.findPage(params)).rows;
+  }
+
+  // One page of documents plus how many match in all.
+  async findPage(params: { statuses?: DocumentStatus[]; type?: DocumentType; from?: string; to?: string; search?: string; sort?: string; limit?: number; offset?: number }) {
+    const { statuses, type, from, to, search, sort, limit, offset } = params;
     const term = search?.trim();
-    return this.prisma.document.findMany({
-      where: {
-        // Suspended orders are parked carts, not documents — they only ever
-        // surface through the POS "on hold" list, never in quotes/invoices.
-        ...(statuses && statuses.length > 0 ? { status: statuses.length === 1 ? statuses[0] : { in: statuses } } : { status: { not: DocumentStatus.SUSPENDED } }),
-        ...(type ? { type } : {}),
-        ...(term
-          ? {
-              OR: [
-                { receiptNumber: { contains: term, mode: 'insensitive' as const } },
-                { invoiceNumber: { contains: term, mode: 'insensitive' as const } },
-                { quoteNumber: { contains: term, mode: 'insensitive' as const } },
-                { customerName: { contains: term, mode: 'insensitive' as const } },
-                { customer: { is: { name: { contains: term, mode: 'insensitive' as const } } } },
-                { customer: { is: { businessName: { contains: term, mode: 'insensitive' as const } } } },
-              ],
-            }
-          : {}),
-        // A bare "to" date means "through the end of that day". Comparing
-        // against new Date('2026-09-21') is midnight at its *start*, which
-        // silently dropped everything sold on the last day of the range —
-        // the same correction parseRange() already makes for analytics.
-        ...(from || to
-          ? {
-              createdAt: {
-                ...(from ? { gte: new Date(from) } : {}),
-                ...(to ? { lt: endOfDay(to) } : {}),
-              },
-            }
-          : {}),
-      },
-      include: { customer: true, createdBy: { select: { name: true } }, items: true },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      ...(limit ? { take: limit, skip: offset ?? 0 } : {}),
-    });
+    const where = {
+      // Suspended orders are parked carts, not documents — they only ever
+      // surface through the POS "on hold" list, never in quotes/invoices.
+      ...(statuses && statuses.length > 0 ? { status: statuses.length === 1 ? statuses[0] : { in: statuses } } : { status: { not: DocumentStatus.SUSPENDED } }),
+      ...(type ? { type } : {}),
+      ...(term
+        ? {
+            OR: [
+              { receiptNumber: { contains: term, mode: 'insensitive' as const } },
+              { invoiceNumber: { contains: term, mode: 'insensitive' as const } },
+              { quoteNumber: { contains: term, mode: 'insensitive' as const } },
+              { customerName: { contains: term, mode: 'insensitive' as const } },
+              { customer: { is: { name: { contains: term, mode: 'insensitive' as const } } } },
+              { customer: { is: { businessName: { contains: term, mode: 'insensitive' as const } } } },
+            ],
+          }
+        : {}),
+      // A bare "to" date means "through the end of that day". Comparing
+      // against new Date('2026-09-21') is midnight at its *start*, which
+      // silently dropped everything sold on the last day of the range —
+      // the same correction parseRange() already makes for analytics.
+      ...(from || to
+        ? {
+            createdAt: {
+              ...(from ? { gte: new Date(from) } : {}),
+              ...(to ? { lt: endOfDay(to) } : {}),
+            },
+          }
+        : {}),
+    };
+    const [rows, counted] = await Promise.all([
+      this.prisma.document.findMany({
+        where,
+        include: { customer: true, createdBy: { select: { name: true } }, items: true },
+        orderBy: orderByFor(sort),
+        ...(limit ? { take: limit, skip: offset ?? 0 } : {}),
+      }),
+      limit ? this.prisma.document.count({ where }) : Promise.resolve(null),
+    ]);
+    return { rows, total: counted ?? rows.length };
   }
 
   // Quote -> Invoice is a status change on the SAME record. No copy, no new id,

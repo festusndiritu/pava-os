@@ -29,6 +29,7 @@ export function ReceiveInventoryDrawer({
   onClose,
   onDone,
   initialProduct,
+  initialProducts,
   suppliers = [],
 }: {
   open: boolean;
@@ -36,6 +37,8 @@ export function ReceiveInventoryDrawer({
   onDone: () => void;
   /** Start with this product already on the receipt (a restock launched from a product). */
   initialProduct?: Product | null;
+  /** Start with these products on the receipt (a restock launched from a selection). */
+  initialProducts?: Product[] | null;
   /** Suppliers used before, offered as suggestions while typing. */
   suppliers?: string[];
 }) {
@@ -52,13 +55,15 @@ export function ReceiveInventoryDrawer({
   const [suggestions, setSuggestions] = useState<ReceiveLineResult[] | null>(null);
   const [lastAddedId, setLastAddedId] = useState<string | null>(null);
 
-  // Opening from a product starts the receipt with that product on it.
+  // Opening from a product (or a selection) starts the receipt with those products on it.
+  const starters = initialProducts ?? (initialProduct ? [initialProduct] : []);
+  const starterKey = starters.map((p) => p.id).join(',');
   useEffect(() => {
-    if (!open || !initialProduct) return;
-    setLines((prev) => (prev.some((l) => l.product.id === initialProduct.id) ? prev : [...prev, newLine(initialProduct)]));
-    setLastAddedId(initialProduct.id);
+    if (!open || starters.length === 0) return;
+    setLines((prev) => [...prev, ...starters.filter((p) => !prev.some((l) => l.product.id === p.id)).map(newLine)]);
+    setLastAddedId(starters.length === 1 ? starters[0].id : null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, initialProduct?.id]);
+  }, [open, starterKey]);
 
   function reset() {
     setSupplier('');

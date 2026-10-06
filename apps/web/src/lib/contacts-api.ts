@@ -37,6 +37,9 @@ function query(params: Record<string, string | undefined>) {
 export const contactsApi = {
   list: (search?: string, status?: 'active' | 'archived' | 'all', page?: { offset: number; limit: number }) =>
     api.get<Contact[]>(`/contacts${query({ search, status, limit: page ? String(page.limit) : undefined, offset: page?.offset ? String(page.offset) : undefined })}`),
+  // One page plus how many contacts match in all. `sort` is `field:dir`: name, company, role or phone.
+  listPage: (search: string | undefined, page: { offset: number; limit: number }, sort?: string) =>
+    api.getPage<Contact>(`/contacts${query({ search, sort, limit: String(page.limit), offset: page.offset ? String(page.offset) : undefined })}`),
   get: (id: string) => api.get<Contact>(`/contacts/${id}`),
   create: (data: ContactInput) => api.post<Contact>('/contacts', data),
   update: (id: string, data: Partial<ContactInput>) => api.patch<Contact>(`/contacts/${id}`, data),

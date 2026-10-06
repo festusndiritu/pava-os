@@ -8,6 +8,9 @@ import { reportsApi, type ReturnRow } from '../../../lib/analytics-api';
 import { RangeBar, useDateRange } from '../../../components/insights/RangeBar';
 import { StatCard } from '../../../components/dashboard/DashboardPrimitives';
 import { money, plural } from '../../../components/dashboard/dashboard-derive';
+import { downloadCsv } from '../../../lib/csv';
+import { useClientTable } from '../../../lib/use-data-table';
+import { DataTable, type Column } from '../../../components/ui/DataTable';
 
 type Tab = 'sales' | 'returns';
 
@@ -31,31 +34,6 @@ function docNumber(doc: SaleDocument) {
 
 function customerLabel(doc: SaleDocument) {
   return doc.customer?.businessName || doc.customer?.name || doc.customerName || 'Walk-in';
-}
-
-/**
- * Quotes a CSV cell the way a spreadsheet expects, and defuses the leading
- * =/+/-/@ that Excel would otherwise execute as a formula — customer names
- * and note fields are free text typed by staff.
- */
-function csvCell(value: string | number) {
-  const text = String(value ?? '');
-  const safe = /^[=+\-@]/.test(text) ? `'${text}` : text;
-  return `"${safe.replace(/"/g, '""')}"`;
-}
-
-function downloadCsv(filename: string, rows: (string | number)[][]) {
-  const body = rows.map((row) => row.map(csvCell).join(',')).join('\r\n');
-  // BOM so Excel opens it as UTF-8 rather than mangling anything non-ASCII.
-  const blob = new Blob([`\uFEFF${body}`], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
 }
 
 export default function ReportsPage() {
@@ -93,11 +71,128 @@ export default function ReportsPage() {
   const unpaidTotal = settled.filter((d) => d.status === 'INVOICED').reduce((sum, d) => sum + d.total, 0);
   const returnsTotal = (returns ?? []).reduce((sum, r) => sum + r.total, 0);
 
+  const salesTable = useClientTable<SaleDocument>({
+    rows: docs,
+    sortValues: {
+      date: (d) => d.createdAt,
+      number: (d) => docNumber(d),
+      customer: (d) => customerLabel(d),
+      by: (d) => d.createdBy?.name,
+      payment: (d) => d.paymentMethod,
+      status: (d) => d.status,
+      total: (d) => d.total,
+    },
+    defaultSort: { id: 'date', dir: 'desc' },
+    deps: [range.from, range.to],
+    pageSize: 50,
+  });
+  const returnsTable = useClientTable<ReturnRow>({
+    rows: returns,
+    sortValues: {
+      date: (r) => r.createdAt,
+      number: (r) => r.returnNumber,
+      against: (r) => r.document?.receiptNumber ?? r.document?.invoiceNumber,
+      refund: (r) => r.refundMethod,
+      reason: (r) => r.reason,
+      items: (r) => r.items.length,
+      total: (r) => r.total,
+    },
+    defaultSort: { id: 'date', dir: 'desc' },
+    deps: [range.from, range.to],
+    pageSize: 50,
+  });
+
+  const salesColumns: Column<SaleDocument>[] = [
+    { id: 'date', header: 'Date', sortable: true, defaultDir: 'desc', className: 'whitespace-nowrap', cell: (d) => <span style={{ color: 'var(--color-ink-600)' }}>{fmtDateTime(d.createdAt)}</span> },
+    { id: 'number', header: 'Number', sortable: true, className: 'whitespace-nowrap', cell: (d) => <span className="data-num" style={{ color: 'var(--color-ink-900)' }}>{docNumber(d)}</span> },
+    { id: 'customer', header: 'Customer', sortable: true, className: 'max-w-[220px] truncate', cell: (d) => <span style={{ color: 'var(--color-ink-900)' }}>{customerLabel(d)}</span> },
+    { id: 'by', header: 'Raised by', sortable: true, hideBelow: 'lg', className: 'whitespace-nowrap', cell: (d) => <span style={{ color: 'var(--color-ink-600)' }}>{d.createdBy?.name ?? '—'}</span> },
+    { id: 'payment', header: 'Payment', sortable: true, hideBelow: 'lg', className: 'whitespace-nowrap', cell: (d) => <span style={{ color: 'var(--color-ink-600)' }}>{d.paymentMethod ?? '—'}</span> },
+    {
+      id: 'status',
+      header: 'Status',
+      sortable: true,
+      className: 'whitespace-nowrap',
+      cell: (d) => {
+        const badge = STATUS_BADGE[d.status];
+        return badge ? (
+          <span className="rounded px-1.5 py-0.5 text-[11px] font-medium" style={{ backgroundColor: badge.bg, color: badge.fg }}>
+            {badge.label}
+          </span>
+        ) : null;
+      },
+    },
+    { id: 'total', header: 'Total', sortable: true, defaultDir: 'desc', align: 'right', className: 'whitespace-nowrap', cell: (d) => <span className="data-num font-medium" style={{ color: 'var(--color-ink-900)' }}>{money(d.total)}</span> },
+  ];
+
+  const returnsColumns: Column<ReturnRow>[] = [
+    { id: 'date', header: 'Date', sortable: true, defaultDir: 'desc', className: 'whitespace-nowrap', cell: (r) => <span style={{ color: 'var(--color-ink-600)' }}>{fmtDateTime(r.createdAt)}</span> },
+    { id: 'number', header: 'Return', sortable: true, className: 'whitespace-nowrap', cell: (r) => <span className="data-num" style={{ color: 'var(--color-ink-900)' }}>{r.returnNumber}</span> },
+    { id: 'against', header: 'Against', sortable: true, className: 'whitespace-nowrap', cell: (r) => <span className="data-num" style={{ color: 'var(--color-ink-600)' }}>{r.document?.receiptNumber ?? r.document?.invoiceNumber ?? '—'}</span> },
+    { id: 'refund', header: 'Refund', sortable: true, className: 'whitespace-nowrap', cell: (r) => <span style={{ color: 'var(--color-ink-600)' }}>{r.refundMethod ?? '—'}</span> },
+    { id: 'reason', header: 'Reason', sortable: true, hideBelow: 'lg', className: 'max-w-[220px] truncate', cell: (r) => <span style={{ color: 'var(--color-ink-600)' }}>{r.reason ?? '—'}</span> },
+    { id: 'items', header: 'Items', sortable: true, defaultDir: 'desc', className: 'whitespace-nowrap', cell: (r) => <span className="data-num" style={{ color: 'var(--color-ink-600)' }}>{r.items.length}</span> },
+    { id: 'total', header: 'Total', sortable: true, defaultDir: 'desc', align: 'right', className: 'whitespace-nowrap', cell: (r) => <span className="data-num font-medium" style={{ color: 'var(--color-status-warn)' }}>{money(r.total)}</span> },
+  ];
+
+  const salesCard = (d: SaleDocument) => {
+    const badge = STATUS_BADGE[d.status];
+    return (
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="data-num font-medium" style={{ color: 'var(--color-ink-900)' }}>
+              {docNumber(d)}
+            </p>
+            <p className="truncate text-xs" style={{ color: 'var(--color-ink-600)' }}>
+              {customerLabel(d)}
+            </p>
+          </div>
+          <p className="data-num shrink-0 font-medium" style={{ color: 'var(--color-ink-900)' }}>
+            {money(d.total)}
+          </p>
+        </div>
+        <div className="flex items-center justify-between text-xs" style={{ color: 'var(--color-ink-600)' }}>
+          <span>
+            {fmtDateTime(d.createdAt)} · {d.createdBy?.name ?? '—'} · {d.paymentMethod ?? '—'}
+          </span>
+          {badge && (
+            <span className="shrink-0 rounded px-1.5 py-0.5 font-medium" style={{ backgroundColor: badge.bg, color: badge.fg }}>
+              {badge.label}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const returnsCard = (r: ReturnRow) => (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="data-num font-medium" style={{ color: 'var(--color-ink-900)' }}>
+            {r.returnNumber}
+          </p>
+          <p className="truncate text-xs" style={{ color: 'var(--color-ink-600)' }}>
+            Against {r.document?.receiptNumber ?? r.document?.invoiceNumber ?? '—'}
+            {r.reason ? ` · ${r.reason}` : ''}
+          </p>
+        </div>
+        <p className="data-num shrink-0 font-medium" style={{ color: 'var(--color-status-warn)' }}>
+          {money(r.total)}
+        </p>
+      </div>
+      <p className="text-xs" style={{ color: 'var(--color-ink-600)' }}>
+        {fmtDateTime(r.createdAt)} · {r.refundMethod ?? '—'} · {r.items.length} {plural(r.items.length, 'item')}
+      </p>
+    </div>
+  );
+
   function exportCurrentTab() {
     if (tab === 'sales') {
       downloadCsv(`sales-${range.from}-to-${range.to}.csv`, [
         ['Date', 'Number', 'Type', 'Status', 'Customer', 'Raised by', 'Payment', 'Total'],
-        ...(docs ?? []).map((d) => [
+        ...(salesTable.sortedRows ?? docs ?? []).map((d) => [
           d.createdAt.slice(0, 10),
           docNumber(d),
           d.type,
@@ -112,7 +207,7 @@ export default function ReportsPage() {
     }
     downloadCsv(`returns-${range.from}-to-${range.to}.csv`, [
       ['Date', 'Return number', 'Against', 'Refund method', 'Reason', 'Items', 'Total'],
-      ...(returns ?? []).map((r) => [
+      ...(returnsTable.sortedRows ?? returns ?? []).map((r) => [
         r.createdAt.slice(0, 10),
         r.returnNumber,
         r.document?.receiptNumber ?? r.document?.invoiceNumber ?? '',
@@ -134,7 +229,6 @@ export default function ReportsPage() {
     );
   }
 
-  const loading = docs === null && returns === null && !error;
   const rowCount = tab === 'sales' ? docs?.length ?? 0 : returns?.length ?? 0;
 
   return (
@@ -192,15 +286,16 @@ export default function ReportsPage() {
         <StatCard label="Net of returns" value={money(settledTotal - returnsTotal)} sub="Settled sales less credits" icon={FileBarChart} tone="ok" />
       </div>
 
-      <div className="flex gap-1.5">
+      <div className="flex gap-1.5" role="group" aria-label="Report">
         {(['sales', 'returns'] as Tab[]).map((key) => {
           const active = tab === key;
           return (
             <button
               key={key}
               type="button"
+              aria-pressed={active}
               onClick={() => setTab(key)}
-              className="rounded-md border px-3 py-1.5 text-xs font-medium"
+              className="min-h-9 rounded-md border px-3 text-xs font-medium"
               style={{
                 borderColor: active ? 'var(--color-accent)' : 'var(--color-border)',
                 color: active ? 'var(--color-accent)' : 'var(--color-ink-600)',
@@ -212,180 +307,29 @@ export default function ReportsPage() {
         })}
       </div>
 
-      <div className="overflow-hidden rounded-lg border" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
-        <div className="hidden overflow-x-auto md:block">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)' }}>
-                {(tab === 'sales'
-                  ? ['Date', 'Number', 'Customer', 'Raised by', 'Payment', 'Status', 'Total']
-                  : ['Date', 'Return', 'Against', 'Refund', 'Reason', 'Items', 'Total']
-                ).map((heading, i, all) => (
-                  <th
-                    key={heading}
-                    className={`whitespace-nowrap px-4 py-2.5 font-medium ${i === all.length - 1 ? 'text-right' : ''}`}
-                    style={{ color: 'var(--color-ink-600)' }}
-                  >
-                    {heading}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {loading &&
-                [...Array(5)].map((_, i) => (
-                  <tr key={i} className="border-b" style={{ borderColor: 'var(--color-border)' }}>
-                    <td className="px-4 py-3" colSpan={7}>
-                      <div className="h-4 w-2/3 animate-pulse rounded" style={{ backgroundColor: 'var(--color-border)' }} />
-                    </td>
-                  </tr>
-                ))}
-
-              {!loading && rowCount === 0 && (
-                <tr>
-                  <td className="px-4 py-10 text-center text-sm" colSpan={7} style={{ color: 'var(--color-ink-600)' }}>
-                    Nothing was recorded in this period.
-                  </td>
-                </tr>
-              )}
-
-              {tab === 'sales' &&
-                docs?.map((d) => {
-                  const badge = STATUS_BADGE[d.status];
-                  return (
-                    <tr key={d.id} className="border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
-                      <td className="whitespace-nowrap px-4 py-3" style={{ color: 'var(--color-ink-600)' }}>
-                        {fmtDateTime(d.createdAt)}
-                      </td>
-                      <td className="data-num whitespace-nowrap px-4 py-3" style={{ color: 'var(--color-ink-900)' }}>
-                        {docNumber(d)}
-                      </td>
-                      <td className="max-w-[220px] truncate px-4 py-3" style={{ color: 'var(--color-ink-900)' }}>
-                        {customerLabel(d)}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3" style={{ color: 'var(--color-ink-600)' }}>
-                        {d.createdBy?.name ?? '—'}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3" style={{ color: 'var(--color-ink-600)' }}>
-                        {d.paymentMethod ?? '—'}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3">
-                        {badge && (
-                          <span className="rounded px-1.5 py-0.5 text-[11px] font-medium" style={{ backgroundColor: badge.bg, color: badge.fg }}>
-                            {badge.label}
-                          </span>
-                        )}
-                      </td>
-                      <td className="data-num whitespace-nowrap px-4 py-3 text-right font-medium" style={{ color: 'var(--color-ink-900)' }}>
-                        {money(d.total)}
-                      </td>
-                    </tr>
-                  );
-                })}
-
-              {tab === 'returns' &&
-                returns?.map((r) => (
-                  <tr key={r.id} className="border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
-                    <td className="whitespace-nowrap px-4 py-3" style={{ color: 'var(--color-ink-600)' }}>
-                      {fmtDateTime(r.createdAt)}
-                    </td>
-                    <td className="data-num whitespace-nowrap px-4 py-3" style={{ color: 'var(--color-ink-900)' }}>
-                      {r.returnNumber}
-                    </td>
-                    <td className="data-num whitespace-nowrap px-4 py-3" style={{ color: 'var(--color-ink-600)' }}>
-                      {r.document?.receiptNumber ?? r.document?.invoiceNumber ?? '—'}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3" style={{ color: 'var(--color-ink-600)' }}>
-                      {r.refundMethod ?? '—'}
-                    </td>
-                    <td className="max-w-[220px] truncate px-4 py-3" style={{ color: 'var(--color-ink-600)' }}>
-                      {r.reason ?? '—'}
-                    </td>
-                    <td className="data-num whitespace-nowrap px-4 py-3" style={{ color: 'var(--color-ink-600)' }}>
-                      {r.items.length}
-                    </td>
-                    <td className="data-num whitespace-nowrap px-4 py-3 text-right font-medium" style={{ color: 'var(--color-status-warn)' }}>
-                      {money(r.total)}
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Mobile: stacked cards instead of squeezing a 7-column register
-            sideways — this is the same table→card swap every other list page
-            in the app already does below `md`. */}
-        <div className="divide-y md:hidden" style={{ borderColor: 'var(--color-border)' }}>
-          {loading &&
-            [...Array(5)].map((_, i) => (
-              <div key={i} className="p-4">
-                <div className="h-4 w-2/3 animate-pulse rounded" style={{ backgroundColor: 'var(--color-border)' }} />
-              </div>
-            ))}
-
-          {!loading && rowCount === 0 && (
-            <p className="px-4 py-10 text-center text-sm" style={{ color: 'var(--color-ink-600)' }}>
-              Nothing was recorded in this period.
-            </p>
-          )}
-
-          {tab === 'sales' &&
-            docs?.map((d) => {
-              const badge = STATUS_BADGE[d.status];
-              return (
-                <div key={d.id} className="flex flex-col gap-1.5 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="data-num font-medium" style={{ color: 'var(--color-ink-900)' }}>
-                        {docNumber(d)}
-                      </p>
-                      <p className="truncate text-xs" style={{ color: 'var(--color-ink-600)' }}>
-                        {customerLabel(d)}
-                      </p>
-                    </div>
-                    <p className="data-num shrink-0 font-medium" style={{ color: 'var(--color-ink-900)' }}>
-                      {money(d.total)}
-                    </p>
-                  </div>
-                  <div className="flex items-center justify-between text-xs" style={{ color: 'var(--color-ink-600)' }}>
-                    <span>
-                      {fmtDateTime(d.createdAt)} · {d.createdBy?.name ?? '—'} · {d.paymentMethod ?? '—'}
-                    </span>
-                    {badge && (
-                      <span className="shrink-0 rounded px-1.5 py-0.5 font-medium" style={{ backgroundColor: badge.bg, color: badge.fg }}>
-                        {badge.label}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-
-          {tab === 'returns' &&
-            returns?.map((r) => (
-              <div key={r.id} className="flex flex-col gap-1.5 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="data-num font-medium" style={{ color: 'var(--color-ink-900)' }}>
-                      {r.returnNumber}
-                    </p>
-                    <p className="truncate text-xs" style={{ color: 'var(--color-ink-600)' }}>
-                      Against {r.document?.receiptNumber ?? r.document?.invoiceNumber ?? '—'}
-                      {r.reason ? ` · ${r.reason}` : ''}
-                    </p>
-                  </div>
-                  <p className="data-num shrink-0 font-medium" style={{ color: 'var(--color-status-warn)' }}>
-                    {money(r.total)}
-                  </p>
-                </div>
-                <p className="text-xs" style={{ color: 'var(--color-ink-600)' }}>
-                  {fmtDateTime(r.createdAt)} · {r.refundMethod ?? '—'} · {r.items.length} {plural(r.items.length, 'item')}
-                </p>
-              </div>
-            ))}
-        </div>
-      </div>
+      {tab === 'sales' ? (
+        <DataTable<SaleDocument>
+          {...salesTable.tableProps}
+          rows={error ? [] : salesTable.rows}
+          caption="Sales register"
+          columns={salesColumns}
+          rowKey={(d) => d.id}
+          rowLabel={docNumber}
+          renderCard={salesCard}
+          empty={<p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>Nothing was recorded in this period.</p>}
+        />
+      ) : (
+        <DataTable<ReturnRow>
+          {...returnsTable.tableProps}
+          rows={error ? [] : returnsTable.rows}
+          caption="Returns"
+          columns={returnsColumns}
+          rowKey={(r) => r.id}
+          rowLabel={(r) => r.returnNumber}
+          renderCard={returnsCard}
+          empty={<p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>Nothing was recorded in this period.</p>}
+        />
+      )}
     </div>
   );
 }

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Search, Package, Users, FileText, Receipt, Target } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { useAuth } from '../../lib/auth-context';
-import { useDebounced } from '../../lib/use-paged-list';
+import { useDebounced } from '../../lib/use-debounced';
 import { productsApi, type Product } from '../../lib/products-api';
 import { customersApi, type Customer } from '../../lib/customers-api';
 import { documentsApi, type SaleDocument } from '../../lib/documents-api';
