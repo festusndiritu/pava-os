@@ -22,10 +22,6 @@ export function PermissionEditor({ value, onChange }: { value: ModuleKey[]; onCh
   return (
     <div className="flex flex-col gap-4">
       {MODULE_GROUPS.map((group) => {
-        // Users & Access and Audit Trail are never grantable here — the
-        // backend keeps both admin-only regardless of what's granted, so
-        // offering the toggle would let an admin "grant" access that
-        // silently never works for the staff member.
         const grantable = group.modules.filter((m) => !ADMIN_ONLY_MODULES.includes(m));
         if (grantable.length === 0) return null;
         const allOn = grantable.every((m) => set.has(m));
