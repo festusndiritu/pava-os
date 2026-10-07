@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ChevronsUpDown } from 'l
 import type { PaginationState, RowSelection, SortDir, SortState } from '../../lib/use-data-table';
 import { fmtNumber } from '../../lib/format';
 import { TablePagination } from './TablePagination';
+import { ActionMenu, actionList, type RowActionInput } from './ActionMenu';
 
 export interface Column<T> {
   /** Also the sort key sent to the server (or read by a client-side sort). */
@@ -35,10 +36,13 @@ export interface DataTableProps<T> {
   /** Names a row for its checkbox, e.g. the product name. */
   rowLabel?: (row: T) => string;
   onRowClick?: (row: T) => void;
-  /** Trailing action buttons (use IconAction). Shown in the last column on desktop and under the card on phones. */
-  rowActions?: (row: T) => ReactNode;
-  /** Different actions for the phone card, if the desktop ones don't suit it. */
-  cardActions?: (row: T) => ReactNode;
+  /**
+   * What can be done to this row, collected behind one "⋮" button at its end
+   * (a popover on desktop, a bottom sheet on phones). Conditions can be
+   * written inline: `isAdmin && { label: 'Edit', … }`. A row with nothing to
+   * offer shows no button.
+   */
+  actions?: (row: T) => RowActionInput[];
   /** The body of a row's card on phones. Everything the table shows, in the layout a phone wants. */
   renderCard: (row: T) => ReactNode;
   /** Extra content under a row, opened by a chevron (or by the row itself when it has no onRowClick). */
@@ -109,8 +113,7 @@ export function DataTable<T>({
   caption,
   rowLabel,
   onRowClick,
-  rowActions,
-  cardActions,
+  actions,
   renderCard,
   detail,
   sort,
@@ -145,7 +148,7 @@ export function DataTable<T>({
   const selectable = !!selection;
   const hasRows = !!rows && rows.length > 0;
   const status: 'loading' | 'error' | 'empty' | 'rows' = error && !hasRows ? 'error' : rows === null ? 'loading' : rows.length === 0 ? 'empty' : 'rows';
-  const colCount = (selectable ? 1 : 0) + (detail ? 1 : 0) + columns.length + (rowActions ? 1 : 0);
+  const colCount = (selectable ? 1 : 0) + (detail ? 1 : 0) + columns.length + (actions ? 1 : 0);
 
   const pageKeys = rows?.map(rowKey) ?? [];
   const selectedOnPage = selection ? pageKeys.filter((k) => selection.has(k)).length : 0;
@@ -296,8 +299,8 @@ export function DataTable<T>({
                   {c.sortable && onSortChange ? <SortButton column={c} sort={sort} onSortChange={onSortChange} /> : c.header}
                 </th>
               ))}
-              {rowActions && (
-                <th scope="col" className="px-4 py-2.5">
+              {actions && (
+                <th scope="col" className="w-14 px-2 py-2.5">
                   <span className="sr-only">Actions</span>
                 </th>
               )}
@@ -362,9 +365,11 @@ export function DataTable<T>({
                           {c.cell(row)}
                         </td>
                       ))}
-                      {rowActions && (
-                        <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-end gap-1.5">{rowActions(row)}</div>
+                      {actions && (
+                        <td className="w-14 px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex justify-end">
+                            <ActionMenu actions={actionList(actions(row))} label={`Actions for ${rowLabel ? rowLabel(row) : 'row'}`} heading={rowLabel?.(row)} />
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -433,7 +438,7 @@ export function DataTable<T>({
               const key = rowKey(row);
               const selected = !!selection?.has(key);
               const open = expanded === key;
-              const actions = (cardActions ?? rowActions)?.(row);
+              const cardMenu = actions ? actionList(actions(row)) : [];
               const body = renderCard(row);
               return (
                 <div key={key} className="px-2 py-3" style={{ backgroundColor: selected ? 'var(--color-accent-soft)' : undefined }}>
@@ -446,8 +451,8 @@ export function DataTable<T>({
                     ) : (
                       <div className={`min-w-0 flex-1 py-1 ${selectable ? '' : 'pl-2'} pr-2`}>{body}</div>
                     )}
+                    {cardMenu.length > 0 && <ActionMenu actions={cardMenu} label={`Actions for ${rowLabel ? rowLabel(row) : 'row'}`} heading={rowLabel?.(row)} />}
                   </div>
-                  {actions && <div className="mt-2 flex flex-wrap items-center gap-1.5 px-2">{actions}</div>}
                   {open && detail && (
                     <div className="mt-2 rounded-md px-3 py-2" style={{ backgroundColor: 'var(--color-bg)' }}>
                       {detail(row)}

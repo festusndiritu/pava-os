@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { KeyRound, Plus, ShieldCheck, UsersRound } from 'lucide-react';
+import { KeyRound, Pencil, Plus, ShieldCheck, UserCheck, UsersRound, UserX } from 'lucide-react';
+import type { RowAction } from '../../../components/ui/ActionMenu';
 import { useAuth } from '../../../lib/auth-context';
 import { usersApi, type StaffUser } from '../../../lib/users-api';
 import { Avatar } from '../../../components/Avatar';
@@ -115,29 +116,16 @@ export default function UsersPage() {
   ];
 
   // An administrator's account is managed elsewhere, so it has no actions here.
-  const rowActions = (u: StaffUser) =>
-    u.role === 'ADMIN' ? null : (
-      <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1">
-        <button type="button" onClick={() => setResetPinFor(u)} className="flex min-h-11 items-center gap-1 text-xs font-medium md:min-h-9" style={{ color: 'var(--color-ink-600)' }}>
-          <KeyRound size={12} strokeWidth={2} />
-          Reset PIN
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setEditing(u);
-            setFormOpen(true);
-          }}
-          className="min-h-11 text-xs font-medium md:min-h-9"
-          style={{ color: 'var(--color-accent)' }}
-        >
-          Edit
-        </button>
-        <button type="button" onClick={() => toggleActive(u)} disabled={u.id === currentUser?.id} className="min-h-11 text-xs font-medium disabled:opacity-40 md:min-h-9" style={{ color: u.active ? 'var(--color-status-bad)' : 'var(--color-status-ok)' }}>
-          {u.active ? 'Deactivate' : 'Activate'}
-        </button>
-      </div>
-    );
+  const actions = (u: StaffUser): RowAction[] =>
+    u.role === 'ADMIN'
+      ? []
+      : [
+          { label: 'Edit access', icon: Pencil, onClick: () => { setEditing(u); setFormOpen(true); } },
+          { label: 'Reset PIN', icon: KeyRound, onClick: () => setResetPinFor(u) },
+          u.active
+            ? { label: 'Deactivate', icon: UserX, tone: 'danger', separatorBefore: true, disabled: u.id === currentUser?.id, hint: u.id === currentUser?.id ? 'You can’t deactivate your own account' : undefined, onClick: () => toggleActive(u) }
+            : { label: 'Activate', icon: UserCheck, tone: 'accent', separatorBefore: true, onClick: () => toggleActive(u) },
+        ];
 
   const renderCard = (u: StaffUser) => (
     <div className="flex items-center justify-between gap-3">
@@ -189,7 +177,7 @@ export default function UsersPage() {
           columns={columns}
           rowKey={(u) => u.id}
           rowLabel={(u) => u.name}
-          rowActions={rowActions}
+          actions={actions}
           renderCard={renderCard}
           empty={
             <>

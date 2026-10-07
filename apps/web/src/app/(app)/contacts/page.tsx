@@ -1,14 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { Download, Pencil, Plus, Search, UserSquare2, X } from 'lucide-react';
+import { Download, MessageCircle, Pencil, Phone, Plus, Search, UserSquare2, X } from 'lucide-react';
 import { contactsApi, type Contact } from '../../../lib/contacts-api';
 import { ContactFormDrawer } from '../../../components/contacts/ContactFormDrawer';
 import { useDebounced } from '../../../lib/use-debounced';
 import { useRowSelection, useServerTable } from '../../../lib/use-data-table';
 import { downloadCsv } from '../../../lib/csv';
 import { DataTable, type Column } from '../../../components/ui/DataTable';
-import { IconAction } from '../../../components/ui/RowActions';
+import type { RowAction } from '../../../components/ui/ActionMenu';
+import { waHref } from '../../../lib/phone';
 import { ApiError } from '../../../lib/api';
 import { toast } from '../../../components/ui/Toast';
 
@@ -115,6 +116,12 @@ export default function ContactsPage() {
     </div>
   );
 
+  const actions = (c: Contact): (RowAction | false)[] => [
+    !!c.phone && { label: 'Call', icon: Phone, href: `tel:${c.phone}`, hint: c.phone },
+    !!c.phone && { label: 'WhatsApp', icon: MessageCircle, href: waHref(c.phone), external: true },
+    { label: 'Edit contact', icon: Pencil, onClick: () => openEdit(c) },
+  ];
+
   const bulkActions = (
     <button type="button" onClick={() => exportRows(selection.items, 'contacts-selected')} className="flex min-h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium" style={buttonStyle}>
       <Download size={14} strokeWidth={2} />
@@ -185,7 +192,7 @@ export default function ContactsPage() {
           rowKey={(c) => c.id}
           rowLabel={(c) => c.name}
           onRowClick={openEdit}
-          rowActions={(c) => <IconAction label={`Edit ${c.name}`} icon={Pencil} onClick={() => openEdit(c)} />}
+          actions={actions}
           renderCard={renderCard}
           selection={selection}
           selectAllMatching={() => contactsApi.list(debouncedSearch || undefined)}

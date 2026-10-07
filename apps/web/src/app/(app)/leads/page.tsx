@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Archive, Download, MapPin, MessageCircle, Pencil, Phone, Plus, RotateCcw, Search, Target, X } from 'lucide-react';
+import { Archive, Download, MapPin, MessageCircle, Pencil, Phone, Plus, RotateCcw, Search, Target, UserPlus, X } from 'lucide-react';
 import { leadsApi, type Lead } from '../../../lib/leads-api';
 import { LeadFormDrawer } from '../../../components/leads/LeadFormDrawer';
 import { ApiError } from '../../../lib/api';
@@ -10,7 +10,8 @@ import { useClientTable, useRowSelection } from '../../../lib/use-data-table';
 import { bulkSummary, runBulk } from '../../../lib/bulk';
 import { downloadCsv } from '../../../lib/csv';
 import { DataTable, type Column } from '../../../components/ui/DataTable';
-import { IconAction } from '../../../components/ui/RowActions';
+import type { RowAction } from '../../../components/ui/ActionMenu';
+import { waHref } from '../../../lib/phone';
 import { toast } from '../../../components/ui/Toast';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 
@@ -40,11 +41,6 @@ function followUpInfo(iso: string | null): { label: string; color: string } {
   if (diffDays === 0) return { label: 'Follow up today', color: 'var(--color-status-warn)' };
   if (diffDays === 1) return { label: 'Follow up tomorrow', color: 'var(--color-ink-900)' };
   return { label: `Follow up ${fmtDate(iso)}`, color: 'var(--color-ink-900)' };
-}
-
-function waHref(phone: string) {
-  const digits = phone.replace(/\D/g, '');
-  return `https://wa.me/${digits.startsWith('0') ? `254${digits.slice(1)}` : digits}`;
 }
 
 const TABS: { key: Tab; label: string }[] = [
@@ -178,7 +174,10 @@ export default function LeadsPage() {
       sortable: true,
       cell: (lead) => (
         <>
-          <p className="font-medium" style={{ color: 'var(--color-ink-900)' }}>{lead.name}</p>
+          <p className="font-medium" style={{ color: 'var(--color-ink-900)' }}>
+            {lead.name}
+            {lead.convertedCustomerId && <span className="ml-2 text-xs font-medium" style={{ color: 'var(--color-status-ok)' }}>Converted</span>}
+          </p>
           {lead.company && <p className="text-xs" style={{ color: 'var(--color-ink-600)' }}>{lead.company}</p>}
           {lead.expectedValue != null && <p className="text-xs data-num" style={{ color: 'var(--color-ink-600)' }}>KSh {fmtNumber(lead.expectedValue)}</p>}
         </>
@@ -231,39 +230,14 @@ export default function LeadsPage() {
     },
   ];
 
-  const rowActions = (lead: Lead) => (
-    <>
-      {lead.stage === 'WON' && !lead.convertedCustomerId && (
-        <button type="button" onClick={() => convert(lead)} className="min-h-11 shrink-0 rounded-md px-2.5 text-xs font-medium text-white md:min-h-9" style={{ backgroundColor: 'var(--color-accent)' }}>
-          To customer
-        </button>
-      )}
-      {lead.convertedCustomerId && <span className="shrink-0 text-xs font-medium" style={{ color: 'var(--color-status-ok)' }}>Converted</span>}
-      <IconAction label={`Edit ${lead.name}`} icon={Pencil} onClick={() => openEdit(lead)} />
-      {tab === 'archived' ? (
-        <IconAction label={`Restore ${lead.name}`} icon={RotateCcw} tone="accent" onClick={() => restoreLead(lead)} />
-      ) : (
-        <IconAction label={`Archive ${lead.name}`} icon={Archive} tone="danger" onClick={() => archiveLead(lead)} />
-      )}
-    </>
-  );
-
-  // On a phone the contact buttons come first: calling someone is what a lead card is for.
-  const cardActions = (lead: Lead) => (
-    <>
-      {lead.phone && (
-        <>
-          <a href={`tel:${lead.phone}`} className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-md border text-xs font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
-            <Phone size={13} strokeWidth={2} /> Call
-          </a>
-          <a href={waHref(lead.phone)} target="_blank" rel="noreferrer" className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-md border text-xs font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-status-ok)' }}>
-            <MessageCircle size={13} strokeWidth={2} /> WhatsApp
-          </a>
-        </>
-      )}
-      {rowActions(lead)}
-    </>
-  );
+  const actions = (lead: Lead): (RowAction | false)[] => [
+    // Calling someone is what a lead is for, so contact comes first.
+    !!lead.phone && { label: 'Call', icon: Phone, href: `tel:${lead.phone}`, hint: lead.phone },
+    !!lead.phone && { label: 'WhatsApp', icon: MessageCircle, href: waHref(lead.phone), external: true },
+    lead.stage === 'WON' && !lead.convertedCustomerId && { label: 'Convert to customer', icon: UserPlus, tone: 'accent', onClick: () => convert(lead) },
+    { label: 'Edit lead', icon: Pencil, onClick: () => openEdit(lead) },
+    tab === 'archived' ? { label: 'Restore', icon: RotateCcw, tone: 'accent', separatorBefore: true, onClick: () => restoreLead(lead) } : { label: 'Archive', icon: Archive, tone: 'danger', separatorBefore: true, onClick: () => archiveLead(lead) },
+  ];
 
   const renderCard = (lead: Lead) => {
     const fu = followUpInfo(lead.followUpAt);
@@ -271,7 +245,10 @@ export default function LeadsPage() {
       <div className="flex flex-col gap-1.5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="truncate font-medium" style={{ color: 'var(--color-ink-900)' }}>{lead.name}</p>
+            <p className="truncate font-medium" style={{ color: 'var(--color-ink-900)' }}>
+              {lead.name}
+              {lead.convertedCustomerId && <span className="ml-2 text-xs font-medium" style={{ color: 'var(--color-status-ok)' }}>Converted</span>}
+            </p>
             {lead.company && <p className="truncate text-xs" style={{ color: 'var(--color-ink-600)' }}>{lead.company}</p>}
           </div>
           <p className="shrink-0 text-xs font-medium" style={{ color: tab === 'open' ? fu.color : 'var(--color-ink-600)' }}>
@@ -394,8 +371,7 @@ export default function LeadsPage() {
           rowKey={(l) => l.id}
           rowLabel={(l) => l.name}
           onRowClick={openEdit}
-          rowActions={rowActions}
-          cardActions={cardActions}
+          actions={actions}
           renderCard={renderCard}
           selection={selection}
           bulkActions={bulkActions}

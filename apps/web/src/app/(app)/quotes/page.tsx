@@ -5,7 +5,7 @@ import { Download, FileText, Plus } from 'lucide-react';
 import { documentsApi, type DocumentListParams, type SaleDocument } from '../../../lib/documents-api';
 import { QuoteFormDrawer } from '../../../components/documents/QuoteFormDrawer';
 import { DocumentDetailDrawer } from '../../../components/documents/DocumentDetailDrawer';
-import { DocumentRowActions } from '../../../components/documents/DocumentRowActions';
+import { useDocumentActions } from '../../../lib/use-document-actions';
 import { fmtNumber } from '../../../lib/format';
 import { useRowSelection, useServerTable } from '../../../lib/use-data-table';
 import { downloadCsv } from '../../../lib/csv';
@@ -54,6 +54,7 @@ export default function QuotesPage() {
     defaultSort: { id: 'created', dir: 'desc' },
   });
   const { reload: load } = table;
+  const documentActions = useDocumentActions({ onOpen: setDetailId, onEdit: setEditId, onChanged: load, onError: setError });
   const selection = useRowSelection<SaleDocument>((d) => d.id, []);
 
   const columns: Column<SaleDocument>[] = [
@@ -118,7 +119,7 @@ export default function QuotesPage() {
           rowKey={(d) => d.id}
           rowLabel={(d) => d.quoteNumber ?? customerOf(d)}
           onRowClick={(d) => setDetailId(d.id)}
-          rowActions={(d) => <DocumentRowActions doc={d} onOpen={setDetailId} onEdit={setEditId} onChanged={load} onError={setError} />}
+          actions={documentActions}
           renderCard={renderCard}
           selection={selection}
           selectAllMatching={() => documentsApi.list(filters)}

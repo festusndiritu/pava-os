@@ -1,5 +1,4 @@
-// Mirrors apps/api/prisma/schema.prisma's `Module` enum. Keep these two in
-// sync manually — there's no shared package between api/web in this repo yet.
+// Mirrors apps/api/prisma/schema.prisma's `Module` enum.
 export const MODULES = [
   'DASHBOARD',
   'POS',
@@ -23,13 +22,6 @@ export const MODULES = [
 
 export type ModuleKey = (typeof MODULES)[number];
 
-// USERS and AUDIT are never grantable to a STAFF account, no matter what the
-// permission editor shows — the backend controllers for both hard-require
-// Role.ADMIN (@Roles(Role.ADMIN)), not a granted module, so a STAFF user can
-// never pass their guard regardless of what's in user.permissions. Keeping
-// this list here lets the permission editor, hasPermission(), and the route
-// guard all agree with that backend reality instead of each having to know
-// it separately.
 export const ADMIN_ONLY_MODULES: ModuleKey[] = ['USERS', 'AUDIT'];
 
 export const MODULE_LABELS: Record<ModuleKey, string> = {
@@ -53,9 +45,6 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
   SETTINGS: 'Settings',
 };
 
-// Used both for the sidebar (Overview/Sell/Catalogue/...) and the grouped
-// permission editor on the Users page, so granting access matches what the
-// person will actually see in the nav.
 export const MODULE_GROUPS: { label: string; modules: ModuleKey[] }[] = [
   { label: 'Overview', modules: ['DASHBOARD'] },
   { label: 'Sell', modules: ['POS', 'QUOTES', 'INVOICES', 'CUSTOMERS'] },
@@ -66,12 +55,6 @@ export const MODULE_GROUPS: { label: string; modules: ModuleKey[] }[] = [
   { label: 'Administration', modules: ['AUDIT', 'USERS', 'SETTINGS'] },
 ];
 
-// `pinned` sections stay expanded in the sidebar all the time — no header
-// click needed to reach them. Everything else behaves as a true accordion
-// (see Sidebar.tsx): opening one closes whichever was open before, which is
-// what keeps the sidebar short. Pin only the handful of destinations someone
-// reaches for constantly; pinning too many defeats the point of collapsing
-// the rest.
 export const NAV_SECTIONS: { label: string; pinned?: boolean; items: { module: ModuleKey; label: string; href: string }[] }[] = [
   { label: 'Overview', pinned: true, items: [{ module: 'DASHBOARD', label: 'Dashboard', href: '/dashboard' }] },
   {
@@ -89,8 +72,6 @@ export const NAV_SECTIONS: { label: string; pinned?: boolean; items: { module: M
     pinned: true,
     items: [
       { module: 'PRODUCTS', label: 'Products', href: '/products' },
-      // Shares the PRODUCTS permission — brands, categories, units and
-      // families are all product metadata, not a separately gated module.
       { module: 'PRODUCTS', label: 'Catalogue setup', href: '/products/setup' },
       { module: 'INVENTORY', label: 'Inventory', href: '/inventory' },
     ],
@@ -113,6 +94,7 @@ export const NAV_SECTIONS: { label: string; pinned?: boolean; items: { module: M
   },
   {
     label: 'Insights',
+    pinned: true,
     items: [
       { module: 'ANALYTICS', label: 'Analytics', href: '/analytics' },
       { module: 'REPORTS', label: 'Reports', href: '/reports' },
@@ -120,6 +102,7 @@ export const NAV_SECTIONS: { label: string; pinned?: boolean; items: { module: M
   },
   {
     label: 'Administration',
+    pinned: true,
     items: [
       { module: 'USERS', label: 'Users & Access', href: '/users' },
       { module: 'AUDIT', label: 'Audit Trail', href: '/audit' },
@@ -128,12 +111,6 @@ export const NAV_SECTIONS: { label: string; pinned?: boolean; items: { module: M
   },
 ];
 
-// The single source of truth for "which module gates this route" — used by
-// AppLayout to block direct navigation to a page the user's nav doesn't
-// show them a link for (typed URL, stale bookmark, browser back/forward).
-// Matches the most specific (longest) href so a page nested under a section
-// root still resolves to the right module. Returns null for routes with no
-// module of their own (e.g. /profile) — those are always allowed.
 export function moduleForPath(pathname: string): ModuleKey | null {
   const items = NAV_SECTIONS.flatMap((section) => section.items);
   const match = items
@@ -142,9 +119,6 @@ export function moduleForPath(pathname: string): ModuleKey | null {
   return match ? match.module : null;
 }
 
-// Predefined avatar set: a color + up to 2 initials, rendered as CSS (see
-// components/Avatar.tsx) rather than image files — keeps things fast and
-// avoids needing an asset pipeline for something this simple.
 export const AVATAR_COLORS = [
   { key: 'slate', bg: '#E4E7EC', fg: '#101828' },
   { key: 'blue', bg: '#EAF1FD', fg: '#0559C9' },

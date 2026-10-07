@@ -13,7 +13,7 @@ import { useRowSelection, useServerTable } from '../../../lib/use-data-table';
 import { bulkSummary, runBulk } from '../../../lib/bulk';
 import { downloadCsv } from '../../../lib/csv';
 import { DataTable, type Column } from '../../../components/ui/DataTable';
-import { IconAction } from '../../../components/ui/RowActions';
+import type { RowAction } from '../../../components/ui/ActionMenu';
 import { toast } from '../../../components/ui/Toast';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)', color: 'var(--color-ink-900)' };
@@ -192,17 +192,11 @@ export default function CustomersPage() {
     </div>
   );
 
-  const rowActions = (c: Customer) => (
-    <>
-      <IconAction label={`View ${customerName(c)}`} icon={Eye} onClick={() => setDetailId(c.id)} />
-      <IconAction label={`Edit ${customerName(c)}`} icon={Pencil} onClick={() => openEdit(c)} />
-      {c.active ? (
-        <IconAction label={`Archive ${customerName(c)}`} icon={Archive} tone="danger" onClick={() => setConfirmArchive(c)} />
-      ) : (
-        <IconAction label={`Restore ${customerName(c)}`} icon={RotateCcw} tone="accent" onClick={() => restoreCustomer(c)} />
-      )}
-    </>
-  );
+  const actions = (c: Customer): RowAction[] => [
+    { label: 'View customer', icon: Eye, onClick: () => setDetailId(c.id) },
+    { label: 'Edit customer', icon: Pencil, onClick: () => openEdit(c) },
+    c.active ? { label: 'Archive', icon: Archive, tone: 'danger', separatorBefore: true, onClick: () => setConfirmArchive(c) } : { label: 'Restore', icon: RotateCcw, tone: 'accent', separatorBefore: true, onClick: () => restoreCustomer(c) },
+  ];
 
   const buttonStyle = { borderColor: 'var(--color-border)', color: 'var(--color-ink-900)', backgroundColor: 'var(--color-surface)' };
   const bulkActions = (
@@ -320,7 +314,7 @@ export default function CustomersPage() {
           rowKey={(c) => c.id}
           rowLabel={customerName}
           onRowClick={(c) => setDetailId(c.id)}
-          rowActions={rowActions}
+          actions={actions}
           renderCard={renderCard}
           selection={selection}
           selectAllMatching={() => customersApi.list(debouncedSearch || undefined, status)}

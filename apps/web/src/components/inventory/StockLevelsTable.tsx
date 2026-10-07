@@ -1,13 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Download, PackagePlus, Search, Truck, X } from 'lucide-react';
+import { Download, Eye, PackagePlus, Search, Truck, X } from 'lucide-react';
 import { productsApi, type Category, type Product, type StockFilter } from '../../lib/products-api';
 import { ProductIcon } from '../pos/ProductIcon';
 import { AdjustStockDialog } from './AdjustStockDialog';
 import { StockBadge } from './StockBadge';
 import { DataTable, type Column } from '../ui/DataTable';
-import { IconAction } from '../ui/RowActions';
+import type { RowAction } from '../ui/ActionMenu';
 import { useAuth } from '../../lib/auth-context';
 import { fmtNumber } from '../../lib/format';
 import { availability, stockLevel, useLowStockThreshold } from '../../lib/stock';
@@ -158,12 +158,11 @@ export function StockLevelsTable({
     toast.success(`Exported ${rows.length} product${rows.length === 1 ? '' : 's'}`);
   }
 
-  const rowActions = (p: Product) => (
-    <>
-      {onReceive && <IconAction label={`Receive stock for ${name(p)}`} icon={Truck} onClick={() => onReceive(p)} />}
-      <IconAction label={`Adjust stock for ${name(p)}`} icon={PackagePlus} onClick={() => setAdjusting(p)} />
-    </>
-  );
+  const actions = (p: Product): (RowAction | false)[] => [
+    { label: 'View product', icon: Eye, onClick: () => onOpenProduct(p.id) },
+    !!onReceive && { label: 'Receive stock', icon: Truck, onClick: () => onReceive(p) },
+    { label: 'Adjust stock', icon: PackagePlus, onClick: () => setAdjusting(p) },
+  ];
 
   const renderCard = (p: Product) => (
     <div className="flex items-center gap-2.5">
@@ -282,7 +281,7 @@ export function StockLevelsTable({
           rowKey={(p) => p.id}
           rowLabel={name}
           onRowClick={(p) => onOpenProduct(p.id)}
-          rowActions={rowActions}
+          actions={actions}
           renderCard={renderCard}
           selection={selection}
           selectAllMatching={() => productsApi.list(filters)}

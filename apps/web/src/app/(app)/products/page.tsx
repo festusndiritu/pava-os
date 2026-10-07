@@ -19,7 +19,7 @@ import { useDebounced } from '../../../lib/use-debounced';
 import { useRowSelection, useServerTable } from '../../../lib/use-data-table';
 import { bulkSummary, runBulk } from '../../../lib/bulk';
 import { DataTable, type Column } from '../../../components/ui/DataTable';
-import { IconAction } from '../../../components/ui/RowActions';
+import type { RowAction } from '../../../components/ui/ActionMenu';
 import { toast } from '../../../components/ui/Toast';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)', color: 'var(--color-ink-900)' };
@@ -305,20 +305,14 @@ export default function ProductsPage() {
     );
   }
 
-  const rowActions = (p: Product) => (
-    <>
-      <IconAction label={`View ${productName(p)}`} icon={Eye} onClick={() => setDetailId(p.id)} />
-      {isAdmin && <IconAction label={`Edit ${productName(p)}`} icon={Pencil} onClick={() => openEdit(p)} />}
-      {isAdmin && <IconAction label={`Duplicate ${productName(p)}`} icon={Copy} onClick={() => openCreate(p)} />}
-      {canAdjust && <IconAction label={`Adjust stock for ${productName(p)}`} icon={PackagePlus} onClick={() => setAdjusting(p)} />}
-      {isAdmin &&
-        (p.active ? (
-          <IconAction label={`Archive ${productName(p)}`} icon={Archive} tone="danger" onClick={() => setConfirmArchive(p)} />
-        ) : (
-          <IconAction label={`Restore ${productName(p)}`} icon={RotateCcw} tone="accent" onClick={() => restoreProduct(p)} />
-        ))}
-    </>
-  );
+  const actions = (p: Product): (RowAction | false)[] => [
+    { label: 'View details', icon: Eye, onClick: () => setDetailId(p.id) },
+    isAdmin && { label: 'Edit product', icon: Pencil, onClick: () => openEdit(p) },
+    isAdmin && { label: 'Duplicate', icon: Copy, onClick: () => openCreate(p) },
+    canAdjust && { label: 'Adjust stock', icon: PackagePlus, onClick: () => setAdjusting(p) },
+    canAdjust && { label: 'Receive stock', icon: Truck, onClick: () => setReceiving(p) },
+    isAdmin && (p.active ? { label: 'Archive', icon: Archive, tone: 'danger', separatorBefore: true, onClick: () => setConfirmArchive(p) } : { label: 'Restore', icon: RotateCcw, tone: 'accent', separatorBefore: true, onClick: () => restoreProduct(p) }),
+  ];
 
   async function runBulkArchive(action: 'archive' | 'restore') {
     const targets = selection.items;
@@ -489,7 +483,7 @@ export default function ProductsPage() {
           rowKey={(p) => p.id}
           rowLabel={productName}
           onRowClick={(p) => setDetailId(p.id)}
-          rowActions={rowActions}
+          actions={actions}
           renderCard={renderCard}
           selection={selection}
           selectAllMatching={() => productsApi.list(filters)}

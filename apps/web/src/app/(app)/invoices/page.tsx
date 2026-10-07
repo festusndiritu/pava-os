@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Download, Receipt } from 'lucide-react';
 import { documentsApi, type DocumentListParams, type SaleDocument } from '../../../lib/documents-api';
 import { DocumentDetailDrawer } from '../../../components/documents/DocumentDetailDrawer';
-import { DocumentRowActions } from '../../../components/documents/DocumentRowActions';
+import { useDocumentActions } from '../../../lib/use-document-actions';
 import { fmtNumber } from '../../../lib/format';
 import { useRowSelection, useServerTable } from '../../../lib/use-data-table';
 import { downloadCsv } from '../../../lib/csv';
@@ -58,6 +58,7 @@ export default function InvoicesPage() {
     defaultSort: { id: 'created', dir: 'desc' },
   });
   const { reload: load } = table;
+  const documentActions = useDocumentActions({ onOpen: setDetailId, onChanged: load, onError: setError });
   const selection = useRowSelection<SaleDocument>((d) => d.id, [tab]);
   const isNotes = tab === 'delivery-notes';
 
@@ -159,7 +160,7 @@ export default function InvoicesPage() {
           rowKey={(d) => d.id}
           rowLabel={(d) => numberOf(d) ?? customerOf(d)}
           onRowClick={(d) => setDetailId(d.id)}
-          rowActions={(d) => <DocumentRowActions doc={d} onOpen={setDetailId} onChanged={load} onError={setError} />}
+          actions={documentActions}
           renderCard={renderCard}
           selection={selection}
           selectAllMatching={() => documentsApi.list(filters)}
