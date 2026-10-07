@@ -20,7 +20,7 @@ async function main() {
       name: 'Paul K.',
       role: Role.ADMIN,
       email: 'paulkiragu@gmail.com',
-      avatar: 'slate-01',
+      avatar: 'slate',
       passwordHash: await bcrypt.hash(adminPassword, 12),
       pinHash: await bcrypt.hash(adminPin, 10),
     },

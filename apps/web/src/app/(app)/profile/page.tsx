@@ -1,11 +1,10 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
-import { Check } from 'lucide-react';
 import { useAuth } from '../../../lib/auth-context';
 import { api, ApiError } from '../../../lib/api';
-import { AVATAR_KEYS, avatarColor } from '../../../lib/constants';
-import { Avatar } from '../../../components/Avatar';
+import { DEFAULT_AVATAR } from '../../../lib/constants';
+import { Avatar, AvatarPicker } from '../../../components/Avatar';
 import { PinPad } from '../../../components/login/PinPad';
 
 function Card({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
@@ -31,7 +30,7 @@ function fieldStyle() {
 function NameAvatarCard() {
   const { user, refreshMe } = useAuth();
   const [name, setName] = useState(user?.name ?? '');
-  const [avatar, setAvatar] = useState(user?.avatar ?? AVATAR_KEYS[0]);
+  const [avatar, setAvatar] = useState(user?.avatar ?? DEFAULT_AVATAR);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,29 +73,7 @@ function NameAvatarCard() {
           <p className="mb-2 text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
             Avatar
           </p>
-          <div className="flex flex-wrap gap-2">
-            {AVATAR_KEYS.map((key) => {
-              const { bg, fg } = avatarColor(key);
-              const selected = avatar === key;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setAvatar(key)}
-                  aria-label={key}
-                  className="flex h-10 w-10 items-center justify-center rounded-full transition-transform"
-                  style={{
-                    backgroundColor: bg,
-                    color: fg,
-                    outline: selected ? '2px solid var(--color-accent)' : 'none',
-                    outlineOffset: 2,
-                  }}
-                >
-                  {selected && <Check size={16} strokeWidth={2.5} />}
-                </button>
-              );
-            })}
-          </div>
+          <AvatarPicker name={name} value={avatar} onChange={setAvatar} />
         </div>
 
         {error && (

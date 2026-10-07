@@ -1,10 +1,10 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
-import { Check } from 'lucide-react';
 import { Drawer } from '../ui/Drawer';
 import { usersApi, type StaffUser } from '../../lib/users-api';
-import { AVATAR_KEYS, avatarColor, type ModuleKey } from '../../lib/constants';
+import { DEFAULT_AVATAR, type ModuleKey } from '../../lib/constants';
+import { AvatarPicker } from '../Avatar';
 import { PermissionEditor } from './PermissionEditor';
 import { ApiError } from '../../lib/api';
 import { NumericInput, PhoneInput, toNumber } from '../ui/inputs';
@@ -27,7 +27,7 @@ export function UserFormDrawer({
 }) {
   const isEdit = !!user;
   const [name, setName] = useState('');
-  const [avatar, setAvatar] = useState(AVATAR_KEYS[0]);
+  const [avatar, setAvatar] = useState(DEFAULT_AVATAR);
   const [phone, setPhone] = useState('');
   const [pin, setPin] = useState('');
   const [permissions, setPermissions] = useState<ModuleKey[]>([]);
@@ -41,7 +41,7 @@ export function UserFormDrawer({
   useEffect(() => {
     if (!open) return;
     setName(user?.name ?? '');
-    setAvatar(user?.avatar ?? AVATAR_KEYS[0]);
+    setAvatar(user?.avatar ?? DEFAULT_AVATAR);
     setPhone(user?.phone ?? '');
     setPin('');
     setPermissions(user?.permissions ?? []);
@@ -139,24 +139,7 @@ export function UserFormDrawer({
             <label className={labelClass} style={labelStyle}>
               Avatar
             </label>
-            <div className="flex flex-wrap gap-2">
-              {AVATAR_KEYS.map((key) => {
-                const { bg, fg } = avatarColor(key);
-                const selected = avatar === key;
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setAvatar(key)}
-                    aria-label={key}
-                    className="flex h-9 w-9 items-center justify-center rounded-full"
-                    style={{ backgroundColor: bg, color: fg, outline: selected ? '2px solid var(--color-accent)' : 'none', outlineOffset: 2 }}
-                  >
-                    {selected && <Check size={14} strokeWidth={2.5} />}
-                  </button>
-                );
-              })}
-            </div>
+            <AvatarPicker name={name} value={avatar} onChange={setAvatar} size={36} />
           </div>
 
           {isEdit && (

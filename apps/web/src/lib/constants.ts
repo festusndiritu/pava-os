@@ -119,20 +119,21 @@ export function moduleForPath(pathname: string): ModuleKey | null {
   return match ? match.module : null;
 }
 
+/** The avatar choices. A user's `avatar` is one of these keys. */
 export const AVATAR_COLORS = [
-  { key: 'slate', bg: '#E4E7EC', fg: '#101828' },
-  { key: 'blue', bg: '#EAF1FD', fg: '#0559C9' },
-  { key: 'teal', bg: '#E7F7F1', fg: '#0B9E6F' },
-  { key: 'amber', bg: '#FFF4E5', fg: '#B76E00' },
-  { key: 'rose', bg: '#FBEAE9', fg: '#C0362C' },
-  { key: 'violet', bg: '#F1EAFD', fg: '#6D3FC9' },
+  { key: 'slate', bg: '#475467', fg: '#FFFFFF' },
+  { key: 'blue', bg: '#0559C9', fg: '#FFFFFF' },
+  { key: 'teal', bg: '#0E8F6A', fg: '#FFFFFF' },
+  { key: 'amber', bg: '#B76E00', fg: '#FFFFFF' },
+  { key: 'rose', bg: '#C0362C', fg: '#FFFFFF' },
+  { key: 'violet', bg: '#6D3FC9', fg: '#FFFFFF' },
 ] as const;
 
-export const AVATAR_KEYS = AVATAR_COLORS.flatMap((c) => [`${c.key}-01`, `${c.key}-02`, `${c.key}-03`]);
+export const DEFAULT_AVATAR: string = AVATAR_COLORS[0].key;
 
+/** Anything that isn't a known key falls back to the first colour. */
 export function avatarColor(key?: string | null) {
-  const base = key?.split('-')[0];
-  return AVATAR_COLORS.find((c) => c.key === base) ?? AVATAR_COLORS[0];
+  return AVATAR_COLORS.find((c) => c.key === key) ?? AVATAR_COLORS[0];
 }
 
 export function initialsFor(name: string) {
