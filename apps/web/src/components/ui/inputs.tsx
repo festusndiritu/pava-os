@@ -634,7 +634,7 @@ export function Select({
               strokeWidth={2}
               aria-hidden
               className={`pointer-events-none absolute top-1/2 -translate-y-1/2 ${
-                sheet ? 'left-7' : 'left-4'
+                sheet ? 'left-3' : 'left-2'
               }`}
               style={{ color: 'var(--color-ink-400)' }}
             />
