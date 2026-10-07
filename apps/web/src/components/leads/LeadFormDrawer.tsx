@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Drawer } from '../ui/Drawer';
 import { leadsApi, type Lead, type LeadStage } from '../../lib/leads-api';
 import { ApiError } from '../../lib/api';
-import { NumericInput, PhoneInput, toNumber } from '../ui/inputs';
+import { NumericInput, PhoneInput, Select, toNumber } from '../ui/inputs';
 import { toast } from '../ui/Toast';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
@@ -139,11 +139,7 @@ export function LeadFormDrawer({ open, onClose, onSaved, lead }: { open: boolean
         </div>
         <div>
           <label htmlFor="leadformdrawer-stage" className={labelClass} style={labelStyle}>Stage</label>
-          <select id="leadformdrawer-stage" value={stage} onChange={(e) => setStage(e.target.value as LeadStage)} className="w-full rounded-md border px-3 py-2 text-sm" style={inputStyle}>
-            {STAGES.map((s) => (
-              <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
-            ))}
-          </select>
+          <Select id="leadformdrawer-stage" value={stage} onChange={(v) => setStage(v as LeadStage)} options={STAGES.map((s) => ({ value: s, label: s.replace(/_/g, ' ') }))} style={inputStyle} />
         </div>
       </form>
     </Drawer>

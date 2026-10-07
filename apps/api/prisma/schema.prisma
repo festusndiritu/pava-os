@@ -52,9 +52,6 @@ enum DocumentStatus {
   INVOICED
   PAID
   CANCELLED
-  // A POS order the operator parked to serve someone else. Carries no
-  // document number, consumes no stock, and is either resumed into a real
-  // sale or discarded — it never becomes a quote.
   SUSPENDED
 }
 
@@ -64,14 +61,10 @@ enum TransportMode {
   DISTRIBUTED
 }
 
-// PAVA takes M-Pesa Paybill and cash at the till; CREDIT is an account sale
-// raised through the quote -> invoice flow, not a till payment method. CARD
-// is retained only so historical documents/expenses that already reference
-// it still read back — nothing writes it any more.
+// PAVA takes M-Pesa Paybill and cash at the till
 enum PaymentMethod {
   CASH
   MPESA
-  CARD
   CREDIT
 }
 
@@ -127,15 +120,7 @@ model User {
   phone              String?
   permissions        Module[]  @default([])
   maxDiscountPercent Float     @default(0)
-  // Separate from module access on purpose (brief: cost/margin permission
-  // dimension) — a user can have PRODUCTS/INVENTORY access without seeing
-  // acquisition cost or margin figures. Admin always sees cost regardless
-  // of this flag (checked via role, never stored redundantly here).
   canViewCost Boolean @default(false)
-  // A role, not a hardcoded account — lets whoever holds this flag convert
-  // a quote to an invoice (or ring up a POS sale) against stock the system
-  // doesn't have recorded, as an explicit backorder promise. Every use is
-  // audit-logged with the shortfall.
   canInvoiceWithoutStock Boolean @default(false)
   active             Boolean   @default(true)
   createdById        String?
@@ -239,9 +224,6 @@ model Product {
   active      Boolean     @default(true)
   updatedAt   DateTime    @updatedAt
   createdAt   DateTime    @default(now())
-
-  // Whole units only — PAVA doesn't sell or stock a fraction of a kilo
-  // or a fraction of a length — and whole shillings, no cents.
   stockQuantity Int  @default(0)
   lastCost      Int?
 
@@ -273,13 +255,6 @@ model Product {
 model ProductFamily {
   id       String    @id @default(cuid())
   name     String    @unique
-  // When true, the low-stock check sums stockQuantity across every product
-  // in the family and compares it to lowStockThreshold (falling back to
-  // BusinessSetting.lowStockThreshold when null) instead of checking each
-  // product individually — for families like welding rods or binding wire
-  // where variants substitute for each other and only the family total
-  // matters. Families left false (most steel gauges, where each size
-  // genuinely matters) keep the existing per-product check.
   aggregateLowStock Boolean @default(false)
   lowStockThreshold Int?
   products Product[]
@@ -394,8 +369,6 @@ model Customer {
   isCredit      Boolean  @default(false)
   creditLimit   Int?
   creditBalance Int      @default(0)
-  // Soft delete, same convention as Product.active — a customer's documents
-  // and ledger history must survive them being archived.
   active        Boolean  @default(true)
   updatedAt     DateTime @updatedAt
   createdAt     DateTime @default(now())
@@ -441,8 +414,6 @@ model Lead {
   assignedTo          User?      @relation("LeadAssignedTo", fields: [assignedToId], references: [id])
   convertedCustomerId String?
   convertedCustomer   Customer?  @relation(fields: [convertedCustomerId], references: [id])
-  // Soft delete, same convention as Customer/Product — archiving hides a
-  // lead from the pipeline without breaking convertedCustomer history.
   active              Boolean    @default(true)
   createdById         String
   createdBy           User       @relation("LeadCreatedBy", fields: [createdById], references: [id])
@@ -465,7 +436,6 @@ model Contact {
   notes       String?
   tags        String[]  @default([])
   followUpAt  DateTime?
-  // Soft delete, same convention as Customer/Product/Lead.
   active      Boolean   @default(true)
   createdById String
   createdBy   User      @relation("ContactCreatedBy", fields: [createdById], references: [id])
@@ -490,7 +460,6 @@ model Document {
   paymentMethod      PaymentMethod?
   subtotal           Int            @default(0)
   total              Int            @default(0)
-  // Server-side assigned as each stage is reached (brief §53)
   quoteNumber        String?        @unique
   invoiceNumber      String?        @unique
   receiptNumber      String?        @unique
@@ -499,24 +468,10 @@ model Document {
   createdAt          DateTime       @default(now())
   invoicedAt         DateTime?
   paidAt             DateTime?
-
-  // For a DELIVERY_NOTE only — the invoice or quote it was generated from,
-  // so its items/customer/transport are copied (frozen), never live-linked.
   sourceDocumentId String?
   sourceDocument   Document?  @relation("DeliveryNoteSource", fields: [sourceDocumentId], references: [id])
   deliveryNotes    Document[] @relation("DeliveryNoteSource")
-
-  // For a DELIVERY_NOTE only — the dispatch/site address, captured at
-  // creation time. Distinct from the customer's stored address: the site
-  // goods are dropped at and the customer's billing address aren't always
-  // the same. Frozen once the note is created, same immutability rule as
-  // every other document field.
   deliveryLocation String?
-
-  // For a DELIVERY_NOTE only — a contact number for whoever's at the drop-off
-  // site, since that's often not the customer themselves (a site foreman, a
-  // gate guard) and not necessarily the same number on the customer's own
-  // record. Same immutability rule as deliveryLocation above.
   deliveryPhone String?
 
   items         DocumentItem[]
@@ -547,18 +502,12 @@ model DocumentItem {
   @@index([documentId])
 }
 
-// A return never edits the sale it came from: the original Document stays
-// exactly as issued, and each return is its own record referencing the
-// document lines it gives back. Several returns can be raised against one
-// sale over time; returnable quantity is always (sold - already returned).
 model Return {
   id           String         @id @default(cuid())
   returnNumber String         @unique
   documentId   String
   document     Document       @relation(fields: [documentId], references: [id])
   total        Int
-  // How the money went back. Null for an account sale, where the refund is
-  // posted to the customer's credit ledger instead of paid out at the till.
   refundMethod PaymentMethod?
   reason       String?
   createdById  String
@@ -588,8 +537,6 @@ model ReturnItem {
   @@index([documentItemId])
 }
 
-// HR profile (brief §36) — NOT linked to User/login on purpose.
-// An employee doesn't need system access to be on payroll.
 model Employee {
   id                    String           @id @default(cuid())
   displayName           String
@@ -702,7 +649,6 @@ model Expense {
   @@index([status])
 }
 
-// Singleton row (id always "singleton") — business identity, document
 // numbering prefixes/counters, rounding, low-stock threshold (brief §52).
 model BusinessSetting {
   id                String   @id @default("singleton")
@@ -723,8 +669,6 @@ model BusinessSetting {
   roundingIncrement Int      @default(5)
   lowStockThreshold Int      @default(5)
   documentFooter    String?
-  // Bank/M-Pesa/till info shown on quotes and invoices so a customer knows
-  // how to pay — brief step 6.
   paymentDetails    String?
   updatedAt         DateTime @updatedAt
 }

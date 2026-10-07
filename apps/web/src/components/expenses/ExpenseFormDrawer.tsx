@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Drawer } from '../ui/Drawer';
 import { expensesApi, type Expense, type ExpenseCategory, type ExpenseStatus, type PaymentMethod } from '../../lib/expenses-api';
 import { ApiError } from '../../lib/api';
-import { NumericInput, toNumber } from '../ui/inputs';
+import { NumericInput, Select, toNumber } from '../ui/inputs';
 import { todayLocalISO } from '../../lib/format';
 import { toast } from '../ui/Toast';
 
@@ -122,16 +122,13 @@ export function ExpenseFormDrawer({
           <label htmlFor="expenseformdrawer-category" className={labelClass} style={labelStyle}>
             Category
           </label>
-          <select id="expenseformdrawer-category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle}>
-            <option value="">
-              {newCategory ? `New: ${newCategory}` : 'Select or type new below'}
-            </option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+          <Select
+            id="expenseformdrawer-category"
+            value={categoryId}
+            onChange={setCategoryId}
+            options={[{ value: '', label: newCategory ? `New: ${newCategory}` : 'Select or type new below' }, ...categories.map((c) => ({ value: c.id, label: c.name }))]}
+            style={inputStyle}
+          />
           {!categoryId && (
             <input
               value={newCategory}
@@ -161,13 +158,19 @@ export function ExpenseFormDrawer({
             <label htmlFor="expenseformdrawer-payment-method" className={labelClass} style={labelStyle}>
               Payment method
             </label>
-            <select id="expenseformdrawer-payment-method" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod | '')} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle}>
-              <option value="">—</option>
-              <option value="CASH">Cash</option>
-              <option value="MPESA">M-Pesa</option>
-              <option value="CARD">Card</option>
-              <option value="CREDIT">Credit</option>
-            </select>
+            <Select
+              id="expenseformdrawer-payment-method"
+              value={paymentMethod}
+              onChange={(v) => setPaymentMethod(v as PaymentMethod | '')}
+              options={[
+                { value: '', label: '—' },
+                { value: 'CASH', label: 'Cash' },
+                { value: 'MPESA', label: 'M-Pesa' },
+                { value: 'CARD', label: 'Card' },
+                { value: 'CREDIT', label: 'Credit' },
+              ]}
+              style={inputStyle}
+            />
           </div>
         </div>
 
@@ -182,11 +185,17 @@ export function ExpenseFormDrawer({
             <label htmlFor="expenseformdrawer-status" className={labelClass} style={labelStyle}>
               Status
             </label>
-            <select id="expenseformdrawer-status" value={status} onChange={(e) => setStatus(e.target.value as ExpenseStatus)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle}>
-              <option value="PENDING">Pending</option>
-              <option value="APPROVED">Approved</option>
-              <option value="PAID">Paid</option>
-            </select>
+            <Select
+              id="expenseformdrawer-status"
+              value={status}
+              onChange={(v) => setStatus(v as ExpenseStatus)}
+              options={[
+                { value: 'PENDING', label: 'Pending' },
+                { value: 'APPROVED', label: 'Approved' },
+                { value: 'PAID', label: 'Paid' },
+              ]}
+              style={inputStyle}
+            />
           </div>
         </div>
 

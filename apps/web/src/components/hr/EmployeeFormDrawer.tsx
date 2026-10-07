@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Drawer } from '../ui/Drawer';
 import { hrApi, type Employee, type EmploymentStatus } from '../../lib/hr-api';
 import { ApiError } from '../../lib/api';
-import { NumericInput, PhoneInput, toNumber } from '../ui/inputs';
+import { NumericInput, PhoneInput, Select, toNumber } from '../ui/inputs';
 import { toast } from '../ui/Toast';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
@@ -145,11 +145,17 @@ export function EmployeeFormDrawer({
             <label htmlFor="employeeformdrawer-status" className={labelClass} style={labelStyle}>
               Status
             </label>
-            <select id="employeeformdrawer-status" value={employmentStatus} onChange={(e) => setEmploymentStatus(e.target.value as EmploymentStatus)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle}>
-              <option value="ACTIVE">Active</option>
-              <option value="ON_LEAVE">On leave</option>
-              <option value="TERMINATED">Terminated</option>
-            </select>
+            <Select
+              id="employeeformdrawer-status"
+              value={employmentStatus}
+              onChange={(v) => setEmploymentStatus(v as EmploymentStatus)}
+              options={[
+                { value: 'ACTIVE', label: 'Active' },
+                { value: 'ON_LEAVE', label: 'On leave' },
+                { value: 'TERMINATED', label: 'Terminated' },
+              ]}
+              style={inputStyle}
+            />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">

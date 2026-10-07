@@ -6,8 +6,7 @@ import { Roles } from '../auth/roles.decorator.js';
 import { Role } from '../../generated/prisma/client.js';
 import { CreateStaffDto, ResetPinDto, UpdateStaffDto } from './dto/users.dto.js';
 
-// Entire module is admin-only — staff never see this, on the frontend or
-// otherwise, since RolesGuard rejects them before UsersService runs.
+// Entire module is admin-only
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
 @Controller('users')

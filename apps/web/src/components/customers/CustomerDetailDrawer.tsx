@@ -6,7 +6,7 @@ import { customersApi, type Customer, type CustomerLedgerEntry } from '../../lib
 import { ApiError } from '../../lib/api';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useAuth } from '../../lib/auth-context';
-import { NumericInput, toNumber } from '../ui/inputs';
+import { NumericInput, Select, toNumber } from '../ui/inputs';
 import { Modal } from '../ui/Modal';
 import { toast } from '../ui/Toast';
 import { fmtNumber, money } from '../../lib/format';
@@ -329,12 +329,18 @@ function LedgerActionDialog({
 
         <div className="mt-4 flex flex-col gap-3">
           {mode === 'adjustment' && (
-            <select value={type} onChange={(e) => setType(e.target.value as typeof type)} className="w-full rounded-md border px-3 py-2 text-sm" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}>
-              <option value="ADJUSTMENT">Adjustment</option>
-              <option value="OPENING">Opening balance</option>
-              <option value="REFUND">Refund</option>
-              <option value="WRITE_OFF">Write-off</option>
-            </select>
+            <Select
+              aria-label="Entry type"
+              value={type}
+              onChange={(v) => setType(v as typeof type)}
+              options={[
+                { value: 'ADJUSTMENT', label: 'Adjustment' },
+                { value: 'OPENING', label: 'Opening balance' },
+                { value: 'REFUND', label: 'Refund' },
+                { value: 'WRITE_OFF', label: 'Write-off' },
+              ]}
+              style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}
+            />
           )}
           <NumericInput
             allowNegative={mode === 'adjustment'}

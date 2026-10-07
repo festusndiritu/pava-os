@@ -9,6 +9,7 @@ import { money } from '../../../lib/format';
 import { useClientTable, useRowSelection } from '../../../lib/use-data-table';
 import { downloadCsv } from '../../../lib/csv';
 import { DataTable, type Column } from '../../../components/ui/DataTable';
+import { Select } from '../../../components/ui/inputs';
 import { toast } from '../../../components/ui/Toast';
 
 function fmtDate(iso: string) {
@@ -157,20 +158,20 @@ export default function ExpensesPage() {
       </div>
 
       <div className="mt-5 flex flex-wrap items-center gap-3">
-        <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} aria-label="Filter by category" className="rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle}>
-          <option value="">All categories</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-        <select value={status} onChange={(e) => setStatus(e.target.value as ExpenseStatus | '')} aria-label="Filter by status" className="rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle}>
-          <option value="">All statuses</option>
-          <option value="PENDING">Pending</option>
-          <option value="APPROVED">Approved</option>
-          <option value="PAID">Paid</option>
-        </select>
+        <Select inline aria-label="Filter by category" value={categoryId} onChange={setCategoryId} options={[{ value: '', label: 'All categories' }, ...categories.map((c) => ({ value: c.id, label: c.name }))]} style={inputStyle} />
+        <Select
+          inline
+          aria-label="Filter by status"
+          value={status}
+          onChange={(v) => setStatus(v as ExpenseStatus | '')}
+          options={[
+            { value: '', label: 'All statuses' },
+            { value: 'PENDING', label: 'Pending' },
+            { value: 'APPROVED', label: 'Approved' },
+            { value: 'PAID', label: 'Paid' },
+          ]}
+          style={inputStyle}
+        />
         {expenses && expenses.length > 0 && (
           <span className="ml-auto text-sm" style={{ color: 'var(--color-ink-600)' }}>
             {selection.count > 0 ? 'Selected' : 'Total'}: <span className="font-semibold data-num" style={{ color: 'var(--color-ink-900)' }}>{money(selection.count > 0 ? selectedTotal : total)}</span>

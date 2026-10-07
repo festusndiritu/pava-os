@@ -7,7 +7,7 @@ import { payrollApi, type Advance } from '../../lib/payroll-api';
 import type { AdvanceStatus } from '../../lib/hr-api';
 import { Drawer } from '../ui/Drawer';
 import { ApiError } from '../../lib/api';
-import { NumericInput, toNumber } from '../ui/inputs';
+import { NumericInput, Select, toNumber } from '../ui/inputs';
 import { toast } from '../ui/Toast';
 import { money } from '../../lib/format';
 
@@ -192,14 +192,7 @@ function AdvanceFormDrawer({ open, onClose, onSaved }: { open: boolean; onClose:
           <label htmlFor="advancestab-employee" className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
             Employee
           </label>
-          <select id="advancestab-employee" required value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle}>
-            <option value="">Select…</option>
-            {employees.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.displayName}
-              </option>
-            ))}
-          </select>
+          <Select id="advancestab-employee" required placeholder="Select…" value={employeeId} onChange={setEmployeeId} options={employees.map((e) => ({ value: e.id, label: e.displayName }))} style={inputStyle} />
         </div>
         <div>
           <label htmlFor="advancestab-amount-ksh" className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>

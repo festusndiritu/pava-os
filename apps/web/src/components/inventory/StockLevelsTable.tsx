@@ -15,6 +15,7 @@ import { useDebounced } from '../../lib/use-debounced';
 import { useRowSelection, useServerTable } from '../../lib/use-data-table';
 import { downloadCsv } from '../../lib/csv';
 import { toast } from '../ui/Toast';
+import { Select } from '../ui/inputs';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)', color: 'var(--color-ink-900)' };
 
@@ -235,14 +236,7 @@ export function StockLevelsTable({
             </button>
           )}
         </div>
-        <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} aria-label="Filter by category" className="rounded-md border px-3 py-2 text-sm" style={inputStyle}>
-          <option value="">All categories</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+        <Select inline aria-label="Filter by category" value={categoryId} onChange={setCategoryId} options={[{ value: '', label: 'All categories' }, ...categories.map((c) => ({ value: c.id, label: c.name }))]} style={inputStyle} />
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter by stock level">

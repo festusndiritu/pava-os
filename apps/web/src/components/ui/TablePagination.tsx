@@ -2,6 +2,7 @@
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { fmtNumber } from '../../lib/format';
+import { Select } from './inputs';
 import { pageWindow, type PaginationState } from '../../lib/use-data-table';
 
 function PageButton({ children, label, onClick, disabled, current }: { children: React.ReactNode; label: string; onClick: () => void; disabled?: boolean; current?: boolean }) {
@@ -41,18 +42,14 @@ export function TablePagination({ page, pageSize, total, onPageChange, onPageSiz
         {showSizes && (
           <label className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--color-ink-600)' }}>
             Rows per page
-            <select
-              value={pageSize}
-              onChange={(e) => onPageSizeChange(Number(e.target.value))}
-              className="min-h-9 rounded-md border px-2 text-sm"
+            <Select
+              inline
+              size="sm"
+              value={String(pageSize)}
+              onChange={(v) => onPageSizeChange(Number(v))}
+              options={pageSizeOptions.map((n) => ({ value: String(n), label: String(n) }))}
               style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)', color: 'var(--color-ink-900)' }}
-            >
-              {pageSizeOptions.map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
+            />
           </label>
         )}
         {pageCount > 1 && (

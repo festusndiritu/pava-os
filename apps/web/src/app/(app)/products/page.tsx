@@ -19,6 +19,7 @@ import { useDebounced } from '../../../lib/use-debounced';
 import { useRowSelection, useServerTable } from '../../../lib/use-data-table';
 import { bulkSummary, runBulk } from '../../../lib/bulk';
 import { DataTable, type Column } from '../../../components/ui/DataTable';
+import { Select } from '../../../components/ui/inputs';
 import type { RowAction } from '../../../components/ui/ActionMenu';
 import { toast } from '../../../components/ui/Toast';
 
@@ -432,22 +433,8 @@ export default function ProductsPage() {
             </button>
           )}
         </div>
-        <select value={brandId} onChange={(e) => setBrandId(e.target.value)} aria-label="Filter by brand" className="rounded-md border px-3 py-2 text-sm" style={inputStyle}>
-          <option value="">All brands</option>
-          {brands.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
-        </select>
-        <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} aria-label="Filter by category" className="rounded-md border px-3 py-2 text-sm" style={inputStyle}>
-          <option value="">All categories</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+        <Select inline aria-label="Filter by brand" value={brandId} onChange={setBrandId} options={[{ value: '', label: 'All brands' }, ...brands.map((b) => ({ value: b.id, label: b.name }))]} style={inputStyle} />
+        <Select inline aria-label="Filter by category" value={categoryId} onChange={setCategoryId} options={[{ value: '', label: 'All categories' }, ...categories.map((c) => ({ value: c.id, label: c.name }))]} style={inputStyle} />
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter by stock level">

@@ -15,9 +15,6 @@ const INCLUDE = {
 
 // restock = at or below the low-stock threshold (low + out), what "needs ordering" means.
 export type StockFilter = 'in' | 'low' | 'out' | 'restock';
-// What a table header can sort the catalogue by. `sort` arrives as `field:dir`
-// (see parseSort); anything not listed here falls back to name order.
-// `id` is the final tiebreaker so paging by offset never skips or repeats a row.
 const SORT_FIELDS: Record<string, (dir: SortDir) => object> = {
   name: (d) => ({ name: d }),
   price: (d) => ({ basePrice: d }),
@@ -30,7 +27,6 @@ const SORT_FIELDS: Record<string, (dir: SortDir) => object> = {
 
 function resolveSort(raw: string | undefined, canViewCost: boolean) {
   const parsed = parseSort(raw);
-  // Ordering by cost would reveal cost to someone who isn't allowed to see it.
   if (!parsed || !SORT_FIELDS[parsed.field] || (parsed.field === 'cost' && !canViewCost)) return undefined;
   return parsed;
 }
@@ -58,7 +54,7 @@ interface ProductInput {
   gauge?: number;
   material?: string;
   familyId?: string;
-  aliases?: string[]; // full replacement set, pre-dedup — see setAliases()
+  aliases?: string[];
 }
 
 @Injectable()
@@ -69,11 +65,6 @@ export class ProductsService {
     private settings: SettingsService,
   ) {}
 
-  // Cost/margin visibility is a permission axis separate from module access
-  // (brief: a user can have PRODUCTS access without seeing acquisition
-  // cost). Strip it here rather than at the controller so no future caller
-  // of this service can forget to. `undefined`, not `null`, so it's simply
-  // absent from the JSON rather than a visible "hidden" signal.
   private redactCost<T extends { lastCost?: number | null }>(product: T, canViewCost: boolean): T {
     if (canViewCost) return product;
     return { ...product, lastCost: undefined };
@@ -94,9 +85,6 @@ export class ProductsService {
     return (await this.findPage(params)).rows;
   }
 
-  // One page of the catalogue plus how many products match in all, so a table
-  // can say "51–100 of 1,240". While searching, ranking happens in app code on
-  // at most 200 candidates, so the total is capped the same way.
   async findPage(params: {
     search?: string;
     brandId?: string;
@@ -111,9 +99,6 @@ export class ProductsService {
   }) {
     const { search, brandId, categoryId, familyId, canViewCost, status = 'active', stock, sort, limit, offset = 0 } = params;
 
-    // Stock buckets use the global low-stock threshold from Settings, the
-    // same one the dashboard and Inventory page use. (Per-family overrides
-    // are not applied here.)
     let stockWhere = {};
     if (stock === 'out') {
       stockWhere = { stockQuantity: { lte: 0 } };
@@ -167,11 +152,9 @@ export class ProductsService {
         ],
       },
       include: INCLUDE,
-      take: 200, // catalogues here are hundreds/low-thousands of SKUs, not millions — rank in app code rather than a heavier SQL scoring query
+      take: 200,
     });
 
-    // Ranking per brief §9: exact name/alias first, then structured
-    // attribute match, then partial substring.
     function score(p: (typeof candidates)[number]): number {
       const name = p.name.toLowerCase();
       const display = (p.displayName ?? '').toLowerCase();
@@ -237,9 +220,6 @@ export class ProductsService {
     return this.findOne(product.id);
   }
 
-  // changedById is required whenever basePrice might change, so we can log who
-  // changed it. Past documents are never affected — they hold their own frozen
-  // unitPrice — this is purely the audit trail for "what did we list it at, when".
   async update(id: string, changedById: string, data: Partial<ProductInput> & { active?: boolean }) {
     const existing = await this.findOne(id);
     const { aliases, ...rest } = data;
@@ -255,8 +235,6 @@ export class ProductsService {
           changedById,
         },
       });
-      // Price changes already have their own dedicated audit surface
-      // (ProductPriceHistory) — no need to double-log here.
     }
     const changedFields = Object.keys(rest);
     if (changedFields.length > 0) {
@@ -312,12 +290,6 @@ export class ProductsService {
     return product;
   }
 
-  // Permanent — only once archived, and only once nothing real would be
-  // lost: any document line it was ever sold on, any return, any price
-  // change, or any inventory movement/batch. A product with none of those
-  // was created and archived by mistake before it ever transacted, which
-  // is exactly the case this exists for. Aliases have no history of their
-  // own and are dropped along with it.
   async hardDelete(id: string, actorId: string) {
     const product = await this.prisma.product.findUnique({ where: { id } });
     if (!product) throw new NotFoundException('Product not found');

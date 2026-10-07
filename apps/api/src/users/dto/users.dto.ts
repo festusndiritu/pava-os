@@ -28,7 +28,6 @@ export class CreateStaffDto {
   @Max(100)
   maxDiscountPercent?: number;
 
-  // Separate axis from `permissions` — see schema comment on User.canViewCost.
   @IsOptional()
   @IsBoolean()
   canViewCost?: boolean;

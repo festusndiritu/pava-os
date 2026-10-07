@@ -3,6 +3,7 @@
 import { useId, useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import { ApiError } from '../../lib/api';
+import { Select } from './inputs';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
 const fieldClass = 'w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]';
@@ -79,14 +80,7 @@ export function InlineAddSelect({
       </label>
       {!adding ? (
         <div className="flex gap-1.5">
-          <select id={fieldId} value={value} onChange={(e) => onChange(e.target.value)} className={fieldClass} style={inputStyle}>
-            <option value="">—</option>
-            {items.map((i) => (
-              <option key={i.id} value={i.id}>
-                {i.name}
-              </option>
-            ))}
-          </select>
+          <Select id={fieldId} value={value} onChange={onChange} options={[{ value: '', label: '—' }, ...items.map((i) => ({ value: i.id, label: i.name }))]} style={inputStyle} />
           <button
             type="button"
             onClick={() => setAdding(true)}

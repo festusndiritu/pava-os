@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ChevronsUpDown } from 'l
 import type { PaginationState, RowSelection, SortDir, SortState } from '../../lib/use-data-table';
 import { fmtNumber } from '../../lib/format';
 import { TablePagination } from './TablePagination';
+import { Select } from './inputs';
 import { ActionMenu, actionList, type RowActionInput } from './ActionMenu';
 
 export interface Column<T> {
@@ -403,23 +404,19 @@ export function DataTable<T>({
               // Phones have no column headers to tap, so sorting lives in a menu.
               <label className="ml-auto flex items-center gap-1.5 py-1.5 pr-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>
                 Sort
-                <select
+                <Select
+                  inline
+                  size="sm"
                   aria-label="Sort by"
+                  placeholder="Default order"
                   value={sort ? `${sort.id}:${sort.dir}` : ''}
-                  onChange={(e) => {
-                    const [id, dir] = e.target.value.split(':');
+                  onChange={(v) => {
+                    const [id, dir] = v.split(':');
                     onSortChange({ id, dir: dir === 'desc' ? 'desc' : 'asc' });
                   }}
-                  className="min-h-10 rounded-md border px-2 text-sm"
+                  options={[...(sort && !sortOptions.some((o) => o.value === `${sort.id}:${sort.dir}`) ? [{ value: `${sort.id}:${sort.dir}`, label: 'Default order' }] : []), ...sortOptions]}
                   style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)', color: 'var(--color-ink-900)' }}
-                >
-                  {sort && !sortOptions.some((o) => o.value === `${sort.id}:${sort.dir}`) && <option value={`${sort.id}:${sort.dir}`}>Default order</option>}
-                  {sortOptions.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
+                />
               </label>
             )}
           </div>

@@ -74,10 +74,6 @@ export class UsersService {
     if (!target) throw new NotFoundException('User not found');
 
     if (target.role === Role.ADMIN) {
-      // Admin accounts aren't managed through the staff editor — permission
-      // arrays are meaningless for them (they always have full access), and
-      // letting one admin deactivate another from this screen invites
-      // accidental lockouts.
       throw new ForbiddenException('Admin accounts cannot be edited here');
     }
 
@@ -164,8 +160,7 @@ export class UsersService {
     }
     const pinHash = await bcrypt.hash(newPin, PIN_HASH_ROUNDS);
     await this.prisma.user.update({ where: { id }, data: { pinHash } });
-    // Reset PIN also invalidates existing sessions for that user, since a
-    // forced PIN reset usually means "lost device" / "compromised" intent.
+    // Reset PIN also invalidates existing sessions for that user
     await this.prisma.session.updateMany({
       where: { userId: id, revokedAt: null },
       data: { revokedAt: new Date() },

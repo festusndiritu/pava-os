@@ -1,7 +1,3 @@
-// Applied to BOTH stored ProductAlias.term values and incoming search
-// queries, so "1.5 inch square pipe", "1½\" square pipe" and "1 1/2 inch
-// square pipe" all collapse to the same normalized string and a plain
-// substring match finds the right family. See brief §9.
 export function normalizeSearchTerm(raw: string): string {
   let s = raw.toLowerCase().trim();
 
@@ -31,9 +27,6 @@ export interface ParsedSearchHints {
   inchSize?: number;
 }
 
-// Pulls out anything that looks like a structured attribute from an already-
-// normalized query, so e.g. searching "16g" also matches products via their
-// `gauge` column even if no alias happens to contain that exact substring.
 export function parseSearchHints(normalized: string): ParsedSearchHints {
   const hints: ParsedSearchHints = {};
 

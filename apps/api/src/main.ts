@@ -7,7 +7,6 @@ import { PrismaExceptionFilter } from './common/prisma-exception.filter.js';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // X-Total-Count is how paged lists report their full size; browsers hide it from cross-origin pages unless it is exposed.
   app.enableCors({ origin: true, credentials: true, exposedHeaders: ['X-Total-Count'] });
 
   app.useGlobalFilters(new PrismaExceptionFilter());

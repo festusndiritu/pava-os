@@ -8,7 +8,7 @@ import { InlineAddSelect } from '../ui/InlineAddSelect';
 import { inventoryApi, productsApi, type Brand, type Category, type Product, type ProductFamily, type Unit } from '../../lib/products-api';
 import { SHAPES, shapeConfig } from '../../lib/shape-config';
 import { ApiError } from '../../lib/api';
-import { NumericInput, toNumber } from '../ui/inputs';
+import { NumericInput, Select, toNumber } from '../ui/inputs';
 import { toast } from '../ui/Toast';
 import { useAuth } from '../../lib/auth-context';
 import { useDebounced } from '../../lib/use-debounced';
@@ -323,22 +323,15 @@ export function ProductFormDrawer({
             <label htmlFor="productformdrawer-unit" className={labelClass} style={labelStyle}>
               Unit
             </label>
-            <select id="productformdrawer-unit"
+            <Select
+              id="productformdrawer-unit"
               required
+              placeholder="Select a unit"
               value={unitId}
-              onChange={(e) => setUnitId(e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]"
+              onChange={setUnitId}
+              options={units.map((u) => ({ value: u.id, label: `${u.name} (${u.symbol})` }))}
               style={inputStyle}
-            >
-              <option value="" disabled>
-                Select a unit
-              </option>
-              {units.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name} ({u.symbol})
-                </option>
-              ))}
-            </select>
+            />
             {units.length === 0 && (
               <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>
                 No units exist yet.{' '}
@@ -356,22 +349,16 @@ export function ProductFormDrawer({
             <label htmlFor="productformdrawer-shape" className={labelClass} style={labelStyle}>
               Shape
             </label>
-            <select id="productformdrawer-shape"
+            <Select
+              id="productformdrawer-shape"
               value={shape}
-              onChange={(e) => {
-                setShape(e.target.value);
+              onChange={(v) => {
+                setShape(v);
                 setThicknessMm(null);
               }}
-              className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]"
+              options={[{ value: '', label: '—' }, ...SHAPES.map((s) => ({ value: s.key, label: s.label }))]}
               style={inputStyle}
-            >
-              <option value="">—</option>
-              {SHAPES.map((s) => (
-                <option key={s.key} value={s.key}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
+            />
           </div>
 
           <div>
@@ -464,19 +451,13 @@ export function ProductFormDrawer({
               <label htmlFor="productformdrawer-product-family-optional" className={labelClass} style={labelStyle}>
                 Product family (optional)
               </label>
-              <select id="productformdrawer-product-family-optional"
+              <Select
+                id="productformdrawer-product-family-optional"
                 value={familyId}
-                onChange={(e) => setFamilyId(e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]"
+                onChange={setFamilyId}
+                options={[{ value: '', label: '—' }, ...families.map((f) => ({ value: f.id, label: f.name }))]}
                 style={inputStyle}
-              >
-                <option value="">—</option>
-                {families.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.name}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
           )}
         </Section>
@@ -520,16 +501,17 @@ export function ProductFormDrawer({
               <label htmlFor="productformdrawer-stock-status" className={labelClass} style={labelStyle}>
                 Availability
               </label>
-              <select id="productformdrawer-stock-status"
+              <Select
+                id="productformdrawer-stock-status"
                 value={stockStatus}
-                onChange={(e) => setStockStatus(e.target.value as typeof stockStatus)}
-                className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]"
+                onChange={(v) => setStockStatus(v as typeof stockStatus)}
+                options={[
+                  { value: 'IN_STOCK', label: 'In stock' },
+                  { value: 'SUPPLIER_ONLY', label: 'Supplier only' },
+                  { value: 'OUT_OF_STOCK', label: 'Out of stock' },
+                ]}
                 style={inputStyle}
-              >
-                <option value="IN_STOCK">In stock</option>
-                <option value="SUPPLIER_ONLY">Supplier only</option>
-                <option value="OUT_OF_STOCK">Out of stock</option>
-              </select>
+              />
               <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>
                 “In stock” follows the real count. The other two override it.
               </p>

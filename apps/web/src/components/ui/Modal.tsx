@@ -16,7 +16,7 @@ import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 const FIELD =
-  'input:not([disabled]):not([type="hidden"]):not([type="checkbox"]):not([type="radio"]), select:not([disabled]), textarea:not([disabled])';
+  'input:not([disabled]):not([type="hidden"]):not([type="checkbox"]):not([type="radio"]), select:not([disabled]), button[data-select]:not([disabled]), textarea:not([disabled])';
 
 const stack: symbol[] = [];
 let lockCount = 0;

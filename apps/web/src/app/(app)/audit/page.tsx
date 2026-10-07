@@ -8,6 +8,7 @@ import { Avatar } from '../../../components/Avatar';
 import { useServerTable } from '../../../lib/use-data-table';
 import { useDebounced } from '../../../lib/use-debounced';
 import { DataTable, type Column } from '../../../components/ui/DataTable';
+import { Select } from '../../../components/ui/inputs';
 
 const ENTITY_ICONS: Record<string, React.ComponentType<{ size?: number; strokeWidth?: number }>> = {
   User: UserRound,
@@ -219,15 +220,8 @@ export default function AuditPage() {
         </div>
 
         <div className="relative flex items-center">
-          <Filter size={14} strokeWidth={2} className="pointer-events-none absolute left-2.5" style={{ color: 'var(--color-ink-500)' }} />
-          <select value={filterEntity} onChange={(e) => setFilterEntity(e.target.value)} aria-label="Filter by entity" className="w-40 rounded-md border px-3 py-2 pl-8 text-sm outline-none transition-shadow" style={filterStyle}>
-            <option value="">All entities</option>
-            {entityTypes.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
+          <Filter size={14} strokeWidth={2} className="pointer-events-none absolute left-2.5 z-10" style={{ color: 'var(--color-ink-500)' }} />
+          <Select inline className="w-40 pl-8" aria-label="Filter by entity" value={filterEntity} onChange={setFilterEntity} options={[{ value: '', label: 'All entities' }, ...entityTypes.map((t) => ({ value: t, label: t }))]} style={filterStyle} />
         </div>
 
         {filtersActive && (

@@ -73,13 +73,6 @@ export class ProductsController {
     return this.products.update(id, req.user.sub, body);
   }
 
-  // Was ungated — only read from ProductDetailDrawer (Products or
-  // Inventory pages), same reasoning as inventory batches/movements above.
-  // findAll/findOne/families stay open deliberately: POS, quote/invoice
-  // building, the marketing pricelist, and inventory all need to browse
-  // the catalog regardless of which single module they hold, and cost is
-  // already a separate, correctly-gated dimension (canViewCost) — so an
-  // OR-list here would end up covering nearly every module anyway.
   @UseGuards(PermissionsGuard)
   @Permissions(Module.PRODUCTS, Module.INVENTORY)
   @Get(':id/price-history')
@@ -101,8 +94,7 @@ export class ProductsController {
     return this.products.restore(id, req.user.sub);
   }
 
-  // Permanent deletion is admin-only, same as archive/restore above —
-  // the service enforces that it's already archived and has no history.
+  // Permanent deletion is admin-only, same as archive/restore 
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN)
   @Delete(':id/permanent')

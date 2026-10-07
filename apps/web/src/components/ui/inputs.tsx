@@ -1,9 +1,13 @@
 'use client';
 
-import { useState, type InputHTMLAttributes, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type InputHTMLAttributes, type KeyboardEvent } from 'react';
+import { createPortal } from 'react-dom';
+import { Check, ChevronDown, Search } from 'lucide-react';
+import { useMediaQuery } from '../../lib/use-media-query';
 
 /**
- * The app's numeric and phone inputs.
+ * The app's form inputs: numeric and phone fields, and the Select dropdown
+ * (at the bottom of the file).
  *
  * Why not <input type="number">: it accepts "e", "+", "-" and "." in fields
  * that are whole shillings or whole pieces, changes its value when the mouse
@@ -239,5 +243,338 @@ export function PhoneInput({
       value={value}
       onChange={(e) => onChange(normalizePhoneInput(e.target.value))}
     />
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Select                                                              */
+/* ------------------------------------------------------------------ */
+
+export interface SelectOption {
+  value: string;
+  label: string;
+  /** A second, smaller line under the label. */
+  hint?: string;
+  disabled?: boolean;
+}
+
+const SELECT_BASE =
+  'flex items-center justify-between gap-2 rounded-md border text-left text-sm outline-none transition-colors disabled:cursor-not-allowed disabled:opacity-60';
+const SELECT_SIZES = { md: 'px-3 py-2', sm: 'min-h-10 px-2.5 py-1 md:min-h-9' } as const;
+
+interface SelectPosition {
+  left: number;
+  top?: number;
+  bottom?: number;
+  maxHeight: number;
+}
+
+/**
+ * The app's dropdown. It replaces the browser's <select>, whose list is drawn
+ * by the operating system and can't be styled to match anything else here.
+ *
+ * It looks like the text fields around it (pass the same `style` you give
+ * them). On a desktop the list is a popover under the button, flipped above
+ * when there's no room; on a phone it is a sheet from the bottom with
+ * thumb-sized rows. Lists longer than eight get a search box. Arrow keys,
+ * Home/End and typing a letter move through the options, Enter or Space picks,
+ * and Escape closes the list only — not the drawer or dialog behind it.
+ *
+ * `value` and `onChange` are plain strings, like a native select. An option
+ * with value "" is a normal option (e.g. "All categories") and is shown muted;
+ * with no matching option the `placeholder` is shown instead. `required` blocks
+ * form submission while nothing is chosen, as the native one did.
+ *
+ * The list is drawn in a portal at the end of the page: drawers and tables
+ * scroll and clip, and a list drawn inside would be cut off.
+ */
+export function Select({
+  id,
+  value,
+  onChange,
+  options,
+  placeholder = 'Select…',
+  'aria-label': ariaLabel,
+  required,
+  disabled,
+  inline,
+  size = 'md',
+  searchable,
+  className = '',
+  style,
+}: {
+  id?: string;
+  value: string;
+  onChange: (next: string) => void;
+  options: SelectOption[];
+  placeholder?: string;
+  'aria-label'?: string;
+  required?: boolean;
+  disabled?: boolean;
+  /** Size to the content instead of filling the row. */
+  inline?: boolean;
+  size?: 'md' | 'sm';
+  /** Force the search box on or off. Default: on when there are more than 8 options. */
+  searchable?: boolean;
+  /** Extra classes for the button (a fixed width, extra padding). */
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [pos, setPos] = useState<SelectPosition | null>(null);
+  const [minWidth, setMinWidth] = useState(0);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const listId = useId();
+  const sheet = useMediaQuery('(max-width: 767px)');
+
+  const selected = options.find((o) => o.value === value);
+  const showSearch = searchable ?? options.length > 8;
+  const q = query.trim().toLowerCase();
+  const shown = q ? options.filter((o) => o.label.toLowerCase().includes(q)) : options;
+
+  const close = useCallback((returnFocus: boolean) => {
+    setOpen(false);
+    setPos(null);
+    setQuery('');
+    if (returnFocus) triggerRef.current?.focus();
+  }, []);
+
+  const optionEls = () => Array.from(popRef.current?.querySelectorAll<HTMLElement>('[role="option"]:not([aria-disabled="true"])') ?? []);
+
+  function openList() {
+    if (disabled || open) return;
+    setMinWidth(triggerRef.current?.offsetWidth ?? 0);
+    setOpen(true);
+  }
+
+  // Place the popover under the button; when it doesn't fit there and there is
+  // more room above, anchor it above instead.
+  useLayoutEffect(() => {
+    if (!open || sheet || !triggerRef.current || !popRef.current) return;
+    const t = triggerRef.current.getBoundingClientRect();
+    const m = popRef.current.getBoundingClientRect();
+    const gap = 4;
+    const margin = 8;
+    const below = window.innerHeight - t.bottom - gap - margin;
+    const above = t.top - gap - margin;
+    const flip = m.height > below && above > below;
+    const left = Math.max(margin, Math.min(t.left, window.innerWidth - m.width - margin));
+    setPos({
+      left,
+      ...(flip ? { bottom: window.innerHeight - t.top + gap } : { top: t.bottom + gap }),
+      maxHeight: Math.min(320, flip ? above : below),
+    });
+  }, [open, sheet, shown.length]);
+
+  // Move focus into the list once it is on screen: the search box with a mouse,
+  // otherwise the chosen option (a phone keyboard over the list is worse than a tap).
+  useEffect(() => {
+    if (!open || (!sheet && !pos)) return;
+    const coarse = window.matchMedia('(pointer: coarse)').matches;
+    if (showSearch && !coarse) {
+      searchRef.current?.focus();
+      return;
+    }
+    const els = optionEls();
+    (els.find((el) => el.getAttribute('aria-selected') === 'true') ?? els[0])?.focus();
+  }, [open, pos === null]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Anything that moves the button out from under an open popover closes it.
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (popRef.current?.contains(target) || triggerRef.current?.contains(target)) return;
+      close(false);
+    };
+    const onScroll = (e: Event) => {
+      if (popRef.current?.contains(e.target as Node)) return; // the list's own scrolling
+      if (!sheet) close(false);
+    };
+    const onResize = () => close(false);
+    document.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onResize);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onResize);
+    };
+  }, [open, sheet, close]);
+
+  // Escape closes this list only, not the drawer or dialog the field sits in.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      close(true);
+    };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [open, close]);
+
+  function choose(o: SelectOption) {
+    if (o.disabled) return;
+    close(true);
+    if (o.value !== value) onChange(o.value);
+  }
+
+  function onTriggerKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      openList();
+    }
+  }
+
+  function onListKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    const inSearch = e.target === searchRef.current;
+    const list = optionEls();
+    const i = list.indexOf(document.activeElement as HTMLElement);
+    const go = (n: number) => {
+      e.preventDefault();
+      list[(n + list.length) % list.length]?.focus();
+    };
+    if (e.key === 'ArrowDown') {
+      if (inSearch) {
+        e.preventDefault();
+        list[0]?.focus();
+      } else go(i + 1);
+    } else if (e.key === 'ArrowUp') {
+      if (inSearch) e.preventDefault();
+      else if (i <= 0 && showSearch) {
+        e.preventDefault();
+        searchRef.current?.focus();
+      } else go(i <= 0 ? list.length - 1 : i - 1);
+    } else if (e.key === 'Home' && !inSearch) go(0);
+    else if (e.key === 'End' && !inSearch) go(list.length - 1);
+    else if (e.key === 'Tab') {
+      e.preventDefault();
+      close(true);
+    } else if (e.key === 'Enter' && inSearch) {
+      e.preventDefault();
+      list[0]?.click(); // pick the first match
+    } else if (!inSearch && e.key.length === 1 && /\S/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      if (showSearch) {
+        searchRef.current?.focus(); // the letter lands in the search box
+        return;
+      }
+      // Typeahead: the next option whose label starts with the typed letter.
+      const ch = e.key.toLowerCase();
+      const ordered = [...list.slice(i + 1), ...list.slice(0, i + 1)];
+      const hit = ordered.find((el) => el.textContent?.trim().toLowerCase().startsWith(ch));
+      if (hit) {
+        e.preventDefault();
+        hit.focus();
+      }
+    }
+  }
+
+  const borderColor = 'var(--color-border)';
+  const muted = !selected || selected.value === '';
+
+  const list = (
+    <div
+      ref={popRef}
+      onKeyDown={onListKeyDown}
+      className={
+        sheet
+          ? 'fixed inset-x-0 bottom-0 z-[71] flex max-h-[80vh] flex-col rounded-t-xl border-t pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1 shadow-xl'
+          : 'fixed z-[71] flex max-w-[22rem] flex-col overflow-hidden rounded-lg border shadow-lg'
+      }
+      style={{
+        borderColor,
+        backgroundColor: 'var(--color-surface-raised)',
+        ...(sheet ? {} : { minWidth, left: pos?.left ?? 0, top: pos?.top, bottom: pos?.bottom, maxHeight: pos?.maxHeight ?? 320, visibility: pos ? 'visible' : 'hidden' }),
+      }}
+    >
+      {showSearch && (
+        <div className="relative shrink-0 border-b p-2" style={{ borderColor }}>
+          <Search size={14} strokeWidth={2} aria-hidden className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-ink-400)' }} />
+          <input
+            ref={searchRef}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search…"
+            aria-label="Search options"
+            autoComplete="off"
+            className="w-full rounded-md border py-1.5 pl-8 pr-2 text-sm outline-none"
+            style={{ borderColor, backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}
+          />
+        </div>
+      )}
+      <div id={listId} role="listbox" aria-label={ariaLabel ?? placeholder} className="min-h-0 flex-1 overflow-y-auto py-1">
+        {shown.length === 0 && (
+          <p className="px-3 py-3 text-sm" style={{ color: 'var(--color-ink-600)' }}>
+            No matches
+          </p>
+        )}
+        {shown.map((o) => {
+          const isSelected = o.value === value;
+          return (
+            <button
+              key={o.value}
+              type="button"
+              role="option"
+              tabIndex={-1}
+              aria-selected={isSelected}
+              aria-disabled={o.disabled || undefined}
+              onClick={() => choose(o)}
+              className={`flex w-full items-center gap-3 px-3 text-left text-sm outline-none transition-colors hover:bg-[var(--color-bg)] focus:bg-[var(--color-bg)] aria-disabled:cursor-not-allowed aria-disabled:opacity-45 ${sheet ? 'min-h-12' : 'min-h-9'} ${o.hint ? 'py-1.5' : ''}`}
+              style={{ color: isSelected ? 'var(--color-accent)' : 'var(--color-ink-900)', fontWeight: isSelected ? 500 : undefined }}
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block truncate">{o.label}</span>
+                {o.hint && (
+                  <span className="block truncate text-xs font-normal" style={{ color: 'var(--color-ink-600)' }}>
+                    {o.hint}
+                  </span>
+                )}
+              </span>
+              {isSelected && <Check size={15} strokeWidth={2.25} aria-hidden className="shrink-0" />}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className={`relative ${inline ? 'inline-block' : 'block'}`}>
+      <button
+        ref={triggerRef}
+        id={id}
+        data-select=""
+        type="button"
+        disabled={disabled}
+        aria-label={ariaLabel}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={open ? listId : undefined}
+        onClick={() => (open ? close(false) : openList())}
+        onKeyDown={onTriggerKeyDown}
+        className={`${SELECT_BASE} ${SELECT_SIZES[size]} ${inline ? '' : 'w-full'} ${className}`}
+        style={{ ...style, ...(open ? { borderColor: 'var(--color-accent)' } : null) }}
+      >
+        <span className="min-w-0 flex-1 truncate" style={muted ? { color: 'var(--color-ink-600)' } : undefined}>
+          {selected ? selected.label : placeholder}
+        </span>
+        <ChevronDown size={15} strokeWidth={2} aria-hidden className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} style={{ color: 'var(--color-ink-400)' }} />
+      </button>
+      {/* Gives `required` something the browser can validate; the button can't. */}
+      {required && <input tabIndex={-1} aria-hidden required value={value} onChange={() => {}} className="pointer-events-none absolute inset-x-0 bottom-0 h-px opacity-0" />}
+      {open &&
+        createPortal(
+          <>
+            {sheet && <div aria-hidden className="fixed inset-0 z-[70]" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }} onClick={() => close(false)} />}
+            {list}
+          </>,
+          document.body,
+        )}
+    </div>
   );
 }

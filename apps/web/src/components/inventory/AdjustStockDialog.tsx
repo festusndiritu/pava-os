@@ -7,7 +7,7 @@ import type { AdjustType, Product } from '../../lib/products-api';
 import { ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { fmtNumber } from '../../lib/format';
-import { NumericInput, toNumber } from '../ui/inputs';
+import { NumericInput, Select, toNumber } from '../ui/inputs';
 import { Modal } from '../ui/Modal';
 import { toast } from '../ui/Toast';
 
@@ -242,13 +242,7 @@ export function AdjustStockDialog({ product, onClose, onDone }: { product: Produ
               <label htmlFor="adjust-reason" className={labelClass} style={labelStyle}>
                 Reason
               </label>
-              <select id="adjust-reason" value={reason} onChange={(e) => setReason(e.target.value as AdjustType)} className="w-full rounded-md border px-3 py-2 text-sm" style={fieldStyle}>
-                {REASONS[mode].map((r) => (
-                  <option key={r.value} value={r.value}>
-                    {r.label}
-                  </option>
-                ))}
-              </select>
+              <Select id="adjust-reason" value={reason} onChange={(v) => setReason(v as AdjustType)} options={REASONS[mode].map((r) => ({ value: r.value, label: r.label }))} style={fieldStyle} />
             </div>
           )}
 
