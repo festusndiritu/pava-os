@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type InputHTMLAttributes, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, ChevronDown, Search } from 'lucide-react';
+import { Check, ChevronDown, Search, X } from 'lucide-react';
 import { useMediaQuery } from '../../lib/use-media-query';
 
 /**
@@ -324,6 +324,10 @@ export function Select({
   const [query, setQuery] = useState('');
   const [pos, setPos] = useState<SelectPosition | null>(null);
   const [minWidth, setMinWidth] = useState(0);
+  const [title, setTitle] = useState('');
+  // Phone only: how far the on-screen keyboard covers the page (iOS overlays it
+  // instead of resizing), so the sheet can sit above it.
+  const [vv, setVv] = useState<{ inset: number; height: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -347,6 +351,10 @@ export function Select({
   function openList() {
     if (disabled || open) return;
     setMinWidth(triggerRef.current?.offsetWidth ?? 0);
+    // The phone sheet is titled with the field's label.
+    const label = (id ? document.querySelector(`label[for="${CSS.escape(id)}"]`) : null) ?? triggerRef.current?.closest('label') ?? null;
+    const text = label ? Array.from(label.childNodes).filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent).join(' ') || label.textContent : null;
+    setTitle((text ?? ariaLabel ?? placeholder ?? '').replace(/\s+/g, ' ').trim());
     setOpen(true);
   }
 
@@ -382,6 +390,20 @@ export function Select({
     (els.find((el) => el.getAttribute('aria-selected') === 'true') ?? els[0])?.focus();
   }, [open, pos === null]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    if (!open || !sheet || !window.visualViewport) return;
+    const v = window.visualViewport;
+    const update = () => setVv({ inset: Math.max(0, window.innerHeight - v.height - v.offsetTop), height: v.height });
+    update();
+    v.addEventListener('resize', update);
+    v.addEventListener('scroll', update);
+    return () => {
+      v.removeEventListener('resize', update);
+      v.removeEventListener('scroll', update);
+      setVv(null);
+    };
+  }, [open, sheet]);
+
   // Anything that moves the button out from under an open popover closes it.
   useEffect(() => {
     if (!open) return;
@@ -394,7 +416,10 @@ export function Select({
       if (popRef.current?.contains(e.target as Node)) return; // the list's own scrolling
       if (!sheet) close(false);
     };
-    const onResize = () => close(false);
+    // A phone keyboard opening for the search box resizes the window; that must not close the sheet.
+    const onResize = () => {
+      if (!sheet) close(false);
+    };
     document.addEventListener('pointerdown', onPointerDown, true);
     window.addEventListener('scroll', onScroll, true);
     window.addEventListener('resize', onResize);
@@ -483,18 +508,33 @@ export function Select({
       onKeyDown={onListKeyDown}
       className={
         sheet
-          ? 'fixed inset-x-0 bottom-0 z-[71] flex max-h-[80vh] flex-col rounded-t-xl border-t pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1 shadow-xl'
+          ? 'pava-rise fixed inset-x-0 z-[71] flex flex-col rounded-t-2xl border-t pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-2xl'
           : 'fixed z-[71] flex max-w-[22rem] flex-col overflow-hidden rounded-lg border shadow-lg'
       }
       style={{
         borderColor,
         backgroundColor: 'var(--color-surface-raised)',
-        ...(sheet ? {} : { minWidth, left: pos?.left ?? 0, top: pos?.top, bottom: pos?.bottom, maxHeight: pos?.maxHeight ?? 320, visibility: pos ? 'visible' : 'hidden' }),
+        ...(sheet
+          ? { bottom: vv?.inset ?? 0, maxHeight: vv ? `min(80dvh, ${Math.max(200, vv.height - 16)}px)` : '80dvh' }
+          : { minWidth, left: pos?.left ?? 0, top: pos?.top, bottom: pos?.bottom, maxHeight: pos?.maxHeight ?? 320, visibility: pos ? 'visible' : 'hidden' }),
       }}
     >
+      {sheet && (
+        <>
+          <div aria-hidden className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full" style={{ backgroundColor: 'var(--color-border)' }} />
+          <div className="flex shrink-0 items-center justify-between gap-3 px-4 pb-2 pt-3">
+            <h2 className="min-w-0 truncate text-base font-semibold" style={{ color: 'var(--color-ink-900)' }}>
+              {title}
+            </h2>
+            <button type="button" aria-label="Close" onClick={() => close(true)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full" style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-600)' }}>
+              <X size={16} strokeWidth={2} aria-hidden />
+            </button>
+          </div>
+        </>
+      )}
       {showSearch && (
-        <div className="relative shrink-0 border-b p-2" style={{ borderColor }}>
-          <Search size={14} strokeWidth={2} aria-hidden className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-ink-400)' }} />
+        <div className={`relative shrink-0 ${sheet ? 'px-4 pb-3' : 'border-b p-2'}`} style={sheet ? undefined : { borderColor }}>
+          <Search size={sheet ? 17 : 14} strokeWidth={2} aria-hidden className={`pointer-events-none absolute top-1/2 -translate-y-1/2 ${sheet ? 'left-7' : 'left-4'}`} style={{ color: 'var(--color-ink-400)' }} />
           <input
             ref={searchRef}
             value={query}
@@ -502,14 +542,29 @@ export function Select({
             placeholder="Search…"
             aria-label="Search options"
             autoComplete="off"
-            className="w-full rounded-md border py-1.5 pl-8 pr-2 text-sm outline-none"
+            enterKeyHint="search"
+            className={`w-full border outline-none ${sheet ? 'h-11 rounded-xl pl-10 pr-10 text-base' : 'rounded-md py-1.5 pl-8 pr-2 text-sm'}`}
             style={{ borderColor, backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}
           />
+          {query && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={() => {
+                setQuery('');
+                searchRef.current?.focus();
+              }}
+              className={`absolute top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full ${sheet ? 'right-5' : 'right-3'}`}
+              style={{ color: 'var(--color-ink-600)' }}
+            >
+              <X size={14} strokeWidth={2} aria-hidden />
+            </button>
+          )}
         </div>
       )}
-      <div id={listId} role="listbox" aria-label={ariaLabel ?? placeholder} className="min-h-0 flex-1 overflow-y-auto py-1">
+      <div id={listId} role="listbox" aria-label={ariaLabel ?? placeholder} className={`min-h-0 flex-1 overflow-y-auto overscroll-contain ${sheet ? 'px-2 pb-1' : 'py-1'}`}>
         {shown.length === 0 && (
-          <p className="px-3 py-3 text-sm" style={{ color: 'var(--color-ink-600)' }}>
+          <p className="px-3 py-6 text-center text-sm" style={{ color: 'var(--color-ink-600)' }}>
             No matches
           </p>
         )}
@@ -524,8 +579,14 @@ export function Select({
               aria-selected={isSelected}
               aria-disabled={o.disabled || undefined}
               onClick={() => choose(o)}
-              className={`flex w-full items-center gap-3 px-3 text-left text-sm outline-none transition-colors hover:bg-[var(--color-bg)] focus:bg-[var(--color-bg)] aria-disabled:cursor-not-allowed aria-disabled:opacity-45 ${sheet ? 'min-h-12' : 'min-h-9'} ${o.hint ? 'py-1.5' : ''}`}
-              style={{ color: isSelected ? 'var(--color-accent)' : 'var(--color-ink-900)', fontWeight: isSelected ? 500 : undefined }}
+              className={`flex w-full items-center gap-3 text-left outline-none transition-colors hover:bg-[var(--color-bg)] focus:bg-[var(--color-bg)] aria-disabled:cursor-not-allowed aria-disabled:opacity-45 ${
+                sheet ? 'min-h-[3.25rem] rounded-xl px-3.5 text-base' : 'min-h-9 px-3 text-sm'
+              } ${o.hint ? 'py-1.5' : ''}`}
+              style={{
+                color: isSelected ? 'var(--color-accent)' : 'var(--color-ink-900)',
+                fontWeight: isSelected ? 500 : undefined,
+                backgroundColor: isSelected && sheet ? 'var(--color-accent-soft)' : undefined,
+              }}
             >
               <span className="min-w-0 flex-1">
                 <span className="block truncate">{o.label}</span>
@@ -535,7 +596,7 @@ export function Select({
                   </span>
                 )}
               </span>
-              {isSelected && <Check size={15} strokeWidth={2.25} aria-hidden className="shrink-0" />}
+              {isSelected && <Check size={sheet ? 18 : 15} strokeWidth={2.25} aria-hidden className="shrink-0" />}
             </button>
           );
         })}
@@ -570,7 +631,7 @@ export function Select({
       {open &&
         createPortal(
           <>
-            {sheet && <div aria-hidden className="fixed inset-0 z-[70]" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }} onClick={() => close(false)} />}
+            {sheet && <div aria-hidden className="pava-fade-in fixed inset-0 z-[70]" style={{ backgroundColor: 'rgba(16, 24, 40, 0.5)' }} onClick={() => close(false)} />}
             {list}
           </>,
           document.body,
