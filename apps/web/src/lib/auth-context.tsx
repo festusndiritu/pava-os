@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, clearTokens, getAccessToken, pingActivity, setTokens, SESSION_EXPIRED_EVENT } from './api';
+import { releaseDeviceOnLogout } from './push';
 import { ADMIN_ONLY_MODULES, type ModuleKey } from './constants';
 
 export interface AuthUser {
@@ -62,14 +63,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.push('/login');
   }, [router]);
 
-  const logout = useCallback(async () => {
-    try {
-      await api.post('/auth/logout');
-    } catch {
-      // best-effort — even if the network call fails, clear locally
-    }
-    hardLogout();
-  }, [hardLogout]);
+  // `releaseDevice`: also stop this device receiving the signed-out person's
+  // push notifications. True only when they chose to sign out — an idle
+  // timeout isn't them leaving, and must not silence their reminders.
+  const endSession = useCallback(
+    async (releaseDevice: boolean) => {
+      if (releaseDevice) {
+        // Needs the token still valid, so it goes first; capped so a slow
+        // network can never hold up signing out.
+        await Promise.race([releaseDeviceOnLogout(), new Promise<void>((r) => setTimeout(r, 3000))]);
+      }
+      try {
+        await api.post('/auth/logout');
+      } catch {
+        // best-effort — even if the network call fails, clear locally
+      }
+      hardLogout();
+    },
+    [hardLogout],
+  );
+  const logout = useCallback(() => endSession(true), [endSession]);
 
   const applySession = useCallback((data: LoginResponse) => {
     setTokens(data.accessToken, data.refreshToken);
@@ -141,7 +154,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const idleMs = Date.now() - lastActivityRef.current;
       const limitMs = timeoutMinutesRef.current * 60_000;
       if (idleMs >= limitMs) {
-        logout();
+        void endSession(false);
       } else if (idleMs >= limitMs - WARNING_LEAD_MS) {
         setIdleWarning(true);
       }
@@ -152,7 +165,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       clearInterval(interval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, logout]);
+  }, [user, endSession]);
 
   // "Continue session" — resets the local clock AND pings the server so
   // Session.lastActiveAt (the thing that actually governs refresh) moves too.

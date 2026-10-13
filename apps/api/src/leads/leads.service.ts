@@ -12,7 +12,7 @@ interface LeadInput {
   stage?: string;
   expectedValue?: number;
   notes?: string;
-  followUpAt?: string;
+  followUpAt?: string | null;
   assignedToId?: string;
 }
 
@@ -56,7 +56,8 @@ export class LeadsService {
     const { followUpAt, ...rest } = data;
     return this.prisma.lead.update({
       where: { id },
-      data: { ...rest, ...(followUpAt ? { followUpAt: new Date(followUpAt) } : {}) } as any,
+      // undefined leaves the date alone; null clears it.
+      data: { ...rest, ...(followUpAt === null ? { followUpAt: null } : followUpAt ? { followUpAt: new Date(followUpAt) } : {}) } as any,
     });
   }
 

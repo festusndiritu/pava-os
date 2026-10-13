@@ -146,6 +146,8 @@ model User {
   payrollRuns           PayrollRun[]
   expenses              Expense[]
   returns               Return[]
+  pushSubscriptions     PushSubscription[]
+  followUpDigests       FollowUpDigest[]
 
   @@index([role])
 }
@@ -671,4 +673,33 @@ model BusinessSetting {
   documentFooter    String?
   paymentDetails    String?
   updatedAt         DateTime @updatedAt
+}
+
+// A browser/device a user has agreed to receive push notifications on. One row
+// per endpoint (a device + browser profile); the endpoint is unique, so a
+// device that a different person logs into is simply re-assigned to them.
+model PushSubscription {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint   String    @unique
+  p256dh     String
+  auth       String
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  @@index([userId])
+}
+
+// One row per user per local day once that day's lead follow-up summary has
+// been claimed. The (userId, day) key is what stops a restart, a redeploy or a
+// second instance from sending the same morning summary twice.
+model FollowUpDigest {
+  userId String
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  day    String
+  sentAt DateTime @default(now())
+
+  @@id([userId, day])
 }

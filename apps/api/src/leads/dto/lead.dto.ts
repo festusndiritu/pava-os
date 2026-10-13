@@ -88,7 +88,7 @@ export class UpdateLeadDto {
 
   @IsOptional()
   @IsString()
-  followUpAt?: string;
+  followUpAt?: string | null;
 
   @IsOptional()
   @IsString()

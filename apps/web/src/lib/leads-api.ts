@@ -33,7 +33,8 @@ export interface LeadInput {
   stage?: LeadStage;
   expectedValue?: number;
   notes?: string;
-  followUpAt?: string;
+  // null clears an existing follow-up date (on update); undefined leaves it alone.
+  followUpAt?: string | null;
   assignedToId?: string;
 }
 

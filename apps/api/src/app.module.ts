@@ -19,6 +19,7 @@ import { HrModule } from './hr/hr.module.js';
 import { PayrollModule } from './payroll/payroll.module.js';
 import { ExpensesModule } from './expenses/expenses.module.js';
 import { AnalyticsModule } from './analytics/analytics.module.js';
+import { NotificationsModule } from './notifications/notifications.module.js';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { AnalyticsModule } from './analytics/analytics.module.js';
     PayrollModule,
     ExpensesModule,
     AnalyticsModule,
+    NotificationsModule,
   ],
 })
 export class AppModule {}

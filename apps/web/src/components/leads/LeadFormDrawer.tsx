@@ -58,7 +58,8 @@ export function LeadFormDrawer({ open, onClose, onSaved, lead }: { open: boolean
         stage,
         expectedValue: toNumber(expectedValue) ?? undefined,
         notes: notes || undefined,
-        followUpAt: followUpAt || undefined,
+        // Editing: an emptied date field means "remove the follow-up".
+        followUpAt: followUpAt || (isEdit ? null : undefined),
       };
       if (isEdit && lead) await leadsApi.update(lead.id, payload);
       else await leadsApi.create(payload);
