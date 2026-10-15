@@ -182,6 +182,27 @@ body {
     size: A4;
     margin: 0;
   }
+
+  /* The thermal receipt is a roll, not a sheet. Left on the A4 default above,
+     the driver is handed a 210x297mm page and a long receipt gets split or
+     truncated at the page boundary (and a short one is padded with blank
+     feed). A named page lets only #print-area.print-thermal opt into an
+     80mm-wide, content-height page; the A4 rule stays as the fallback. */
+  @page thermal {
+    size: 80mm auto;
+    margin: 0;
+  }
+  #print-area.print-thermal {
+    page: thermal;
+    width: 80mm;
+  }
+
+  /* Never split a line item, a totals row or the header across a page break. */
+  #print-area.print-thermal > div,
+  #print-area.print-thermal > div > div {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
 }
 
 .data-num {
