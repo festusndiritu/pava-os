@@ -5,6 +5,7 @@ import { Printer, Share2, Truck, X } from 'lucide-react';
 import type { PosSaleResult } from '../../lib/pos-api';
 import { settingsApi, type BusinessSettings } from '../../lib/settings-api';
 import { buildPosReceiptViewModel } from '../../lib/document-view-model';
+import { printThermal } from '../../lib/print-thermal';
 import { shareViewModelAsPdf } from '../../lib/pdf/document-pdf';
 import { ThermalDocument } from '../documents/ThermalDocument';
 import { Modal } from '../ui/Modal';
@@ -91,7 +92,7 @@ export function ReceiptDialog({
           >
             <button
               type="button"
-              onClick={() => window.print()}
+              onClick={printThermal}
               className="flex min-h-11 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold text-white"
               style={{ backgroundColor: 'var(--color-accent)' }}
             >

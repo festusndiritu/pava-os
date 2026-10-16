@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { DocumentViewModel } from '../../lib/document-view-model';
 import { fmtNumber, money } from '../../lib/format';
 
@@ -53,7 +55,14 @@ export function ThermalDocument({
       ? { id: 'print-area', className: 'print-thermal printable-doc pdf-capture-offscreen' }
       : { className: 'printable-doc' };
 
-  return (
+  // The print source is portalled to <body> so that, at print time, it can be
+  // the only thing in the document (see the @media print block in
+  // globals.css). Rendered in place it sits inside the app shell, whose
+  // height and overflow decide where the page breaks fall.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  const doc = (
     <div
       {...rootProps}
       style={{
@@ -86,6 +95,9 @@ export function ThermalDocument({
       <p style={{ textAlign: 'center', whiteSpace: 'pre-line' }}>{vm.letterhead.footerText}</p>
     </div>
   );
+
+  if (variant === 'print') return mounted ? createPortal(doc, document.body) : null;
+  return doc;
 }
 
 /** Quote, Invoice, Receipt — items with prices, a totals block, payment status. */

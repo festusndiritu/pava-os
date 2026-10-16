@@ -7,6 +7,7 @@ import { canEditQuote, documentsApi, type SaleDocument } from '../../lib/documen
 import { settingsApi, type BusinessSettings } from '../../lib/settings-api';
 import { buildDocumentViewModel } from '../../lib/document-view-model';
 import { ThermalDocument } from './ThermalDocument';
+import { printThermal } from '../../lib/print-thermal';
 import { ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { shareDocumentAsPdf } from '../../lib/pdf/document-pdf';
@@ -72,7 +73,7 @@ export function DocumentDetailDrawer({
   // it's already mounted, but requestAnimationFrame costs nothing either way.
   useEffect(() => {
     if (printTick === 0) return;
-    const id = requestAnimationFrame(() => window.print());
+    const id = requestAnimationFrame(() => printThermal());
     return () => cancelAnimationFrame(id);
   }, [printTick]);
 
