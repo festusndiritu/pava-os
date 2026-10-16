@@ -7,6 +7,7 @@ import { canEditQuote, documentsApi, type SaleDocument } from '../../lib/documen
 import { settingsApi, type BusinessSettings } from '../../lib/settings-api';
 import { buildDocumentViewModel } from '../../lib/document-view-model';
 import { ThermalDocument } from './ThermalDocument';
+import { shareNotice } from '../../lib/pdf';
 import { printThermal } from '../../lib/print-thermal';
 import { ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
@@ -122,7 +123,7 @@ export function DocumentDetailDrawer({
     setNotice(null);
     try {
       const result = await shareDocumentAsPdf(doc, settings);
-      setNotice(result === 'shared' ? 'Shared.' : 'Downloaded — attach it in WhatsApp or wherever you need it.');
+      setNotice(shareNotice(result));
     } catch (err) {
       setError('Could not generate the PDF.');
     } finally {

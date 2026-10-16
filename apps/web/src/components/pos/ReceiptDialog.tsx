@@ -5,6 +5,7 @@ import { Printer, Share2, Truck, X } from 'lucide-react';
 import type { PosSaleResult } from '../../lib/pos-api';
 import { settingsApi, type BusinessSettings } from '../../lib/settings-api';
 import { buildPosReceiptViewModel } from '../../lib/document-view-model';
+import { shareNotice } from '../../lib/pdf';
 import { printThermal } from '../../lib/print-thermal';
 import { shareViewModelAsPdf } from '../../lib/pdf/document-pdf';
 import { ThermalDocument } from '../documents/ThermalDocument';
@@ -38,7 +39,7 @@ export function ReceiptDialog({
     setNotice(null);
     try {
       const result = await shareViewModelAsPdf(vm);
-      setNotice(result === 'shared' ? 'Shared.' : 'Downloaded.');
+      setNotice(shareNotice(result));
     } catch {
       setNotice('Could not generate the PDF.');
     } finally {

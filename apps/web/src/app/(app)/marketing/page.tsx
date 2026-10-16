@@ -5,7 +5,7 @@ import { CheckCheck, Download, FileText, Image as ImageIcon, RotateCcw, Search, 
 import { productsApi, type Product } from '../../../lib/products-api';
 import { thicknessLabel } from '../../../lib/shape-config';
 import { settingsApi, type BusinessSettings } from '../../../lib/settings-api';
-import { shareImageBlob } from '../../../lib/pdf';
+import { shareImageBlob, shareNotice } from '../../../lib/pdf';
 import { drawPoster, posterCategoriesFromProducts, posterToBlob } from '../../../lib/poster';
 import { fmtNumber } from '../../../lib/format';
 import { Checkbox } from '../../../components/ui/Checkbox';
@@ -146,7 +146,7 @@ export default function MarketingPage() {
       if (!blob) throw new Error('canvas produced no blob');
       const filename = `${(headline || 'poster').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'poster'}.png`;
       const result = await shareImageBlob(blob, filename, headline || 'Price poster');
-      setPosterNotice(result === 'shared' ? 'Shared.' : 'Downloaded — share it from your gallery or files.');
+      setPosterNotice(shareNotice(result));
     } catch {
       setPosterNotice('Could not generate the poster.');
     } finally {
@@ -167,7 +167,7 @@ export default function MarketingPage() {
         email: settings?.email ?? null,
         categories: posterCategoriesFromProducts(groupedSelected, priceOf),
       });
-      setPosterNotice(result === 'shared' ? 'Shared.' : 'Downloaded — attach the PDF wherever you need it.');
+      setPosterNotice(shareNotice(result));
     } catch {
       setPosterNotice('Could not generate the PDF.');
     } finally {

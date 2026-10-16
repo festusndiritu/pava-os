@@ -11,7 +11,7 @@ import { DeliveryNotePdf } from './templates/DeliveryNotePdf';
 import { PricelistPdf, type PricelistViewModel } from './templates/PricelistPdf';
 // Reused as-is: sharing a Blob to the OS share sheet (or falling back to a
 // download) has nothing to do with how the PDF's bytes were produced.
-import { sharePdfBlob } from '../pdf';
+import { sharePdfBlob, type ShareResult } from '../pdf';
 
 /**
  * Real vector PDF — selectable text, small file, correct pagination for a
@@ -38,12 +38,15 @@ export async function viewModelToPdfBlob(vm: DocumentViewModel): Promise<Blob> {
   return pdf(element).toBlob();
 }
 
-export async function shareViewModelAsPdf(vm: DocumentViewModel): Promise<'shared' | 'downloaded'> {
+export async function shareViewModelAsPdf(vm: DocumentViewModel): Promise<ShareResult> {
   const blob = await viewModelToPdfBlob(vm);
-  return sharePdfBlob(blob, `${vm.number}.pdf`, `${vm.title} ${vm.number}`);
+  return sharePdfBlob(blob, `${vm.number}.pdf`, `${vm.title} ${vm.number}`, {
+    phone: vm.customerPhone,
+    message: `${vm.title} ${vm.number} from ${vm.letterhead.businessName}`,
+  });
 }
 
-export async function sharePricelistAsPdf(vm: PricelistViewModel): Promise<'shared' | 'downloaded'> {
+export async function sharePricelistAsPdf(vm: PricelistViewModel): Promise<ShareResult> {
   const blob = await pdf(<PricelistPdf vm={vm} />).toBlob();
   return sharePdfBlob(blob, `${vm.title || 'pricelist'}.pdf`, vm.title);
 }
@@ -52,6 +55,6 @@ export async function documentToPdfBlob(doc: SaleDocument, settings: BusinessSet
   return viewModelToPdfBlob(buildDocumentViewModel(doc, settings));
 }
 
-export async function shareDocumentAsPdf(doc: SaleDocument, settings: BusinessSettings | null): Promise<'shared' | 'downloaded'> {
+export async function shareDocumentAsPdf(doc: SaleDocument, settings: BusinessSettings | null): Promise<ShareResult> {
   return shareViewModelAsPdf(buildDocumentViewModel(doc, settings));
 }
