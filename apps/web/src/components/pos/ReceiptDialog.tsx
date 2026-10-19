@@ -10,6 +10,7 @@ import { printThermal } from '../../lib/print-thermal';
 import { shareViewModelAsPdf } from '../../lib/pdf/document-pdf';
 import { ThermalDocument } from '../documents/ThermalDocument';
 import { Modal } from '../ui/Modal';
+import { toast } from '../ui/Toast';
 
 export function ReceiptDialog({
   sale,
@@ -23,7 +24,6 @@ export function ReceiptDialog({
   deliveryNoteBusy?: boolean;
 }) {
   const [sharing, setSharing] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
   const [settings, setSettings] = useState<BusinessSettings | null>(null);
 
   useEffect(() => {
@@ -36,12 +36,11 @@ export function ReceiptDialog({
 
   async function handleShare() {
     setSharing(true);
-    setNotice(null);
     try {
       const result = await shareViewModelAsPdf(vm);
-      setNotice(shareNotice(result));
+      toast.success(shareNotice(result, vm.number));
     } catch {
-      setNotice('Could not generate the PDF.');
+      toast.error("Couldn't generate PDF");
     } finally {
       setSharing(false);
     }
@@ -72,12 +71,6 @@ export function ReceiptDialog({
               <X size={17} strokeWidth={2} />
             </button>
           </div>
-
-          {notice && (
-            <p className="px-4 pt-3 text-center text-xs" style={{ color: 'var(--color-ink-600)' }}>
-              {notice}
-            </p>
-          )}
 
           {/* Paper-styled preview: white with dark ink in either theme, so what
               the operator sees is what the printer produces. */}

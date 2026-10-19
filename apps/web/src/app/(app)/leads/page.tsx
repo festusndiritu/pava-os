@@ -57,7 +57,6 @@ export default function LeadsPage() {
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Lead | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [bulkConfirm, setBulkConfirm] = useState<'archive' | 'restore' | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
 
@@ -89,12 +88,11 @@ export default function LeadsPage() {
   }
 
   async function convert(lead: Lead) {
-    setError(null);
     try {
       await leadsApi.convertToCustomer(lead.id);
       load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not convert this lead.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't convert lead");
     }
   }
 
@@ -143,12 +141,11 @@ export default function LeadsPage() {
 
   async function runBulkArchive(action: 'archive' | 'restore') {
     setBulkBusy(true);
-    setError(null);
     try {
       const result = await runBulk(selection.items, (l) => (action === 'archive' ? leadsApi.archive(l.id) : leadsApi.restore(l.id)));
       const text = bulkSummary(action === 'archive' ? 'Archived' : 'Restored', 'lead', result);
       if (result.failed.length === 0) toast.success(text);
-      else setError(text);
+      else toast.error(text);
       selection.replace(result.failed.map((f) => f.item)); // what failed stays ticked, to retry
       setBulkConfirm(null);
       setArchived(null);
@@ -338,12 +335,6 @@ export default function LeadsPage() {
           </button>
         ))}
       </div>
-
-      {error && (
-        <button type="button" onClick={() => setError(null)} className="mt-3 w-full rounded-md px-3 py-2 text-left text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
-          {error}
-        </button>
-      )}
 
       <div className="relative mt-3 max-w-sm">
         <Search size={15} strokeWidth={2} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-ink-600)' }} />

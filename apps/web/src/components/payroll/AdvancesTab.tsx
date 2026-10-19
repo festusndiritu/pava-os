@@ -140,7 +140,6 @@ function AdvanceFormDrawer({ open, onClose, onSaved }: { open: boolean; onClose:
   const [reason, setReason] = useState('');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -148,21 +147,19 @@ function AdvanceFormDrawer({ open, onClose, onSaved }: { open: boolean; onClose:
     setAmount('');
     setReason('');
     setNotes('');
-    setError(null);
     hrApi.list(undefined, 'ACTIVE').then(setEmployees);
   }, [open]);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
-    setError(null);
     try {
       await payrollApi.createAdvance({ employeeId, amount: toNumber(amount) ?? 0, reason: reason || undefined, notes: notes || undefined });
       toast.success('Advance recorded');
       onSaved();
       onClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not save advance.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't save advance");
     } finally {
       setSaving(false);
     }
@@ -179,11 +176,6 @@ function AdvanceFormDrawer({ open, onClose, onSaved }: { open: boolean; onClose:
           <button type="submit" form="advance-form" disabled={saving || !employeeId || !amount} className="rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
             {saving ? 'Saving…' : 'Request'}
           </button>
-          {error && (
-            <span className="text-sm" style={{ color: 'var(--color-status-bad)' }}>
-              {error}
-            </span>
-          )}
         </div>
       }
     >

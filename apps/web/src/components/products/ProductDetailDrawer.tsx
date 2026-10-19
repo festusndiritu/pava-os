@@ -7,6 +7,7 @@ import { AdjustStockDialog } from '../inventory/AdjustStockDialog';
 import { StockBadge } from '../inventory/StockBadge';
 import { thicknessLabel } from '../../lib/shape-config';
 import { ApiError } from '../../lib/api';
+import { toast } from '../ui/Toast';
 import { useAuth } from '../../lib/auth-context';
 import { availability, useLowStockThreshold } from '../../lib/stock';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
@@ -125,7 +126,6 @@ export function ProductDetailDrawer({
   const [archiving, setArchiving] = useState(false);
   const [confirmHardDelete, setConfirmHardDelete] = useState(false);
   const [deletingForever, setDeletingForever] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const { canViewCost, hasPermission, user } = useAuth();
   const showCost = canViewCost();
   const isAdmin = user?.role === 'ADMIN';
@@ -136,7 +136,6 @@ export function ProductDetailDrawer({
   useEffect(() => {
     setProduct(null);
     setTab('batches');
-    setError(null);
     setLoadError(null);
   }, [productId]);
 
@@ -180,14 +179,14 @@ export function ProductDetailDrawer({
   async function archive() {
     if (!product) return;
     setArchiving(true);
-    setError(null);
     try {
       await productsApi.archive(product.id);
       setConfirmArchive(false);
+      toast.success('Product archived');
       onChanged();
       onClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not archive this product.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't archive product");
       setConfirmArchive(false);
     } finally {
       setArchiving(false);
@@ -197,13 +196,13 @@ export function ProductDetailDrawer({
   async function restore() {
     if (!product) return;
     setArchiving(true);
-    setError(null);
     try {
       const updated = await productsApi.restore(product.id);
       setProduct(updated);
+      toast.success('Product restored');
       onChanged();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not restore this product.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't restore product");
     } finally {
       setArchiving(false);
     }
@@ -212,14 +211,14 @@ export function ProductDetailDrawer({
   async function hardDelete() {
     if (!product) return;
     setDeletingForever(true);
-    setError(null);
     try {
       await productsApi.hardDelete(product.id);
       setConfirmHardDelete(false);
+      toast.success('Product deleted');
       onChanged();
       onClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not permanently delete this product.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't delete product");
       setConfirmHardDelete(false);
     } finally {
       setDeletingForever(false);
@@ -254,11 +253,6 @@ export function ProductDetailDrawer({
         footer={
           product && (
             <div className="flex flex-col gap-2">
-              {error && (
-                <p role="alert" className="rounded-md px-3 py-2 text-left text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
-                  {error}
-                </p>
-              )}
               <div className="flex gap-2">
                 {onEdit && (
                   <button

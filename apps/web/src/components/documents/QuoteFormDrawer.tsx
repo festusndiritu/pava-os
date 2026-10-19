@@ -11,6 +11,7 @@ import { ApiError } from '../../lib/api';
 import { TransportDialog, type TransportSettings } from '../pos/TransportDialog';
 import { NumericInput, toNumber } from '../ui/inputs';
 import { fmtNumber } from '../../lib/format';
+import { toast } from '../ui/Toast';
 
 interface Line {
   product: Product;
@@ -61,7 +62,6 @@ export function QuoteFormDrawer({
   const [transport, setTransport] = useState<TransportSettings | null>(null);
   const [transportOpen, setTransportOpen] = useState(false);
   const [notes, setNotes] = useState('');
-  const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [loadingQuote, setLoadingQuote] = useState(false);
   const [quoteNumber, setQuoteNumber] = useState<string | null>(null);
@@ -77,7 +77,6 @@ export function QuoteFormDrawer({
       setLines([]);
       setTransport(null);
       setNotes('');
-      setError(null);
       setQuoteNumber(null);
       setEditReady(false);
       setLoadingQuote(false);
@@ -90,13 +89,12 @@ export function QuoteFormDrawer({
     if (!open || !editId) return;
     let stale = false;
     setLoadingQuote(true);
-    setError(null);
     documentsApi
       .get(editId)
       .then((doc) => {
         if (stale) return;
         if (!canEditQuote(doc) || doc.items.some((i) => !i.product)) {
-          setError(doc.status === 'QUOTED' ? 'This quote has lines the form cannot edit.' : 'Only a quote that has not been invoiced can be edited.');
+          toast.error(doc.status === 'QUOTED' ? "Quote has lines the form can't edit" : 'Only uninvoiced quotes can be edited');
           return;
         }
         setQuoteNumber(doc.quoteNumber);
@@ -127,7 +125,7 @@ export function QuoteFormDrawer({
         setNotes(doc.notes ?? '');
       })
       .catch((err) => {
-        if (!stale) setError(err instanceof ApiError ? err.message : 'Could not load this quote.');
+        if (!stale) toast.error(err instanceof ApiError ? err.message : "Couldn't load quote");
       })
       .finally(() => {
         if (!stale) setLoadingQuote(false);
@@ -164,11 +162,10 @@ export function QuoteFormDrawer({
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (lines.length === 0) {
-      setError('Add at least one product line.');
+      toast.error('Add at least one product line');
       return;
     }
     setSaving(true);
-    setError(null);
     try {
       const payload: CreateDocumentInput = {
         customerId: customerMode === 'existing' ? selectedCustomer?.id : undefined,
@@ -194,7 +191,7 @@ export function QuoteFormDrawer({
       }
       onClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : editId ? 'Could not save these changes.' : 'Could not create this quote.');
+      toast.error(err instanceof ApiError ? err.message : editId ? "Couldn't save changes" : "Couldn't create quote");
     } finally {
       setSaving(false);
     }
@@ -213,11 +210,6 @@ export function QuoteFormDrawer({
             Total: <span className="font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>KSh {fmtNumber(total)}</span>
           </p>
           <div className="flex items-center gap-3">
-            {error && (
-              <span className="text-sm" style={{ color: 'var(--color-status-bad)' }}>
-                {error}
-              </span>
-            )}
             <button type="submit" form="quote-form" disabled={saving || loadingQuote || (!!editId && !editReady)} className="rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
               {saving ? 'Saving…' : editId ? 'Save changes' : 'Create quote'}
             </button>

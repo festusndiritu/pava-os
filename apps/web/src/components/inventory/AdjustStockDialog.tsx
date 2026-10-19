@@ -74,7 +74,6 @@ export function AdjustStockDialog({ product, onClose, onDone }: { product: Produ
   const [quantity, setQuantity] = useState('');
   const [unitCost, setUnitCost] = useState(hasLastCost ? String(product.lastCost) : '');
   const [note, setNote] = useState('');
-  const [error, setError] = useState<string | null>(null);
   const [negative, setNegative] = useState<NegativeStock | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -91,28 +90,26 @@ export function AdjustStockDialog({ product, onClose, onDone }: { product: Produ
   function switchMode(next: Mode) {
     setMode(next);
     setQuantity('');
-    setError(null);
     // The reasons on offer depend on direction; fall back to stocktake.
     setReason('ADJUSTMENT');
   }
 
   async function submit(allowNegative = false) {
-    setError(null);
     if (change === null) {
-      setError(mode === 'count' ? 'Enter the quantity you counted.' : 'Enter a quantity.');
+      toast.error(mode === 'count' ? 'Enter quantity counted' : 'Enter a quantity');
       return;
     }
     if (change === 0) {
-      setError(mode === 'count' ? 'That matches what is already recorded, so there is nothing to adjust.' : 'Enter a quantity above zero.');
+      toast.error(mode === 'count' ? 'Count matches recorded stock' : 'Enter a quantity above zero');
       return;
     }
     if (reducing && !note.trim()) {
-      setError('Say why stock is being taken off. It goes in the audit trail.');
+      toast.error('Give a reason for the reduction');
       return;
     }
     const cost = toNumber(unitCost);
     if (adding && showCost && !hasLastCost && !cost) {
-      setError('Enter what this stock cost per unit. Without a cost it can’t be valued.');
+      toast.error('Enter cost per unit');
       return;
     }
 
@@ -132,7 +129,7 @@ export function AdjustStockDialog({ product, onClose, onDone }: { product: Produ
     } catch (err) {
       const detected = err instanceof ApiError ? readNegativeStock(err.details) : null;
       if (detected) setNegative(detected);
-      else setError(err instanceof ApiError ? err.message : 'Could not adjust stock.');
+      else toast.error(err instanceof ApiError ? err.message : "Couldn't adjust stock");
     } finally {
       setSaving(false);
     }
@@ -271,12 +268,6 @@ export function AdjustStockDialog({ product, onClose, onDone }: { product: Produ
               style={fieldStyle}
             />
           </div>
-
-          {error && (
-            <p role="alert" className="rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
-              {error}
-            </p>
-          )}
 
           <div className="flex flex-col-reverse gap-2 sm:flex-row">
             <button type="button" onClick={onClose} className="min-h-11 flex-1 rounded-md border px-4 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>

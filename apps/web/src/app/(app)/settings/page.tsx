@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useAuth } from '../../../lib/auth-context';
 import { settingsApi, type BusinessSettings } from '../../../lib/settings-api';
 import { ApiError } from '../../../lib/api';
+import { toast } from '../../../components/ui/Toast';
 import { NumericInput, PhoneInput, toNumber } from '../../../components/ui/inputs';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
@@ -31,8 +32,6 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<BusinessSettings | null>(null);
   const [form, setForm] = useState<Partial<BusinessSettings>>({});
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
   // Held as text while editing so the fields can be emptied and retyped.
   const [rounding, setRounding] = useState('');
   const [lowStock, setLowStock] = useState('');
@@ -61,16 +60,14 @@ export default function SettingsPage() {
     const roundingIncrement = toNumber(rounding);
     const lowStockThreshold = toNumber(lowStock);
     if (roundingIncrement === null || roundingIncrement < 1) {
-      setError('Rounding increment must be at least KSh 1.');
+      toast.error('Rounding increment must be at least KSh 1');
       return;
     }
     if (lowStockThreshold === null) {
-      setError('Enter a low-stock threshold (0 turns the warning off).');
+      toast.error('Enter a low-stock threshold');
       return;
     }
     setSaving(true);
-    setError(null);
-    setSaved(false);
     try {
       const updated = await settingsApi.update({
         businessName: form.businessName,
@@ -89,10 +86,9 @@ export default function SettingsPage() {
       setForm(updated);
       setRounding(String(updated.roundingIncrement));
       setLowStock(String(updated.lowStockThreshold));
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      toast.success('Settings saved');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not save settings.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't save settings");
     } finally {
       setSaving(false);
     }
@@ -189,17 +185,10 @@ export default function SettingsPage() {
           <textarea value={form.documentFooter ?? ''} onChange={(e) => setForm((f) => ({ ...f, documentFooter: e.target.value }))} rows={2} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
         </Section>
 
-        {error && (
-          <p className="rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
-            {error}
-          </p>
-        )}
-
         <div className="flex items-center gap-3">
           <button type="submit" disabled={saving} className="rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
             {saving ? 'Saving…' : 'Save changes'}
           </button>
-          {saved && <span className="text-sm" style={{ color: 'var(--color-status-ok)' }}>Saved</span>}
         </div>
       </form>
     </div>

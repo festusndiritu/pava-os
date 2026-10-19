@@ -51,7 +51,6 @@ export default function ProductsPage() {
   const [categoryId, setCategoryId] = useState('');
   const [status, setStatus] = useState<CatalogueStatus>('active');
   const [stock, setStock] = useState<StockFilter | ''>('');
-  const [error, setError] = useState<string | null>(null);
   const [adjusting, setAdjusting] = useState<Product | null>(null);
   const [receiving, setReceiving] = useState<Product | null>(null);
   const [confirmArchive, setConfirmArchive] = useState<Product | null>(null);
@@ -94,7 +93,7 @@ export default function ProductsPage() {
       productsApi
         .get(editId)
         .then(openEdit)
-        .catch(() => setError('Could not open that product for editing.'));
+        .catch(() => toast.error("Couldn't open product for editing"));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
@@ -108,7 +107,7 @@ export default function ProductsPage() {
   }
 
   useEffect(() => {
-    loadLookups().catch(() => setError('Could not load brands, categories and units.'));
+    loadLookups().catch(() => toast.error("Couldn't load brands, categories and units"));
   }, []);
 
   const debouncedSearch = useDebounced(search);
@@ -147,7 +146,7 @@ export default function ProductsPage() {
       toast.success('Product archived');
       loadProducts();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not archive this product.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't archive product");
       setConfirmArchive(null);
     } finally {
       setArchiveBusy(false);
@@ -155,13 +154,12 @@ export default function ProductsPage() {
   }
 
   async function restoreProduct(p: Product) {
-    setError(null);
     try {
       await productsApi.restore(p.id);
       toast.success('Product restored');
       loadProducts();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not restore this product.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't restore product");
     }
   }
 
@@ -187,11 +185,10 @@ export default function ProductsPage() {
 
   async function exportCsv() {
     setExporting(true);
-    setError(null);
     try {
       exportRows(await productsApi.list(filters), 'products');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not export products.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't export products");
     } finally {
       setExporting(false);
     }
@@ -318,12 +315,11 @@ export default function ProductsPage() {
   async function runBulkArchive(action: 'archive' | 'restore') {
     const targets = selection.items;
     setBulkBusy(true);
-    setError(null);
     try {
       const result = await runBulk(targets, (p) => (action === 'archive' ? productsApi.archive(p.id) : productsApi.restore(p.id)));
       const text = bulkSummary(action === 'archive' ? 'Archived' : 'Restored', 'product', result);
       if (result.failed.length === 0) toast.success(text);
-      else setError(text);
+      else toast.error(text);
       // Whatever failed stays ticked, so it can be tried again.
       selection.replace(result.failed.map((f) => f.item));
       setBulkConfirm(null);
@@ -408,12 +404,6 @@ export default function ProductsPage() {
           </button>
         ))}
       </div>
-
-      {error && (
-        <button type="button" onClick={() => setError(null)} role="alert" className="mt-3 w-full rounded-md px-3 py-2 text-left text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
-          {error} <span className="underline">Dismiss</span>
-        </button>
-      )}
 
       <div className="mt-3 flex flex-wrap gap-2">
         <div className="relative min-w-[240px] flex-1">

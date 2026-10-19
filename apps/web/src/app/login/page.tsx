@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, ChevronLeft, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../lib/auth-context';
 import { ApiError } from '../../lib/api';
+import { toast } from '../../components/ui/Toast';
 import { Avatar } from '../../components/Avatar';
 import { ThemeToggle } from '../../components/ThemeToggle';
 import { BrandPanel } from '../../components/login/BrandPanel';
@@ -26,7 +27,7 @@ export default function LoginPage() {
 
   const [mode, setMode] = useState<Mode>('staff-grid');
   const [selectedStaff, setSelectedStaff] = useState<StaffOption | null>(null);
-  const [pinError, setPinError] = useState<string | null>(null);
+  const [pinError, setPinError] = useState(false);
   const [pinSubmitting, setPinSubmitting] = useState(false);
 
   useEffect(() => {
@@ -39,17 +40,14 @@ export default function LoginPage() {
     if (!selectedStaff) return;
 
     setPinSubmitting(true);
-    setPinError(null);
+    setPinError(false);
 
     try {
       await loginWithPin(selectedStaff.id, pin);
       router.replace('/dashboard');
     } catch (err) {
-      setPinError(
-        err instanceof ApiError
-          ? err.message
-          : 'Something went wrong. Try again.',
-      );
+      setPinError(true);
+      toast.error(err instanceof ApiError ? err.message : "Couldn't sign in");
     } finally {
       setPinSubmitting(false);
     }
@@ -100,7 +98,7 @@ export default function LoginPage() {
               onSelect={(staff) => {
                 setSelectedStaff(staff);
                 setMode('staff-pin');
-                setPinError(null);
+                setPinError(false);
               }}
             />
           )}
@@ -124,7 +122,7 @@ export default function LoginPage() {
                 onComplete={handlePinComplete}
                 error={pinError}
                 disabled={pinSubmitting}
-                onErrorClear={() => setPinError(null)}
+                onErrorClear={() => setPinError(false)}
               />
 
               <button
@@ -132,7 +130,7 @@ export default function LoginPage() {
                 onClick={() => {
                   setMode('staff-grid');
                   setSelectedStaff(null);
-                  setPinError(null);
+                  setPinError(false);
                 }}
                 className="flex items-center gap-1.5 text-sm font-medium"
                 style={{ color: 'var(--color-accent)' }}

@@ -33,7 +33,6 @@ export function CustomerFormDrawer({
   const [isCredit, setIsCredit] = useState(false);
   const [creditLimit, setCreditLimit] = useState('');
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -46,13 +45,11 @@ export function CustomerFormDrawer({
     setNotes(customer?.notes ?? '');
     setIsCredit(customer?.isCredit ?? false);
     setCreditLimit(customer?.creditLimit != null ? String(customer.creditLimit) : '');
-    setError(null);
   }, [open, customer]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
-    setError(null);
     try {
       const payload = {
         name,
@@ -71,7 +68,7 @@ export function CustomerFormDrawer({
       onSaved();
       onClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not save customer.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't save customer");
     } finally {
       setSaving(false);
     }
@@ -88,11 +85,6 @@ export function CustomerFormDrawer({
           <button type="submit" form="customer-form" disabled={saving} className="rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
             {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Add customer'}
           </button>
-          {error && (
-            <span className="text-sm" style={{ color: 'var(--color-status-bad)' }}>
-              {error}
-            </span>
-          )}
         </div>
       }
     >

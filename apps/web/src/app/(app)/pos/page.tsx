@@ -39,6 +39,7 @@ import { DeliveryLocationDialog } from '../../../components/documents/DeliveryLo
 import { ApiError } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth-context';
 import { CommittedNumberInput } from '../../../components/ui/inputs';
+import { toast } from '../../../components/ui/Toast';
 import { money } from '../../../lib/format';
 
 interface CartLine {
@@ -77,8 +78,6 @@ export default function PosPage() {
   // PAVA's only credit: the customer takes the goods and settles the same day.
   // The sale goes out as an unpaid invoice and is closed off from Invoices.
   const [settleLater, setSettleLater] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [shortfalls, setShortfalls] = useState<StockShortfall[] | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [receipt, setReceipt] = useState<PosSaleResult | null>(null);
@@ -213,7 +212,6 @@ export default function PosPage() {
   const visibleProducts = query.trim().length > 0 ? results : browseProducts;
 
   function addToCart(p: Product) {
-    setError(null);
     setCart((prev) => {
       const existing = prev.find((l) => l.product.id === p.id);
       if (existing) return prev.map((l) => (l.product.id === p.id ? { ...l, qty: l.qty + 1 } : l));
@@ -272,8 +270,6 @@ export default function PosPage() {
   async function checkout(opts?: { allowNegativeStock?: boolean }) {
     if (cart.length === 0) return;
     setSubmitting(true);
-    setError(null);
-    setNotice(null);
     try {
       const sale = await posApi.checkout({
         customerId: customerMode === 'existing' ? selectedCustomer?.id : undefined,
@@ -297,7 +293,7 @@ export default function PosPage() {
       // numbers and lets an authorized operator continue as a backorder.
       const detected = err instanceof ApiError ? readStockShortfalls(err.details) : null;
       if (detected) setShortfalls(detected);
-      else setError(err instanceof ApiError ? err.message : 'Could not complete this sale.');
+      else toast.error(err instanceof ApiError ? err.message : "Couldn't complete sale");
     } finally {
       setSubmitting(false);
     }
@@ -305,7 +301,6 @@ export default function PosPage() {
 
   async function suspendCurrent(label: string) {
     setSubmitting(true);
-    setError(null);
     try {
       await posApi.suspend({
         customerId: customerMode === 'existing' ? selectedCustomer?.id : undefined,
@@ -319,10 +314,10 @@ export default function PosPage() {
       if (resumedFromId) await posApi.discardSuspended(resumedFromId).catch(() => {});
       clearCounter();
       setSuspendOpen(false);
-      setNotice('Order suspended.');
+      toast.success('Order suspended');
       refreshHeldCount();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not suspend this order.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't suspend order");
       setSuspendOpen(false);
     } finally {
       setSubmitting(false);
@@ -357,7 +352,7 @@ export default function PosPage() {
     }
     setResumedFromId(order.id);
     setHeldOpen(false);
-    setNotice('Order resumed.');
+    toast.success('Order resumed');
     refreshHeldCount();
   }
 
@@ -368,9 +363,9 @@ export default function PosPage() {
       const note = await documentsApi.createDeliveryNote(receipt.id, deliveryLocation || undefined, deliveryPhone || undefined);
       setAskingDeliveryLocation(false);
       setReceipt(null);
-      setNotice(`Delivery note ${note.deliveryNoteNumber ?? ''} created — open it under Invoices › Delivery notes to print.`);
+      toast.success(note.deliveryNoteNumber ? `Delivery note ${note.deliveryNoteNumber} created` : 'Delivery note created');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not create a delivery note.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't create delivery note");
     } finally {
       setDeliveryNoteBusy(false);
     }
@@ -603,12 +598,6 @@ export default function PosPage() {
           </p>
         )}
 
-        {error && (
-          <p className="rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
-            {error}
-          </p>
-        )}
-
         <div className="flex items-baseline justify-between">
           <span className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
             Estimated total
@@ -682,17 +671,6 @@ export default function PosPage() {
           </button>
         </div>
       </div>
-
-      {notice && (
-        <button
-          type="button"
-          onClick={() => setNotice(null)}
-          className="shrink-0 px-4 py-2 text-left text-sm"
-          style={{ backgroundColor: 'var(--color-status-okSoft)', color: 'var(--color-status-ok)' }}
-        >
-          {notice}
-        </button>
-      )}
 
       <div className="flex min-h-0 flex-1">
         {/* Category rail — tap-to-browse, no typing required. */}
@@ -879,7 +857,7 @@ export default function PosPage() {
       {returnOpen && (
         <ReturnDialog
           onClose={() => setReturnOpen(false)}
-          onCompleted={(result) => setNotice(`Return ${result.returnNumber} recorded — stock restored.`)}
+          onCompleted={(result) => toast.success(`Return ${result.returnNumber} recorded`)}
         />
       )}
 

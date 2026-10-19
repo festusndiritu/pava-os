@@ -11,11 +11,9 @@ export interface ShareOptions {
   message?: string;
 }
 
-/** The line shown after a share, so every screen words each outcome the same way. */
-export function shareNotice(result: ShareResult): string {
-  if (result === 'shared') return 'Shared.';
-  if (result === 'whatsapp-web') return 'Downloaded — drag the file into the WhatsApp Web chat that just opened.';
-  return 'Downloaded — attach it in WhatsApp or wherever you need it.';
+/** The line shown after a share. `label` names what was shared ("RCT-0042"). */
+export function shareNotice(result: ShareResult, label: string): string {
+  return result === 'shared' ? `Shared ${label}` : `Downloaded ${label}`;
 }
 
 // A phone or tablet has a share sheet with the person's installed apps in it,

@@ -85,7 +85,6 @@ function FamilyRow({
     family.lowStockThreshold?.toString() ?? '',
   );
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const originalThreshold = family.lowStockThreshold?.toString() ?? '';
 
@@ -97,7 +96,6 @@ function FamilyRow({
 
   async function save() {
     setSaving(true);
-    setError(null);
 
     try {
       const updated = await productsApi.updateFamily(family.id, {
@@ -108,10 +106,10 @@ function FamilyRow({
       toast.success('Family saved');
       onSaved(updated);
     } catch (err) {
-      setError(
+      toast.error(
         err instanceof ApiError
           ? err.message
-          : 'Could not save this family.',
+          : "Couldn't save family",
       );
     } finally {
       setSaving(false);
@@ -191,14 +189,6 @@ function FamilyRow({
             </button>
           )}
 
-          {error && (
-            <span
-              className="pb-2 text-xs"
-              style={{ color: 'var(--color-status-bad)' }}
-            >
-              {error}
-            </span>
-          )}
         </div>
       )}
     </li>
@@ -220,7 +210,6 @@ export function FamiliesManager({
   const [loadError, setLoadError] = useState(false);
   const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function load() {
     setLoadError(false);
@@ -243,7 +232,6 @@ export function FamiliesManager({
     if (!name) return;
 
     setCreating(true);
-    setError(null);
 
     try {
       const family = await productsApi.createFamily({ name });
@@ -253,10 +241,10 @@ export function FamiliesManager({
       setFamilies((prev) => [...(prev ?? []), family]);
       setNewName('');
     } catch (err) {
-      setError(
+      toast.error(
         err instanceof ApiError
           ? err.message
-          : 'Could not add this family.',
+          : "Couldn't add family",
       );
     } finally {
       setCreating(false);
@@ -290,16 +278,6 @@ export function FamiliesManager({
             {creating ? 'Adding…' : 'Add family'}
           </button>
         </form>
-      )}
-
-      {error && (
-        <p
-          role="alert"
-          className="mt-3 text-sm"
-          style={{ color: 'var(--color-status-bad)' }}
-        >
-          {error}
-        </p>
       )}
 
       <div

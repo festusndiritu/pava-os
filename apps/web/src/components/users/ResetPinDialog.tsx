@@ -9,21 +9,19 @@ import { toast } from '../ui/Toast';
 export function ResetPinDialog({ user, onClose, onDone }: { user: StaffUser; onClose: () => void; onDone: () => void }) {
   const [pin, setPin] = useState('');
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function submit() {
     if (!/^\d{4}$/.test(pin)) {
-      setError('PIN must be exactly 4 digits');
+      toast.error('PIN must be 4 digits');
       return;
     }
     setSaving(true);
-    setError(null);
     try {
       await usersApi.resetPin(user.id, pin);
       toast.success('PIN reset');
       onDone();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not reset PIN.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't reset PIN");
     } finally {
       setSaving(false);
     }
@@ -48,11 +46,6 @@ export function ResetPinDialog({ user, onClose, onDone }: { user: StaffUser; onC
             className="w-full rounded-md border px-3 py-2 text-sm data-num"
             style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}
           />
-          {error && (
-            <p className="rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
-              {error}
-            </p>
-          )}
           <div className="flex gap-2">
             <button type="button" onClick={onClose} className="flex-1 rounded-md border px-4 py-2 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
               Cancel

@@ -4,6 +4,7 @@ import { useId, useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import { ApiError } from '../../lib/api';
 import { Select } from './inputs';
+import { toast } from './Toast';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
 const fieldClass = 'w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]';
@@ -14,7 +15,7 @@ const fieldClass = 'w-full rounded-md border px-3 py-2 text-sm outline-none focu
  * Enter adds the new entry — it does not submit the surrounding form — and
  * Escape backs out without closing the drawer. Typing a name that already
  * exists just selects the existing one; a failed create shows its reason
- * right under the field instead of failing silently; a newly created entry
+ * as a toast instead of failing silently; a newly created entry
  * is selected straight away.
  */
 export function InlineAddSelect({
@@ -40,12 +41,10 @@ export function InlineAddSelect({
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   function cancel() {
     setAdding(false);
     setName('');
-    setError(null);
   }
 
   async function submit() {
@@ -61,13 +60,12 @@ export function InlineAddSelect({
       return;
     }
     setBusy(true);
-    setError(null);
     try {
       const created = await onCreate(trimmed);
       onChange(created.id);
       cancel();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : `Could not add that ${noun}.`);
+      toast.error(err instanceof ApiError ? err.message : `Couldn't add ${noun}`);
     } finally {
       setBusy(false);
     }
@@ -133,11 +131,6 @@ export function InlineAddSelect({
             <X size={15} strokeWidth={2} />
           </button>
         </div>
-      )}
-      {error && (
-        <p className="mt-1 text-xs" style={{ color: 'var(--color-status-bad)' }}>
-          {error}
-        </p>
       )}
     </div>
   );

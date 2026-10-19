@@ -12,7 +12,8 @@ export function PinPad({
   onErrorClear,
 }: {
   onComplete: (pin: string) => void;
-  error?: string | null;
+  /** A failed attempt: dots turn red and shake. The reason is shown as a toast by the caller. */
+  error?: boolean;
   disabled?: boolean;
   onErrorClear?: () => void;
 }) {
@@ -132,7 +133,7 @@ export function PinPad({
             : 'var(--color-ink-600)',
         }}
       >
-        {error ?? 'Enter your 4-digit PIN'}
+        Enter your 4-digit PIN
       </p>
 
       <div className="grid grid-cols-3 gap-3">

@@ -26,7 +26,6 @@ export function LeadFormDrawer({ open, onClose, onSaved, lead }: { open: boolean
   const [notes, setNotes] = useState('');
   const [followUpAt, setFollowUpAt] = useState('');
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -40,13 +39,11 @@ export function LeadFormDrawer({ open, onClose, onSaved, lead }: { open: boolean
     setExpectedValue(lead?.expectedValue != null ? String(lead.expectedValue) : '');
     setNotes(lead?.notes ?? '');
     setFollowUpAt(lead?.followUpAt ? lead.followUpAt.slice(0, 10) : '');
-    setError(null);
   }, [open, lead]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
-    setError(null);
     try {
       const payload = {
         name,
@@ -67,7 +64,7 @@ export function LeadFormDrawer({ open, onClose, onSaved, lead }: { open: boolean
       onSaved();
       onClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not save this lead.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't save lead");
     } finally {
       setSaving(false);
     }
@@ -84,11 +81,6 @@ export function LeadFormDrawer({ open, onClose, onSaved, lead }: { open: boolean
           <button type="submit" form="lead-form" disabled={saving} className="rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
             {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Add lead'}
           </button>
-          {error && (
-            <span className="text-sm" style={{ color: 'var(--color-status-bad)' }}>
-              {error}
-            </span>
-          )}
         </div>
       }
     >

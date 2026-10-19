@@ -11,7 +11,6 @@ import { NavSheet } from '../../components/shell/NavSheet';
 import { Topbar } from '../../components/shell/Topbar';
 import { IdleWarningDialog } from '../../components/shell/IdleWarningDialog';
 import { PushSync } from '../../components/shell/PushSync';
-import { ToastViewport } from '../../components/ui/Toast';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -125,7 +124,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {!isPos && <BottomNav onMore={() => setNavOpen(true)} moreOpen={navOpen} />}
       {navOpen && <NavSheet onClose={() => setNavOpen(false)} />}
 
-      <ToastViewport />
       <IdleWarningDialog />
       <PushSync />
     </div>

@@ -7,6 +7,7 @@ import { documentsApi, type SaleDocument } from '../../lib/documents-api';
 import { posApi, type ReturnableSale, type SaleReturn } from '../../lib/pos-api';
 import { NumericInput, toNumber } from '../ui/inputs';
 import { Modal } from '../ui/Modal';
+import { toast } from '../ui/Toast';
 import { money } from '../../lib/format';
 
 function fmtDate(iso: string) {
@@ -26,7 +27,6 @@ export function ReturnDialog({ onClose, onCompleted }: { onClose: () => void; on
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [refundMethod, setRefundMethod] = useState<'CASH' | 'MPESA'>('CASH');
   const [reason, setReason] = useState('');
-  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<SaleReturn | null>(null);
 
@@ -54,14 +54,13 @@ export function ReturnDialog({ onClose, onCompleted }: { onClose: () => void; on
   }, [query]);
 
   async function openSale(id: string) {
-    setError(null);
     setBusy(true);
     try {
       const detail = await posApi.returnable(id);
       setSale(detail);
       setQuantities({});
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not open that sale.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't open sale");
     } finally {
       setBusy(false);
     }
@@ -79,7 +78,6 @@ export function ReturnDialog({ onClose, onCompleted }: { onClose: () => void; on
   async function submit() {
     if (!sale || selected.length === 0) return;
     setBusy(true);
-    setError(null);
     try {
       const result = await posApi.createReturn(sale.id, {
         items: selected.map((i) => ({ documentItemId: i.documentItemId, qty: quantities[i.documentItemId] })),
@@ -89,7 +87,7 @@ export function ReturnDialog({ onClose, onCompleted }: { onClose: () => void; on
       setDone(result);
       onCompleted(result);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not record this return.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't record return");
     } finally {
       setBusy(false);
     }
@@ -116,12 +114,6 @@ export function ReturnDialog({ onClose, onCompleted }: { onClose: () => void; on
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
-          {error && (
-            <p className="mb-3 rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
-              {error}
-            </p>
-          )}
-
           {done && (
             <div className="py-6 text-center">
               <CheckCircle2 size={28} strokeWidth={1.5} className="mx-auto mb-2" style={{ color: 'var(--color-status-ok)' }} />

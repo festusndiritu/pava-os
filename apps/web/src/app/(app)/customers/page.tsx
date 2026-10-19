@@ -43,7 +43,6 @@ export default function CustomersPage() {
   const [editing, setEditing] = useState<Customer | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [status, setStatus] = useState<CustomerStatus>('active');
-  const [error, setError] = useState<string | null>(null);
   const [confirmArchive, setConfirmArchive] = useState<Customer | null>(null);
   const [archiveBusy, setArchiveBusy] = useState(false);
   const [bulkConfirm, setBulkConfirm] = useState<'archive' | 'restore' | null>(null);
@@ -80,7 +79,7 @@ export default function CustomersPage() {
       setConfirmArchive(null);
       load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not archive this customer.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't archive customer");
       setConfirmArchive(null);
     } finally {
       setArchiveBusy(false);
@@ -88,23 +87,21 @@ export default function CustomersPage() {
   }
 
   async function restoreCustomer(c: Customer) {
-    setError(null);
     try {
       await customersApi.restore(c.id);
       load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not restore this customer.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't restore customer");
     }
   }
 
   async function runBulkArchive(action: 'archive' | 'restore') {
     setBulkBusy(true);
-    setError(null);
     try {
       const result = await runBulk(selection.items, (c) => (action === 'archive' ? customersApi.archive(c.id) : customersApi.restore(c.id)));
       const text = bulkSummary(action === 'archive' ? 'Archived' : 'Restored', 'customer', result);
       if (result.failed.length === 0) toast.success(text);
-      else setError(text);
+      else toast.error(text);
       selection.replace(result.failed.map((f) => f.item)); // what failed stays ticked, to retry
       setBulkConfirm(null);
       load();
@@ -122,11 +119,10 @@ export default function CustomersPage() {
 
   async function exportAll() {
     setExporting(true);
-    setError(null);
     try {
       exportRows(await customersApi.list(debouncedSearch || undefined, status), 'customers');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not export customers.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't export customers");
     } finally {
       setExporting(false);
     }
@@ -281,12 +277,6 @@ export default function CustomersPage() {
           </button>
         ))}
       </div>
-
-      {error && (
-        <button type="button" onClick={() => setError(null)} role="alert" className="mt-3 w-full rounded-md px-3 py-2 text-left text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
-          {error} <span className="underline">Dismiss</span>
-        </button>
-      )}
 
       <div className="relative mt-3 max-w-sm">
         <Search size={15} strokeWidth={2} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-ink-600)' }} />

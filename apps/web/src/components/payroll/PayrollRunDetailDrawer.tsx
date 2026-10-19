@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Drawer } from '../ui/Drawer';
 import { payrollApi, type PayrollRun } from '../../lib/payroll-api';
 import { ApiError } from '../../lib/api';
+import { toast } from '../ui/Toast';
 import { NumericInput, toNumber } from '../ui/inputs';
 import { money } from '../../lib/format';
 
@@ -47,7 +48,6 @@ export function PayrollRunDetailDrawer({ runId, onClose, onChanged }: { runId: s
   const [run, setRun] = useState<PayrollRun | null>(null);
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   async function load() {
     if (!runId) return;
@@ -74,7 +74,7 @@ export function PayrollRunDetailDrawer({ runId, onClose, onChanged }: { runId: s
       await payrollApi.updateItem(run.id, itemId, { [field]: value });
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not save.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't save change");
     } finally {
       setBusyId(null);
     }
@@ -83,13 +83,12 @@ export function PayrollRunDetailDrawer({ runId, onClose, onChanged }: { runId: s
   async function finalize() {
     if (!run) return;
     setBusyId('__finalize');
-    setError(null);
     try {
       await payrollApi.finalizeRun(run.id);
       await load();
       onChanged();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not finalize.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't finalize run");
     } finally {
       setBusyId(null);
     }
@@ -98,13 +97,12 @@ export function PayrollRunDetailDrawer({ runId, onClose, onChanged }: { runId: s
   async function pay(itemId: string) {
     if (!run) return;
     setBusyId(itemId);
-    setError(null);
     try {
       await payrollApi.payItem(run.id, itemId);
       await load();
       onChanged();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not record payment.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't record payment");
     } finally {
       setBusyId(null);
     }
@@ -128,13 +126,7 @@ export function PayrollRunDetailDrawer({ runId, onClose, onChanged }: { runId: s
               Sweeps in approved advances and locks the numbers.
             </span>
           </div>
-        ) : (
-          error && (
-            <span className="text-sm" style={{ color: 'var(--color-status-bad)' }}>
-              {error}
-            </span>
-          )
-        ))
+        ) : null)
       }
     >
       {loading && (
@@ -145,12 +137,6 @@ export function PayrollRunDetailDrawer({ runId, onClose, onChanged }: { runId: s
 
       {run && !loading && (
         <div className="flex flex-col gap-4">
-          {error && isDraft && (
-            <p className="rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
-              {error}
-            </p>
-          )}
-
           <div className="flex flex-col gap-3">
             {run.items.map((item) => (
               <div key={item.id} className="rounded-md border p-3" style={{ borderColor: 'var(--color-border)' }}>

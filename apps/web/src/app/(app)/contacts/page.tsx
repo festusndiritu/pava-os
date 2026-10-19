@@ -21,7 +21,6 @@ export default function ContactsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Contact | null>(null);
   const [exporting, setExporting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const debouncedSearch = useDebounced(search);
   const table = useServerTable<Contact>({
@@ -48,11 +47,10 @@ export default function ContactsPage() {
 
   async function exportAll() {
     setExporting(true);
-    setError(null);
     try {
       exportRows(await contactsApi.list(debouncedSearch || undefined), 'contacts');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not export contacts.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't export contacts");
     } finally {
       setExporting(false);
     }
@@ -159,12 +157,6 @@ export default function ContactsPage() {
           </button>
         </div>
       </div>
-
-      {error && (
-        <button type="button" onClick={() => setError(null)} role="alert" className="mt-3 w-full rounded-md px-3 py-2 text-left text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
-          {error} <span className="underline">Dismiss</span>
-        </button>
-      )}
 
       <div className="relative mt-5 max-w-sm">
         <Search size={15} strokeWidth={2} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-ink-600)' }} />

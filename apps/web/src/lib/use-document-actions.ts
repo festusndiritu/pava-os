@@ -23,13 +23,11 @@ export function useDocumentActions({
   onOpen,
   onEdit,
   onChanged,
-  onError,
 }: {
   onOpen: (id: string) => void;
   // Only the Quotes screen passes this: it's what opens the quote form.
   onEdit?: (id: string) => void;
   onChanged: () => void;
-  onError: (message: string) => void;
 }) {
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -45,10 +43,10 @@ export function useDocumentActions({
       // asking for that judgement from a menu.
       const detected = opts?.detectStockShortfall && err instanceof ApiError ? readStockShortfalls(err.details) : null;
       if (detected) {
-        onError('Not enough stock for this quote — opening it so you can review the shortfall.');
+        toast.error('Not enough stock for this quote');
         onOpen(doc.id);
       } else {
-        onError(err instanceof ApiError ? err.message : 'Could not complete that action.');
+        toast.error(err instanceof ApiError ? err.message : "Couldn't complete action");
       }
     } finally {
       setBusyId(null);
@@ -68,7 +66,7 @@ export function useDocumentActions({
         label: 'Convert to invoice',
         icon: FileCheck2,
         disabled: busy,
-        onClick: () => run(doc, () => documentsApi.convertToInvoice(doc.id), 'Quote converted to an invoice', { detectStockShortfall: true }),
+        onClick: () => run(doc, () => documentsApi.convertToInvoice(doc.id), 'Quote converted to invoice', { detectStockShortfall: true }),
       },
       // Capturing the delivery location is a small judgement call (site vs.
       // the customer's stored address), so this hands off to the detail

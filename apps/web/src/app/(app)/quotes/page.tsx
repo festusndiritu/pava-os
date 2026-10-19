@@ -37,7 +37,6 @@ export default function QuotesPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   // Lets global search (Ctrl/Cmd+K) land straight on a quote's detail drawer
   // via `/quotes?open=<id>` — it fetches by id itself, independent of the
@@ -54,7 +53,7 @@ export default function QuotesPage() {
     defaultSort: { id: 'created', dir: 'desc' },
   });
   const { reload: load } = table;
-  const documentActions = useDocumentActions({ onOpen: setDetailId, onEdit: setEditId, onChanged: load, onError: setError });
+  const documentActions = useDocumentActions({ onOpen: setDetailId, onEdit: setEditId, onChanged: load });
   const selection = useRowSelection<SaleDocument>((d) => d.id, []);
 
   const columns: Column<SaleDocument>[] = [
@@ -104,12 +103,6 @@ export default function QuotesPage() {
           New quote
         </button>
       </div>
-
-      {error && (
-        <button type="button" onClick={() => setError(null)} role="alert" className="mt-4 w-full rounded-md px-3 py-2 text-left text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
-          {error} <span className="underline">Dismiss</span>
-        </button>
-      )}
 
       <div className="mt-5">
         <DataTable<SaleDocument>

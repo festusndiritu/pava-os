@@ -9,6 +9,7 @@ import { shareImageBlob, shareNotice } from '../../../lib/pdf';
 import { drawPoster, posterCategoriesFromProducts, posterToBlob } from '../../../lib/poster';
 import { fmtNumber } from '../../../lib/format';
 import { Checkbox } from '../../../components/ui/Checkbox';
+import { toast } from '../../../components/ui/Toast';
 import { NumericInput, toNumber } from '../../../components/ui/inputs';
 
 // Mirrors the row-density tiers in lib/poster.ts (16 / 22 / 30 items) so the
@@ -37,7 +38,6 @@ export default function MarketingPage() {
   const [headline, setHeadline] = useState("This week's prices");
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [posterBusy, setPosterBusy] = useState(false);
-  const [posterNotice, setPosterNotice] = useState<string | null>(null);
 
   useEffect(() => {
     productsApi
@@ -140,15 +140,14 @@ export default function MarketingPage() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     setPosterBusy(true);
-    setPosterNotice(null);
     try {
       const blob = await posterToBlob(canvas);
       if (!blob) throw new Error('canvas produced no blob');
       const filename = `${(headline || 'poster').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'poster'}.png`;
       const result = await shareImageBlob(blob, filename, headline || 'Price poster');
-      setPosterNotice(shareNotice(result));
+      toast.success(shareNotice(result, 'poster'));
     } catch {
-      setPosterNotice('Could not generate the poster.');
+      toast.error("Couldn't generate poster");
     } finally {
       setPosterBusy(false);
     }
@@ -156,7 +155,6 @@ export default function MarketingPage() {
 
   async function handlePricelistPdf() {
     setPosterBusy(true);
-    setPosterNotice(null);
     try {
       // Loaded on demand — the PDF renderer is heavy and most visits never export one.
       const { sharePricelistAsPdf } = await import('../../../lib/pdf/document-pdf');
@@ -167,9 +165,9 @@ export default function MarketingPage() {
         email: settings?.email ?? null,
         categories: posterCategoriesFromProducts(groupedSelected, priceOf),
       });
-      setPosterNotice(shareNotice(result));
+      toast.success(shareNotice(result, headline.trim() || 'pricelist'));
     } catch {
-      setPosterNotice('Could not generate the PDF.');
+      toast.error("Couldn't generate PDF");
     } finally {
       setPosterBusy(false);
     }
@@ -365,11 +363,6 @@ export default function MarketingPage() {
                 </button>
               </div>
             </div>
-            {posterNotice && (
-              <p className="mb-3 rounded-md px-3 py-2 text-xs" style={{ backgroundColor: 'var(--color-status-okSoft)', color: 'var(--color-status-ok)' }}>
-                {posterNotice}
-              </p>
-            )}
             {selectedProducts.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <ImageIcon size={28} strokeWidth={1.5} className="mb-2" style={{ color: 'var(--color-ink-600)' }} />

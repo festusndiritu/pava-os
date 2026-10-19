@@ -5,6 +5,7 @@ import { Clock, PauseCircle, Trash2, X } from 'lucide-react';
 import { posApi, type SuspendedOrder } from '../../lib/pos-api';
 import { ApiError } from '../../lib/api';
 import { Modal } from '../ui/Modal';
+import { toast } from '../ui/Toast';
 import { money } from '../../lib/format';
 
 function since(iso: string) {
@@ -107,15 +108,17 @@ export function SuspendedOrdersDialog({
   onChanged: () => void;
 }) {
   const [orders, setOrders] = useState<SuspendedOrder[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // A failed load replaces the list, so it stays on screen as a state.
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
 
   async function load() {
     try {
       setOrders(await posApi.suspended());
+      setLoadError(null);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not load suspended orders.');
+      setLoadError(err instanceof ApiError ? err.message : "Couldn't load suspended orders");
       setOrders([]);
     }
   }
@@ -126,13 +129,12 @@ export function SuspendedOrdersDialog({
 
   async function discard(id: string) {
     setBusyId(id);
-    setError(null);
     try {
       await posApi.discardSuspended(id);
       await load();
       onChanged();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not discard that order.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't discard order");
     } finally {
       setBusyId(null);
       setConfirmId(null);
@@ -141,9 +143,9 @@ export function SuspendedOrdersDialog({
 
   return (
     <Shell title="Suspended orders" subtitle="Parked carts waiting to be finished" onClose={onClose}>
-      {error && (
+      {loadError && (
         <p className="mb-3 rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
-          {error}
+          {loadError}
         </p>
       )}
 

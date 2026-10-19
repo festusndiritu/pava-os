@@ -23,11 +23,12 @@ export async function runBulk<T>(items: T[], task: (item: T) => Promise<unknown>
   return { done, failed };
 }
 
-/** "Archived 18 products. 2 failed: …" — one sentence for a toast or banner. */
+/** "Archived 18 products" / "Archived 16, 2 failed" / "2 products failed: reason" — one short line for a toast. */
 export function bulkSummary(verb: string, noun: string, result: { done: unknown[]; failed: { message: string }[] }) {
   const ok = result.done.length;
+  const bad = result.failed.length;
   const plural = (n: number) => `${n} ${noun}${n === 1 ? '' : 's'}`;
-  if (result.failed.length === 0) return `${verb} ${plural(ok)}.`;
-  const first = result.failed[0].message;
-  return `${ok > 0 ? `${verb} ${plural(ok)}. ` : ''}${result.failed.length} failed: ${first}${result.failed.length > 1 ? ' (and others)' : ''}`;
+  if (bad === 0) return `${verb} ${plural(ok)}`;
+  if (ok > 0) return `${verb} ${ok}, ${bad} failed`;
+  return `${plural(bad)} failed: ${result.failed[0].message}`;
 }

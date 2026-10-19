@@ -50,7 +50,6 @@ export function ReceiveInventoryDrawer({
   const [reference, setReference] = useState('');
   const [notes, setNotes] = useState('');
   const [lines, setLines] = useState<Line[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [suggestions, setSuggestions] = useState<ReceiveLineResult[] | null>(null);
   const [lastAddedId, setLastAddedId] = useState<string | null>(null);
@@ -71,7 +70,6 @@ export function ReceiveInventoryDrawer({
     setNotes('');
     setLines([]);
     setLastAddedId(null);
-    setError(null);
   }
 
   const total = lines.reduce((sum, l) => sum + (Number(l.quantity) || 0) * (Number(l.unitCost) || 0), 0);
@@ -79,24 +77,23 @@ export function ReceiveInventoryDrawer({
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (lines.length === 0) {
-      setError('Add at least one product line.');
+      toast.error('Add at least one product line');
       return;
     }
     for (const l of lines) {
       const name = l.product.displayName ?? l.product.name;
       if (!(toNumber(l.quantity) && toNumber(l.quantity)! >= 1)) {
-        setError(`Enter a quantity of 1 or more for ${name}.`);
+        toast.error(`Enter quantity for ${name}`);
         return;
       }
       // A zero-cost lot makes the stock look free: valuation, margins and
       // price suggestions all read it as "cost nothing".
       if (!(toNumber(l.unitCost) && toNumber(l.unitCost)! >= 1)) {
-        setError(`Enter what ${name} cost per unit.`);
+        toast.error(`Enter cost per unit for ${name}`);
         return;
       }
     }
     setSaving(true);
-    setError(null);
     try {
       const result = await inventoryApi.receive({
         supplier,
@@ -114,7 +111,7 @@ export function ReceiveInventoryDrawer({
         onDone();
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not save this receipt.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't save receipt");
     } finally {
       setSaving(false);
     }
@@ -134,11 +131,6 @@ export function ReceiveInventoryDrawer({
         wide
         footer={
           <div className="flex flex-col gap-2">
-            {error && (
-              <p role="alert" className="rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
-                {error}
-              </p>
-            )}
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
                 {lines.length} line{lines.length === 1 ? '' : 's'} · Total: <span className="font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>KSh {fmtNumber(total)}</span>
@@ -306,10 +298,8 @@ function LastCostHint({ product, unitCost }: { product: Product; unitCost: strin
 function PriceSuggestionDialog({ suggestions, onClose }: { suggestions: ReceiveLineResult[]; onClose: () => void }) {
   const [decided, setDecided] = useState<Record<string, boolean>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   async function apply(line: ReceiveLineResult, update: boolean) {
-    setError(null);
     if (!update) {
       setDecided((prev) => ({ ...prev, [line.productId]: true }));
       return;
@@ -319,7 +309,7 @@ function PriceSuggestionDialog({ suggestions, onClose }: { suggestions: ReceiveL
       await productsApi.update(line.productId, { basePrice: line.suggestedPrice });
       setDecided((prev) => ({ ...prev, [line.productId]: true }));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : `Could not update the price for ${line.productName}.`);
+      toast.error(err instanceof ApiError ? err.message : `Couldn't update price for ${line.productName}`);
     } finally {
       setBusyId(null);
     }
@@ -375,12 +365,6 @@ function PriceSuggestionDialog({ suggestions, onClose }: { suggestions: ReceiveL
           </div>
         ))}
       </div>
-
-      {error && (
-        <p role="alert" className="mt-3 rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
-          {error}
-        </p>
-      )}
 
       <button
         type="button"

@@ -43,7 +43,6 @@ export function CustomerDetailDrawer({
   const [archiving, setArchiving] = useState(false);
   const [confirmHardDelete, setConfirmHardDelete] = useState(false);
   const [deletingForever, setDeletingForever] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
 
@@ -64,14 +63,13 @@ export function CustomerDetailDrawer({
   async function archive() {
     if (!customer) return;
     setArchiving(true);
-    setError(null);
     try {
       await customersApi.archive(customer.id);
       setConfirmArchive(false);
       onChanged();
       onClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not archive this customer.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't archive customer");
       setConfirmArchive(false);
     } finally {
       setArchiving(false);
@@ -81,13 +79,12 @@ export function CustomerDetailDrawer({
   async function restore() {
     if (!customer) return;
     setArchiving(true);
-    setError(null);
     try {
       const updated = await customersApi.restore(customer.id);
       setCustomer(updated);
       onChanged();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not restore this customer.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't restore customer");
     } finally {
       setArchiving(false);
     }
@@ -96,14 +93,13 @@ export function CustomerDetailDrawer({
   async function hardDelete() {
     if (!customer) return;
     setDeletingForever(true);
-    setError(null);
     try {
       await customersApi.hardDelete(customer.id);
       setConfirmHardDelete(false);
       onChanged();
       onClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not permanently delete this customer.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't delete customer");
       setConfirmHardDelete(false);
     } finally {
       setDeletingForever(false);
@@ -124,11 +120,6 @@ export function CustomerDetailDrawer({
         footer={
           customer && (
             <div className="flex flex-col gap-2">
-              {error && (
-                <p className="rounded-md px-3 py-2 text-left text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
-                  {error}
-                </p>
-              )}
               <div className="flex gap-2">
                 <button type="button" onClick={() => onEdit(customer)} className="flex-1 rounded-md border px-4 py-2 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
                   Edit
@@ -292,17 +283,15 @@ function LedgerActionDialog({
   const [amount, setAmount] = useState('');
   const [type, setType] = useState<'ADJUSTMENT' | 'OPENING' | 'REFUND' | 'WRITE_OFF'>('ADJUSTMENT');
   const [note, setNote] = useState('');
-  const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   async function submit() {
     const value = toNumber(amount);
     if (!value) {
-      setError(mode === 'adjustment' ? 'Enter an amount — a negative number reduces the balance.' : 'Enter the amount received.');
+      toast.error(mode === 'adjustment' ? 'Enter an amount' : 'Enter the amount received');
       return;
     }
     setSaving(true);
-    setError(null);
     try {
       if (mode === 'payment') {
         await customersApi.recordPayment(customer.id, value, note || undefined);
@@ -312,7 +301,7 @@ function LedgerActionDialog({
       toast.success(mode === 'payment' ? 'Payment recorded' : 'Balance adjusted');
       onDone();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not save.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't save");
     } finally {
       setSaving(false);
     }
@@ -357,12 +346,6 @@ function LedgerActionDialog({
             className="w-full rounded-md border px-3 py-2 text-sm"
             style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}
           />
-
-          {error && (
-            <p className="rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
-              {error}
-            </p>
-          )}
 
           <div className="mt-1 flex gap-2">
             <button type="button" onClick={onClose} className="flex-1 rounded-md border px-4 py-2 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>

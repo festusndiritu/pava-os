@@ -123,7 +123,6 @@ export function ProductFormDrawer({
   const [sameName, setSameName] = useState<Product | null>(null);
 
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -169,7 +168,6 @@ export function ProductFormDrawer({
       setStockStatus('IN_STOCK');
       setActive(true);
     }
-    setError(null);
   }, [open, product, duplicateFrom, units]);
 
   // Two products with the same technical name are almost always a double entry.
@@ -194,15 +192,14 @@ export function ProductFormDrawer({
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    setError(null);
     if (!(toNumber(basePrice) && toNumber(basePrice)! > 0)) {
-      setError('Enter a selling price above zero.');
+      toast.error('Enter a selling price above zero');
       return;
     }
     const qty = toNumber(openingQty);
     const cost = toNumber(openingCost);
     if (!isEdit && qty && !cost) {
-      setError('Enter what the opening stock cost per unit, so it can be valued.');
+      toast.error('Enter cost per unit');
       return;
     }
     setSaving(true);
@@ -237,7 +234,7 @@ export function ProductFormDrawer({
             await inventoryApi.openingBalance({ productId: created.id, quantity: qty, unitCost: cost });
           } catch (err) {
             // The product exists now; losing the whole form over the stock half would be worse.
-            toast.error(`Product saved, but opening stock wasn’t added${err instanceof ApiError ? `: ${err.message}` : ''}. Add it with Adjust stock.`);
+            toast.error('Product saved, but opening stock failed');
             onSaved();
             onClose();
             return;
@@ -248,7 +245,7 @@ export function ProductFormDrawer({
       onSaved();
       onClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not save product.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't save product");
     } finally {
       setSaving(false);
     }
@@ -272,11 +269,6 @@ export function ProductFormDrawer({
           >
             {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Add product'}
           </button>
-          {error && (
-            <span className="text-sm" style={{ color: 'var(--color-status-bad)' }}>
-              {error}
-            </span>
-          )}
         </div>
       }
     >

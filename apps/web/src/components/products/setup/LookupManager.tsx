@@ -45,7 +45,6 @@ export function LookupManager({
 }) {
   const [items, setItems] = useState<Item[] | null>(null);
   const [loadError, setLoadError] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -69,7 +68,7 @@ export function LookupManager({
   }, []);
 
   function fail(err: unknown, fallback: string) {
-    setError(err instanceof ApiError ? err.message : fallback);
+    toast.error(err instanceof ApiError ? err.message : fallback);
   }
 
   async function handleAdd(e: FormEvent) {
@@ -77,14 +76,13 @@ export function LookupManager({
     const name = newName.trim();
     if (!name) return;
     setAdding(true);
-    setError(null);
     try {
       await api.create(name);
       toast.success(`${noun[0].toUpperCase()}${noun.slice(1)} added`);
       setNewName('');
       await load();
     } catch (err) {
-      fail(err, `Could not add that ${noun}.`);
+      fail(err, `Couldn't add ${noun}`);
     } finally {
       setAdding(false);
     }
@@ -96,14 +94,13 @@ export function LookupManager({
     const name = editName.trim();
     if (!name) return;
     setSaving(true);
-    setError(null);
     try {
       await api.rename(editingId, name);
       toast.success(`${noun[0].toUpperCase()}${noun.slice(1)} renamed`);
       setEditingId(null);
       await load();
     } catch (err) {
-      fail(err, `Could not rename that ${noun}.`);
+      fail(err, `Couldn't rename ${noun}`);
     } finally {
       setSaving(false);
     }
@@ -112,7 +109,6 @@ export function LookupManager({
   async function handleDelete() {
     if (!confirmDelete) return;
     setDeleting(true);
-    setError(null);
     try {
       await api.remove(confirmDelete.id);
       toast.success(`${noun[0].toUpperCase()}${noun.slice(1)} removed`);
@@ -120,7 +116,7 @@ export function LookupManager({
       await load();
     } catch (err) {
       setConfirmDelete(null);
-      fail(err, `Could not remove that ${noun}.`);
+      fail(err, `Couldn't remove ${noun}`);
     } finally {
       setDeleting(false);
     }
@@ -141,12 +137,6 @@ export function LookupManager({
             {adding ? 'Adding…' : 'Add'}
           </button>
         </form>
-      )}
-
-      {error && (
-        <p role="alert" className="mt-3 text-sm" style={{ color: 'var(--color-status-bad)' }}>
-          {error}
-        </p>
       )}
 
       <div className="mt-4 overflow-hidden rounded-lg border" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
@@ -220,7 +210,6 @@ export function LookupManager({
                             onClick={() => {
                               setEditingId(item.id);
                               setEditName(item.name);
-                              setError(null);
                             }}
                             aria-label={`Rename ${item.name}`}
                             title="Rename"

@@ -16,6 +16,7 @@ import { StockShortfallDialog } from './StockShortfallDialog';
 import { DeliveryLocationDialog } from './DeliveryLocationDialog';
 import { readStockShortfalls, type StockShortfall } from '../../lib/pos-api';
 import { money } from '../../lib/format';
+import { toast } from '../ui/Toast';
 
 function docTypeLabel(type: string) {
   return type === 'QUOTE' ? 'Quote' : type === 'INVOICE' ? 'Invoice' : type === 'DELIVERY_NOTE' ? 'Delivery note' : 'Receipt';
@@ -51,8 +52,6 @@ export function DocumentDetailDrawer({
   const [doc, setDoc] = useState<SaleDocument | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [shortfalls, setShortfalls] = useState<StockShortfall[] | null>(null);
   const [sharing, setSharing] = useState(false);
   const [askingDeliveryLocation, setAskingDeliveryLocation] = useState(false);
@@ -88,7 +87,6 @@ export function DocumentDetailDrawer({
   useEffect(() => {
     load();
     setShortfalls(null);
-    setNotice(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documentId]);
 
@@ -96,7 +94,6 @@ export function DocumentDetailDrawer({
 
   async function runAction(fn: () => Promise<SaleDocument>, opts?: { detectStockShortfall?: boolean }) {
     setBusy(true);
-    setError(null);
     try {
       await fn();
       setShortfalls(null);
@@ -109,7 +106,7 @@ export function DocumentDetailDrawer({
       if (detected) {
         setShortfalls(detected);
       } else {
-        setError(err instanceof ApiError ? err.message : 'Could not complete that action.');
+        toast.error(err instanceof ApiError ? err.message : "Couldn't complete action");
       }
     } finally {
       setBusy(false);
@@ -119,13 +116,11 @@ export function DocumentDetailDrawer({
   async function handleShare() {
     if (!doc) return;
     setSharing(true);
-    setError(null);
-    setNotice(null);
     try {
       const result = await shareDocumentAsPdf(doc, settings);
-      setNotice(shareNotice(result));
-    } catch (err) {
-      setError('Could not generate the PDF.');
+      toast.success(shareNotice(result, docNumber ?? docTypeLabel(doc.type)));
+    } catch {
+      toast.error("Couldn't generate PDF");
     } finally {
       setSharing(false);
     }
@@ -134,16 +129,14 @@ export function DocumentDetailDrawer({
   async function handleCreateDeliveryNote(deliveryLocation: string, deliveryPhone: string) {
     if (!doc) return;
     setBusy(true);
-    setError(null);
-    setNotice(null);
     try {
       const note = await documentsApi.createDeliveryNote(doc.id, deliveryLocation || undefined, deliveryPhone || undefined);
       setAskingDeliveryLocation(false);
       onChanged();
-      setNotice('Delivery note created.');
+      toast.success(note.deliveryNoteNumber ? `Delivery note ${note.deliveryNoteNumber} created` : 'Delivery note created');
       onNavigate?.(note.id);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not create a delivery note.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't create delivery note");
     } finally {
       setBusy(false);
     }
@@ -168,16 +161,6 @@ export function DocumentDetailDrawer({
         footer={
           doc && (
             <div className="flex flex-col gap-2">
-              {error && (
-                <p className="rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
-                  {error}
-                </p>
-              )}
-              {notice && !error && (
-                <p className="rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'var(--color-status-okSoft)', color: 'var(--color-status-ok)' }}>
-                  {notice}
-                </p>
-              )}
               {/* An unpaid invoice is settled here, and how it was settled is
                   recorded on the receipt rather than guessed at later. */}
               {doc.status === 'INVOICED' && (

@@ -4,6 +4,7 @@ import { FormEvent, useState } from 'react';
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react';
 import { useAuth } from '../../lib/auth-context';
 import { ApiError } from '../../lib/api';
+import { toast } from '../ui/Toast';
 
 const fieldStyle = {
   borderColor: 'var(--color-border)',
@@ -21,24 +22,18 @@ export function AdminLoginForm({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
 
-    setError(null);
     setSubmitting(true);
 
     try {
       await loginWithPassword(email, password);
       onSuccess();
     } catch (err) {
-      setError(
-        err instanceof ApiError
-          ? err.message
-          : 'Something went wrong. Try again.',
-      );
+      toast.error(err instanceof ApiError ? err.message : "Couldn't sign in");
     } finally {
       setSubmitting(false);
     }
@@ -134,19 +129,6 @@ export function AdminLoginForm({
           </button>
         </div>
       </div>
-
-      {error && (
-        <p
-          role="alert"
-          className="rounded-md px-3 py-2 text-sm"
-          style={{
-            backgroundColor: 'var(--color-status-badSoft)',
-            color: 'var(--color-status-bad)',
-          }}
-        >
-          {error}
-        </p>
-      )}
 
       <button
         type="submit"

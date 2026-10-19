@@ -34,21 +34,16 @@ function NameAvatarCard() {
   const [name, setName] = useState(user?.name ?? '');
   const [avatar, setAvatar] = useState(user?.avatar ?? DEFAULT_AVATAR);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
-    setError(null);
-    setSaved(false);
     try {
       await api.patch('/auth/profile', { name, avatar });
       await refreshMe();
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      toast.success('Profile saved');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not save changes.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't save profile");
     } finally {
       setSaving(false);
     }
@@ -78,12 +73,6 @@ function NameAvatarCard() {
           <AvatarPicker name={name} value={avatar} onChange={setAvatar} />
         </div>
 
-        {error && (
-          <p className="rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
-            {error}
-          </p>
-        )}
-
         <div className="flex items-center gap-3">
           <button
             type="submit"
@@ -93,11 +82,6 @@ function NameAvatarCard() {
           >
             {saving ? 'Saving…' : 'Save changes'}
           </button>
-          {saved && (
-            <span className="text-sm" style={{ color: 'var(--color-status-ok)' }}>
-              Saved
-            </span>
-          )}
         </div>
       </form>
     </Card>
@@ -115,7 +99,6 @@ function NotificationsCard() {
   const [status, setStatus] = useState<PushStatus>('loading');
   const [hour, setHour] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userId) return;
@@ -131,11 +114,10 @@ function NotificationsCard() {
 
   async function run(action: () => Promise<void>) {
     setBusy(true);
-    setError(null);
     try {
       await action();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong.');
+      toast.error(err instanceof Error ? err.message : "Couldn't update notifications");
     } finally {
       setBusy(false);
     }
@@ -168,7 +150,7 @@ function NotificationsCard() {
           run(async () => {
             const next = await enablePush(userId);
             setStatus(next);
-            if (next === 'on') toast.success('Notifications are on for this device');
+            if (next === 'on') toast.success('Notifications on');
           })
         }
       >
@@ -215,11 +197,6 @@ function NotificationsCard() {
     <Card title="Notifications" description={`A summary of the leads you own that have a follow-up due or overdue, ${when} — on this device, even when the app is closed.`}>
       <div className="flex flex-col gap-3">
         {body}
-        {error && (
-          <p className="rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
-            {error}
-          </p>
-        )}
       </div>
     </Card>
   );
@@ -228,33 +205,25 @@ function NotificationsCard() {
 function ChangePinCard() {
   const [step, setStep] = useState<'current' | 'new'>('current');
   const [currentPin, setCurrentPin] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [done, setDone] = useState(false);
 
   async function submitNewPin(newPin: string) {
     setSaving(true);
-    setError(null);
+    setError(false);
     try {
       await api.post('/auth/change-pin', { currentPin, newPin });
-      setDone(true);
+      toast.success('PIN changed');
+      setStep('current');
+      setCurrentPin('');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not change PIN.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't change PIN");
+      setError(true);
       setStep('current');
       setCurrentPin('');
     } finally {
       setSaving(false);
     }
-  }
-
-  if (done) {
-    return (
-      <Card title="Change PIN">
-        <p className="text-sm" style={{ color: 'var(--color-status-ok)' }}>
-          Your PIN has been updated.
-        </p>
-      </Card>
-    );
   }
 
   return (
@@ -264,7 +233,7 @@ function ChangePinCard() {
           key={step}
           disabled={saving}
           error={error}
-          onErrorClear={() => setError(null)}
+          onErrorClear={() => setError(false)}
           onComplete={(pin) => {
             if (step === 'current') {
               setCurrentPin(pin);
@@ -282,22 +251,18 @@ function ChangePinCard() {
 function ChangePasswordCard() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [done, setDone] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
-    setError(null);
-    setDone(false);
     try {
       await api.post('/auth/change-password', { currentPassword, newPassword });
-      setDone(true);
+      toast.success('Password changed');
       setCurrentPassword('');
       setNewPassword('');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not change password.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't change password");
     } finally {
       setSaving(false);
     }
@@ -338,16 +303,6 @@ function ChangePasswordCard() {
           />
         </div>
 
-        {error && (
-          <p className="rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
-            {error}
-          </p>
-        )}
-        {done && (
-          <p className="text-sm" style={{ color: 'var(--color-status-ok)' }}>
-            Password updated.
-          </p>
-        )}
 
         <button
           type="submit"

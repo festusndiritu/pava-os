@@ -39,7 +39,6 @@ type Tab = 'invoices' | 'delivery-notes';
 export default function InvoicesPage() {
   const [tab, setTab] = useState<Tab>('invoices');
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   // Lets global search (Ctrl/Cmd+K) land straight on a document's detail
   // drawer via `/invoices?open=<id>` — it fetches by id itself, independent
@@ -58,7 +57,7 @@ export default function InvoicesPage() {
     defaultSort: { id: 'created', dir: 'desc' },
   });
   const { reload: load } = table;
-  const documentActions = useDocumentActions({ onOpen: setDetailId, onChanged: load, onError: setError });
+  const documentActions = useDocumentActions({ onOpen: setDetailId, onChanged: load });
   const selection = useRowSelection<SaleDocument>((d) => d.id, [tab]);
   const isNotes = tab === 'delivery-notes';
 
@@ -145,12 +144,6 @@ export default function InvoicesPage() {
         {tabButton('invoices', 'Invoices')}
         {tabButton('delivery-notes', 'Delivery notes')}
       </div>
-
-      {error && (
-        <button type="button" onClick={() => setError(null)} role="alert" className="mt-4 w-full rounded-md px-3 py-2 text-left text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
-          {error} <span className="underline">Dismiss</span>
-        </button>
-      )}
 
       <div className="mt-5">
         <DataTable<SaleDocument>

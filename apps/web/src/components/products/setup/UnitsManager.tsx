@@ -186,7 +186,7 @@ function SubUnitRow({ unit, sub, canEdit, onChanged, onError }: { unit: Unit; su
       setEditing(false);
       onChanged();
     } catch (err) {
-      onError(err instanceof ApiError ? err.message : 'Could not save that sub-unit.');
+      onError(err instanceof ApiError ? err.message : "Couldn't save sub-unit");
     } finally {
       setBusy(false);
     }
@@ -200,7 +200,7 @@ function SubUnitRow({ unit, sub, canEdit, onChanged, onError }: { unit: Unit; su
       onChanged();
     } catch (err) {
       setConfirming(false);
-      onError(err instanceof ApiError ? err.message : 'Could not remove that sub-unit.');
+      onError(err instanceof ApiError ? err.message : "Couldn't remove sub-unit");
     } finally {
       setBusy(false);
     }
@@ -261,7 +261,7 @@ function SubUnits({ unit, canEdit, onChanged, onError }: { unit: Unit; canEdit: 
       setFactor('');
       onChanged();
     } catch (err) {
-      onError(err instanceof ApiError ? err.message : 'Could not add that sub-unit.');
+      onError(err instanceof ApiError ? err.message : "Couldn't add sub-unit");
     } finally {
       setBusy(false);
     }
@@ -312,7 +312,6 @@ function SubUnits({ unit, canEdit, onChanged, onError }: { unit: Unit; canEdit: 
 export function UnitsManager({ canEdit }: { canEdit: boolean }) {
   const [units, setUnits] = useState<Unit[] | null>(null);
   const [loadError, setLoadError] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [symbol, setSymbol] = useState('');
   const [adding, setAdding] = useState(false);
@@ -339,14 +338,13 @@ export function UnitsManager({ canEdit }: { canEdit: boolean }) {
   }, []);
 
   function fail(err: unknown, fallback: string) {
-    setError(err instanceof ApiError ? err.message : fallback);
+    toast.error(err instanceof ApiError ? err.message : fallback);
   }
 
   async function handleAdd(e: FormEvent) {
     e.preventDefault();
     if (!name.trim() || !symbol.trim()) return;
     setAdding(true);
-    setError(null);
     try {
       const created = await productsApi.createUnit({ name: name.trim(), symbol: symbol.trim() });
       toast.success('Unit added');
@@ -355,7 +353,7 @@ export function UnitsManager({ canEdit }: { canEdit: boolean }) {
       setOpenId(created.id);
       await load();
     } catch (err) {
-      fail(err, 'Could not add that unit.');
+      fail(err, "Couldn't add unit");
     } finally {
       setAdding(false);
     }
@@ -365,14 +363,13 @@ export function UnitsManager({ canEdit }: { canEdit: boolean }) {
     e.preventDefault();
     if (!editingId || !editName.trim() || !editSymbol.trim()) return;
     setSaving(true);
-    setError(null);
     try {
       await productsApi.updateUnit(editingId, { name: editName.trim(), symbol: editSymbol.trim() });
       toast.success('Unit saved');
       setEditingId(null);
       await load();
     } catch (err) {
-      fail(err, 'Could not save that unit.');
+      fail(err, "Couldn't save unit");
     } finally {
       setSaving(false);
     }
@@ -381,7 +378,6 @@ export function UnitsManager({ canEdit }: { canEdit: boolean }) {
   async function handleDelete() {
     if (!confirmDelete) return;
     setDeleting(true);
-    setError(null);
     try {
       await productsApi.deleteUnit(confirmDelete.id);
       toast.success('Unit removed');
@@ -389,7 +385,7 @@ export function UnitsManager({ canEdit }: { canEdit: boolean }) {
       await load();
     } catch (err) {
       setConfirmDelete(null);
-      fail(err, 'Could not remove that unit.');
+      fail(err, "Couldn't remove unit");
     } finally {
       setDeleting(false);
     }
@@ -397,7 +393,6 @@ export function UnitsManager({ canEdit }: { canEdit: boolean }) {
 
   async function addCommon() {
     setSeeding(true);
-    setError(null);
     try {
       for (const u of COMMON_UNITS) {
         try {
@@ -410,7 +405,7 @@ export function UnitsManager({ canEdit }: { canEdit: boolean }) {
       toast.success('Common units added');
       await load();
     } catch (err) {
-      fail(err, 'Could not add the common units.');
+      fail(err, "Couldn't add common units");
     } finally {
       setSeeding(false);
     }
@@ -429,12 +424,6 @@ export function UnitsManager({ canEdit }: { canEdit: boolean }) {
             {adding ? 'Adding…' : 'Add'}
           </button>
         </form>
-      )}
-
-      {error && (
-        <p role="alert" className="mt-3 text-sm" style={{ color: 'var(--color-status-bad)' }}>
-          {error}
-        </p>
       )}
 
       <div className="mt-4 overflow-hidden rounded-lg border" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
@@ -514,7 +503,6 @@ export function UnitsManager({ canEdit }: { canEdit: boolean }) {
                                 setEditingId(u.id);
                                 setEditName(u.name);
                                 setEditSymbol(u.symbol);
-                                setError(null);
                               }}
                             >
                               <Pencil size={15} strokeWidth={2} />
@@ -527,7 +515,7 @@ export function UnitsManager({ canEdit }: { canEdit: boolean }) {
                       </>
                     )}
                   </div>
-                  {open && <SubUnits unit={u} canEdit={canEdit} onChanged={load} onError={setError} />}
+                  {open && <SubUnits unit={u} canEdit={canEdit} onChanged={load} onError={toast.error} />}
                 </li>
               );
             })}

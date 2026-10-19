@@ -36,7 +36,6 @@ export function UserFormDrawer({
   const [canInvoiceWithoutStock, setCanInvoiceWithoutStock] = useState(false);
   const [active, setActive] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -49,20 +48,18 @@ export function UserFormDrawer({
     setCanViewCost(user?.canViewCost ?? false);
     setCanInvoiceWithoutStock(user?.canInvoiceWithoutStock ?? false);
     setActive(user?.active ?? true);
-    setError(null);
   }, [open, user]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     const discount = toNumber(maxDiscountPercent) ?? 0;
     setSaving(true);
-    setError(null);
     try {
       if (isEdit && user) {
         await usersApi.update(user.id, { name, avatar, phone: phone || undefined, permissions, maxDiscountPercent: discount, canViewCost, canInvoiceWithoutStock, active });
       } else {
         if (!/^\d{4}$/.test(pin)) {
-          setError('PIN must be exactly 4 digits');
+          toast.error('PIN must be 4 digits');
           setSaving(false);
           return;
         }
@@ -72,7 +69,7 @@ export function UserFormDrawer({
       onSaved();
       onClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not save this user.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't save user");
     } finally {
       setSaving(false);
     }
@@ -90,11 +87,6 @@ export function UserFormDrawer({
           <button type="submit" form="user-form" disabled={saving} className="rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
             {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Add staff'}
           </button>
-          {error && (
-            <span className="text-sm" style={{ color: 'var(--color-status-bad)' }}>
-              {error}
-            </span>
-          )}
         </div>
       }
     >

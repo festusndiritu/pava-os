@@ -20,14 +20,12 @@ export function PayrollRunFormDrawer({ open, onClose, onSaved }: { open: boolean
   const [periodEnd, setPeriodEnd] = useState('');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setPeriodStart('');
     setPeriodEnd('');
     setNotes('');
-    setError(null);
     hrApi.list(undefined, 'ACTIVE').then((list) => {
       setEmployees(list);
       setSelected(new Set(list.map((e) => e.id)));
@@ -46,11 +44,10 @@ export function PayrollRunFormDrawer({ open, onClose, onSaved }: { open: boolean
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (selected.size === 0) {
-      setError('Select at least one employee.');
+      toast.error('Select at least one employee');
       return;
     }
     setSaving(true);
-    setError(null);
     try {
       await payrollApi.createRun({
         periodStart,
@@ -62,7 +59,7 @@ export function PayrollRunFormDrawer({ open, onClose, onSaved }: { open: boolean
       onSaved();
       onClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not create payroll run.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't create payroll run");
     } finally {
       setSaving(false);
     }
@@ -80,11 +77,6 @@ export function PayrollRunFormDrawer({ open, onClose, onSaved }: { open: boolean
           <button type="submit" form="payroll-run-form" disabled={saving} className="rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
             {saving ? 'Creating…' : `Create draft (${selected.size})`}
           </button>
-          {error && (
-            <span className="text-sm" style={{ color: 'var(--color-status-bad)' }}>
-              {error}
-            </span>
-          )}
         </div>
       }
     >

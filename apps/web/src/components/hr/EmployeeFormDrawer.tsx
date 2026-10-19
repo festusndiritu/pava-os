@@ -34,7 +34,6 @@ export function EmployeeFormDrawer({
   const [emergencyContactPhone, setEmergencyContactPhone] = useState('');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -48,13 +47,11 @@ export function EmployeeFormDrawer({
     setEmergencyContactName(employee?.emergencyContactName ?? '');
     setEmergencyContactPhone(employee?.emergencyContactPhone ?? '');
     setNotes(employee?.notes ?? '');
-    setError(null);
   }, [open, employee]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
-    setError(null);
     try {
       const payload = {
         displayName,
@@ -74,7 +71,7 @@ export function EmployeeFormDrawer({
       onSaved();
       onClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not save employee.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't save employee");
     } finally {
       setSaving(false);
     }
@@ -91,11 +88,6 @@ export function EmployeeFormDrawer({
           <button type="submit" form="employee-form" disabled={saving} className="rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
             {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Add employee'}
           </button>
-          {error && (
-            <span className="text-sm" style={{ color: 'var(--color-status-bad)' }}>
-              {error}
-            </span>
-          )}
         </div>
       }
     >

@@ -22,7 +22,6 @@ export function ContactFormDrawer({ open, onClose, onSaved, contact }: { open: b
   const [tags, setTags] = useState('');
   const [followUpAt, setFollowUpAt] = useState('');
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -34,13 +33,11 @@ export function ContactFormDrawer({ open, onClose, onSaved, contact }: { open: b
     setNotes(contact?.notes ?? '');
     setTags(contact?.tags.join(', ') ?? '');
     setFollowUpAt(contact?.followUpAt ? contact.followUpAt.slice(0, 10) : '');
-    setError(null);
   }, [open, contact]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
-    setError(null);
     try {
       const payload = {
         name,
@@ -58,7 +55,7 @@ export function ContactFormDrawer({ open, onClose, onSaved, contact }: { open: b
       onSaved();
       onClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not save this contact.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't save contact");
     } finally {
       setSaving(false);
     }
@@ -75,11 +72,6 @@ export function ContactFormDrawer({ open, onClose, onSaved, contact }: { open: b
           <button type="submit" form="contact-form" disabled={saving} className="rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
             {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Add contact'}
           </button>
-          {error && (
-            <span className="text-sm" style={{ color: 'var(--color-status-bad)' }}>
-              {error}
-            </span>
-          )}
         </div>
       }
     >

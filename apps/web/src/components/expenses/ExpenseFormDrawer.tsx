@@ -36,7 +36,6 @@ export function ExpenseFormDrawer({
   const [status, setStatus] = useState<ExpenseStatus>('APPROVED');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -51,13 +50,11 @@ export function ExpenseFormDrawer({
     setReference(expense?.reference ?? '');
     setStatus(expense?.status ?? 'APPROVED');
     setNotes(expense?.notes ?? '');
-    setError(null);
   }, [open, expense]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
-    setError(null);
     try {
       const payload = {
         categoryId: categoryId || undefined,
@@ -77,7 +74,7 @@ export function ExpenseFormDrawer({
       onSaved();
       onClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not save expense.');
+      toast.error(err instanceof ApiError ? err.message : "Couldn't save expense");
     } finally {
       setSaving(false);
     }
@@ -94,11 +91,6 @@ export function ExpenseFormDrawer({
           <button type="submit" form="expense-form" disabled={saving || !amount} className="rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
             {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Add expense'}
           </button>
-          {error && (
-            <span className="text-sm" style={{ color: 'var(--color-status-bad)' }}>
-              {error}
-            </span>
-          )}
         </div>
       }
     >
