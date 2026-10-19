@@ -168,10 +168,9 @@ export function buildReceiptBytes(vm: DocumentViewModel, opts: EscPosOptions = {
     if (vm.showTransportLine) pair('Delivery', money(vm.transportAmount), cols).forEach((l) => b.line(l));
     if (vm.showTransportIncludedNote) b.align('center').line('Delivery included').align('left');
 
-    // Double width halves the usable columns.
-    b.bold(true).size(2, 2);
-    pair('TOTAL', money(vm.total), Math.floor(cols / 2)).forEach((l) => b.line(l));
-    b.size(1, 1).bold(false).align('center');
+    b.bold(true);
+    pair('TOTAL', money(vm.total), cols).forEach((l) => b.line(l));
+    b.bold(false).align('center');
     b.line();
     if (vm.type === 'RECEIPT' && vm.paymentLabel) center(`Paid by ${vm.paymentLabel}`);
     if (vm.type !== 'RECEIPT' && vm.letterhead.paymentDetails) center(`How to pay: ${vm.letterhead.paymentDetails}`);
@@ -199,9 +198,9 @@ export function buildTestBytes(opts: EscPosOptions = {}): Uint8Array {
   for (let i = 1; i <= cols; i++) ruler += i % 10 === 0 ? String((i / 10) % 10) : String(i % 10);
   b.line(ruler).line('|' + ' '.repeat(cols - 2) + '|');
   pair('Left', 'Right', cols).forEach((l) => b.line(l));
-  b.bold(true).size(2, 2);
-  pair('TOTAL', 'KSh 1,234', Math.floor(cols / 2)).forEach((l) => b.line(l));
-  b.size(1, 1).bold(false).line('If both edges of the ruler are visible,').line('the width is right.').feed(2);
+  b.bold(true);
+  pair('TOTAL', 'KSh 1,234', cols).forEach((l) => b.line(l));
+  b.bold(false).line('If both edges of the ruler are visible,').line('the width is right.').feed(2);
   if (opts.cut !== false) b.cut();
   return b.build();
 }

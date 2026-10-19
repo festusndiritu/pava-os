@@ -21,16 +21,14 @@ const MUTED = '#4b5563';
 const RULE = '1px dashed #9ca3af';
 
 /**
- * Direction B from the Phase 2 mark review: a hollow square-tube
- * cross-section. Solid black geometry only, no gradients or fine detail, so
- * it survives a 203dpi thermal head and a monochrome print driver.
+ * The real PAVA logo in black and white — the same picture the printer
+ * produces from the 1-bit bitmap in lib/escpos-logo.ts.
  */
 function ThermalBrandMark() {
+  // The real logo, forced to black and white to match what the printer produces.
   return (
-    <svg width="34" height="34" viewBox="0 0 40 40" role="img" aria-label="PAVA" style={{ display: 'block', margin: '0 auto' }}>
-      <rect x="6" y="6" width="28" height="28" fill="none" stroke={INK} strokeWidth="3" />
-      <rect x="14" y="14" width="12" height="12" fill="none" stroke={INK} strokeWidth="3" />
-    </svg>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src="/pava-logo.png" width={56} height={56} alt="PAVA" style={{ display: 'block', margin: '0 auto', filter: 'grayscale(1) contrast(3)' }} />
   );
 }
 
