@@ -10,6 +10,7 @@
  */
 const MARK_SIZE = 128;
 const GAP_DOTS = 16;
+const TOP_TRIM = 6; // blank rows at the top of the bitmap, skipped so the receipt starts closer to the paper edge
 const MARK_BITS = Uint8Array.from(
   atob(
   'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
@@ -49,12 +50,12 @@ export function brandMarkRaster(widthDots = 576): Uint8Array {
   const widthBytes = Math.ceil(widthDots / 8);
   const markBytes = MARK_SIZE / 8;
   const x0 = Math.floor((widthBytes - markBytes) / 2); // byte offset that centres the mark
-  const height = MARK_SIZE + GAP_DOTS;
+  const height = MARK_SIZE - TOP_TRIM + GAP_DOTS;
 
   const out = new Uint8Array(8 + widthBytes * height);
   out.set([0x1d, 0x76, 0x30, 0x00, widthBytes & 0xff, widthBytes >> 8, height & 0xff, height >> 8]);
-  for (let y = 0; y < MARK_SIZE; y++) {
-    out.set(MARK_BITS.subarray(y * markBytes, (y + 1) * markBytes), 8 + y * widthBytes + x0);
+  for (let y = TOP_TRIM; y < MARK_SIZE; y++) {
+    out.set(MARK_BITS.subarray(y * markBytes, (y + 1) * markBytes), 8 + (y - TOP_TRIM) * widthBytes + x0);
   }
   return out;
 }
