@@ -5,9 +5,11 @@
  * no canvas and no network, and is identical on every machine.
  *
  * The image sent to the printer is full paper width with the mark centred, so
- * it does not depend on the printer honouring ESC a for raster images.
+ * it does not depend on the printer honouring ESC a for raster images. A blank
+ * strip under the mark keeps the business name from touching it.
  */
 const MARK_SIZE = 128;
+const GAP_DOTS = 16;
 const MARK_BITS = Uint8Array.from(
   atob(
   'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
@@ -47,9 +49,10 @@ export function brandMarkRaster(widthDots = 576): Uint8Array {
   const widthBytes = Math.ceil(widthDots / 8);
   const markBytes = MARK_SIZE / 8;
   const x0 = Math.floor((widthBytes - markBytes) / 2); // byte offset that centres the mark
+  const height = MARK_SIZE + GAP_DOTS;
 
-  const out = new Uint8Array(8 + widthBytes * MARK_SIZE);
-  out.set([0x1d, 0x76, 0x30, 0x00, widthBytes & 0xff, widthBytes >> 8, MARK_SIZE & 0xff, MARK_SIZE >> 8]);
+  const out = new Uint8Array(8 + widthBytes * height);
+  out.set([0x1d, 0x76, 0x30, 0x00, widthBytes & 0xff, widthBytes >> 8, height & 0xff, height >> 8]);
   for (let y = 0; y < MARK_SIZE; y++) {
     out.set(MARK_BITS.subarray(y * markBytes, (y + 1) * markBytes), 8 + y * widthBytes + x0);
   }

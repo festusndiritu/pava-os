@@ -28,7 +28,7 @@ function ThermalBrandMark() {
   // The real logo, forced to black and white to match what the printer produces.
   return (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src="/pava-logo.png" width={56} height={56} alt="PAVA" style={{ display: 'block', margin: '0 auto', filter: 'grayscale(1) contrast(3)' }} />
+    <img src="/pava-logo.png" width={56} height={56} alt="PAVA" style={{ display: 'block', margin: '0 auto 8px', filter: 'grayscale(1) contrast(3)' }} />
   );
 }
 
@@ -77,7 +77,7 @@ export function ThermalDocument({
     >
       <div style={{ textAlign: 'center' }}>
         <ThermalBrandMark />
-        <p style={{ marginTop: '4px', fontWeight: 700, letterSpacing: '0.06em' }}>{vm.letterhead.businessName.toUpperCase()}</p>
+        <p style={{ fontSize: '17px', fontWeight: 700, letterSpacing: '0.08em' }}>{vm.letterhead.businessName.toUpperCase()}</p>
         {vm.letterhead.address && <p style={{ color: MUTED }}>{vm.letterhead.address}</p>}
         {vm.letterhead.phone && <p style={{ color: MUTED }}>{vm.letterhead.phone}</p>}
         <p style={{ marginTop: '6px', fontWeight: 700, letterSpacing: '0.12em' }}>{vm.title.toUpperCase()}</p>

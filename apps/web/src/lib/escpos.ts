@@ -124,13 +124,14 @@ export function buildReceiptBytes(vm: DocumentViewModel, opts: EscPosOptions = {
   const cols = opts.columns ?? ESCPOS_DEFAULT_COLUMNS;
   const rule = '-'.repeat(cols);
   const b = new Builder().init();
+  b.raw(0x1b, 0x42, 0x01, 0x02); // ESC B n t — printer beeps once (200ms) as the receipt starts; ignored by printers without a buzzer
   if (opts.logo) b.align('center').bytesRaw(opts.logo);
 
   const center = (s: string) => wrap(s, cols).forEach((l) => b.line(l));
 
   // Header
-  b.align('center').bold(true).size(1, 2);
-  center(vm.letterhead.businessName.toUpperCase());
+  b.align('center').bold(true).size(2, 2);
+  wrap(vm.letterhead.businessName.toUpperCase(), Math.floor(cols / 2)).forEach((l) => b.line(l)); // double width halves the columns
   b.size(1, 1).bold(false);
   if (vm.letterhead.address) center(vm.letterhead.address);
   if (vm.letterhead.phone) center(vm.letterhead.phone);

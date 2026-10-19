@@ -56,12 +56,33 @@ function escposOptions() {
   return { columns, logo: brandMarkRaster(columns <= 32 ? 384 : 576) };
 }
 
+let audio: AudioContext | undefined;
+
+/** Short beep on this computer so the cashier knows the print has started. */
+function beep() {
+  try {
+    audio ??= new AudioContext();
+    void audio.resume();
+    const osc = audio.createOscillator();
+    const gain = audio.createGain();
+    osc.frequency.value = 1000;
+    gain.gain.setValueAtTime(0.2, audio.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.15);
+    osc.connect(gain).connect(audio.destination);
+    osc.start();
+    osc.stop(audio.currentTime + 0.15);
+  } catch {
+    /* no audio available — printing carries on silently */
+  }
+}
+
 /**
  * The one entry point every Print button uses. Direct ESC/POS when a printer
  * has been set up on this device; otherwise (or if direct printing fails) the
  * browser path, so a receipt is never lost to a printer-setup problem.
  */
 export async function printReceipt(vm: DocumentViewModel): Promise<void> {
+  beep();
   const mode = getPrintMode();
   if (mode === 'browser') return printThermal();
   try {
