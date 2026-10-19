@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Printer, Share2, Truck, X } from 'lucide-react';
 import type { PosSaleResult } from '../../lib/pos-api';
 import { settingsApi, type BusinessSettings } from '../../lib/settings-api';
 import { buildPosReceiptViewModel } from '../../lib/document-view-model';
 import { shareNotice } from '../../lib/pdf';
-import { printThermal } from '../../lib/print-thermal';
+import { getAutoPrint, getPrintMode, printReceipt } from '../../lib/print-receipt';
 import { shareViewModelAsPdf } from '../../lib/pdf/document-pdf';
 import { ThermalDocument } from '../documents/ThermalDocument';
 import { Modal } from '../ui/Modal';
@@ -25,12 +25,28 @@ export function ReceiptDialog({
 }) {
   const [sharing, setSharing] = useState(false);
   const [settings, setSettings] = useState<BusinessSettings | null>(null);
+  const [settingsReady, setSettingsReady] = useState(false);
+  const autoPrinted = useRef(false);
 
   useEffect(() => {
-    settingsApi.get().then(setSettings).catch(() => {});
+    settingsApi
+      .get()
+      .then(setSettings)
+      .catch(() => {})
+      .finally(() => setSettingsReady(true));
   }, []);
 
   const vm = buildPosReceiptViewModel(sale, settings);
+
+  // Direct-print tills: the receipt prints the moment the sale completes.
+  // Waits for the business settings so the letterhead (name, address, footer)
+  // is on the paper rather than the placeholder defaults. Once per sale.
+  useEffect(() => {
+    if (!settingsReady || autoPrinted.current) return;
+    autoPrinted.current = true;
+    if (getAutoPrint() && getPrintMode() !== 'browser') void printReceipt(vm);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingsReady]);
   // A settle-later sale leaves the counter as an unpaid invoice, not a receipt.
   const unpaid = sale.status === 'INVOICED';
 
@@ -86,7 +102,7 @@ export function ReceiptDialog({
           >
             <button
               type="button"
-              onClick={printThermal}
+              onClick={() => printReceipt(vm)}
               className="flex min-h-11 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold text-white"
               style={{ backgroundColor: 'var(--color-accent)' }}
             >

@@ -6,6 +6,7 @@ import { settingsApi, type BusinessSettings } from '../../../lib/settings-api';
 import { ApiError } from '../../../lib/api';
 import { toast } from '../../../components/ui/Toast';
 import { NumericInput, PhoneInput, toNumber } from '../../../components/ui/inputs';
+import { PrinterSetup } from '../../../components/settings/PrinterSetup';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
 const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase';
@@ -191,6 +192,8 @@ export default function SettingsPage() {
           </button>
         </div>
       </form>
+
+      <PrinterSetup />
     </div>
   );
 }

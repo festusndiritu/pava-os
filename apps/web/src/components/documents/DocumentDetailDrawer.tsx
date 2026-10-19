@@ -8,7 +8,7 @@ import { settingsApi, type BusinessSettings } from '../../lib/settings-api';
 import { buildDocumentViewModel } from '../../lib/document-view-model';
 import { ThermalDocument } from './ThermalDocument';
 import { shareNotice } from '../../lib/pdf';
-import { printThermal } from '../../lib/print-thermal';
+import { printReceipt } from '../../lib/print-receipt';
 import { ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { shareDocumentAsPdf } from '../../lib/pdf/document-pdf';
@@ -72,8 +72,8 @@ export function DocumentDetailDrawer({
   // printing — this only matters on the very first click, since after that
   // it's already mounted, but requestAnimationFrame costs nothing either way.
   useEffect(() => {
-    if (printTick === 0) return;
-    const id = requestAnimationFrame(() => printThermal());
+    if (printTick === 0 || !doc) return;
+    const id = requestAnimationFrame(() => printReceipt(buildDocumentViewModel(doc, settings)));
     return () => cancelAnimationFrame(id);
   }, [printTick]);
 

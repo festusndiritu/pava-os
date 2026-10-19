@@ -126,7 +126,8 @@ body {
 
 .print-thermal {
   box-sizing: border-box;
-  width: 80mm;
+  /* --thermal-width is set inline by ThermalDocument from thermal-config.ts. */
+  width: var(--thermal-width, 72mm);
   font-family: var(--font-mono), monospace;
   font-size: 13px;
 }
@@ -196,7 +197,7 @@ body {
     left: auto !important;
     top: auto !important;
     z-index: auto !important;
-    width: 80mm !important;
+    width: var(--thermal-width, 72mm) !important;
     break-inside: avoid;
     page-break-inside: avoid;
   }
@@ -210,23 +211,14 @@ body {
      browser's default page margin (commonly ~12.7mm on top of ours), a wide
      table — the delivery note's quantity/unit columns especially — has
      less room than it was laid out for and can run off the sheet edge. */
+  /* No `size` here on purpose. The receipt is a roll, not a sheet: its page
+     size (72mm x measured height) is injected by printThermal() at print
+     time. A static `@page { size: ... }` or a named `@page thermal` rule
+     would compete with — and, for a named page, beat — that injected rule,
+     and Chromium ignores `auto` heights, so the driver's own preset
+     (72x210 / 72x297 ...) would win and the receipt would be split. */
   @page {
-    size: A4;
     margin: 0;
-  }
-
-  /* The thermal receipt is a roll, not a sheet. Left on the A4 default above,
-     the driver is handed a 210x297mm page and a long receipt gets split or
-     truncated at the page boundary (and a short one is padded with blank
-     feed). A named page lets only #print-area.print-thermal opt into an
-     80mm-wide, content-height page; the A4 rule stays as the fallback. */
-  @page thermal {
-    size: 80mm auto;
-    margin: 0;
-  }
-  #print-area.print-thermal {
-    page: thermal;
-    width: 80mm;
   }
 
   /* Never split a line item, a totals row or the header across a page break. */

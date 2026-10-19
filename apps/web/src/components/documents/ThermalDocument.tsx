@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import type { DocumentViewModel } from '../../lib/document-view-model';
 import { fmtNumber, money } from '../../lib/format';
+import { THERMAL_PADDING_MM, THERMAL_WIDTH_MM } from '../../lib/thermal-config';
 
 function qty(n: number) {
   return fmtNumber(n);
@@ -66,8 +67,9 @@ export function ThermalDocument({
     <div
       {...rootProps}
       style={{
-        width: variant === 'print' ? '80mm' : '100%',
-        padding: variant === 'print' ? '5mm' : '16px',
+        width: variant === 'print' ? `${THERMAL_WIDTH_MM}mm` : '100%',
+        padding: variant === 'print' ? `${THERMAL_PADDING_MM}mm` : '16px',
+        ...(variant === 'print' ? ({ '--thermal-width': `${THERMAL_WIDTH_MM}mm` } as CSSProperties) : null),
         backgroundColor: '#ffffff',
         color: INK,
         fontFamily: 'var(--font-mono), ui-monospace, monospace',
