@@ -18,6 +18,10 @@ export interface DocumentItem {
   transportAllocated: number;
   roundingAdjustment: number;
   lineTotal: number;
+  /** How much of `qty` left the shop's own stock. Null = not recorded, read as all of it. */
+  stockQty: number | null;
+  /** Where the part that did not come from the shop is collected. */
+  supplierSource: string | null;
 }
 
 export interface SaleDocument {
@@ -119,7 +123,10 @@ export const documentsApi = {
   create: (data: CreateDocumentInput) => api.post<SaleDocument>('/documents', data),
   // Replaces a QUOTED quote's customer, lines, transport and notes in place — same id and quote number.
   update: (id: string, data: CreateDocumentInput) => api.patch<SaleDocument>(`/documents/${id}`, data),
-  convertToInvoice: (id: string, allowNegativeStock?: boolean) => api.post<SaleDocument>(`/documents/${id}/convert-to-invoice`, { allowNegativeStock }),
+  // `fulfilment` splits each line between the shop's stock and goods supplied
+  // from elsewhere; a line left out comes wholly from the shop.
+  convertToInvoice: (id: string, opts: { allowNegativeStock?: boolean; fulfilment?: { itemId: string; stockQty: number; supplierSource?: string }[] } = {}) =>
+    api.post<SaleDocument>(`/documents/${id}/convert-to-invoice`, opts),
   // paymentMethod records how the customer actually settled — PAVA's credit
   // is same-day, so an invoice raised at the till is closed off here.
   markPaid: (id: string, paymentMethod?: 'CASH' | 'MPESA') => api.post<SaleDocument>(`/documents/${id}/mark-paid`, { paymentMethod }),

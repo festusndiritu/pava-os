@@ -15,6 +15,10 @@ export interface PosCartItemInput {
   productId: string;
   qty: number;
   unitPrice: number;
+  /** How many of `qty` leave the shop's own stock; the rest is supplied from elsewhere. Omitted = all from the shop. */
+  stockQty?: number;
+  /** Where the non-shop part is collected from. */
+  supplierSource?: string;
 }
 
 export interface PosSaleInput {
@@ -30,12 +34,12 @@ export interface PosSaleInput {
   foldTransportIntoPrices?: boolean;
   roundingIncrement?: number;
   paymentMethod?: PosPaymentMethod;
-  allowNegativeStock?: boolean;
+  allowNegativeStock?: boolean; // legacy: sell beyond shelf stock as a backorder. The till now splits fulfilment instead.
   suspendedFromId?: string;
   notes?: string;
 }
 
-/** Structured payload behind an INSUFFICIENT_STOCK refusal from the API. */
+/** Structured payload behind an INSUFFICIENT_STOCK refusal from the API: the shop's shelf cannot cover what was asked to leave it. */
 export interface StockShortfall {
   productId: string;
   name: string;

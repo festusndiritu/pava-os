@@ -199,6 +199,29 @@ export class DocumentsService {
     });
   }
 
+  // Turns what the operator said about where each line comes from into the
+  // figures stored on it. Hardware does not fulfil in one tidy way: a driver
+  // may collect everything from a supplier, or part from the yard and part
+  // from here, whatever the stock count says. So the sale records how much
+  // left the shop (drawn off FIFO, and the only part that moves inventory) and
+  // leaves the rest as supplied from elsewhere. A line with no instruction is
+  // taken wholly from the shop, exactly as before.
+  private resolveFulfilment(
+    lines: { productId: string | null; qty: number; description?: string }[],
+    requested: ({ stockQty?: number; supplierSource?: string } | undefined)[],
+  ) {
+    return lines.map((line, i) => {
+      if (!line.productId) return { stockQty: null as number | null, supplierSource: null as string | null };
+      const want = requested[i]?.stockQty;
+      const stockQty = want ?? line.qty;
+      if (!Number.isInteger(stockQty) || stockQty < 0 || stockQty > line.qty) {
+        throw new BadRequestException(`${line.description ?? 'Item'}: from-shop quantity must be between 0 and ${line.qty}`);
+      }
+      const source = requested[i]?.supplierSource?.trim();
+      return { stockQty, supplierSource: stockQty < line.qty && source ? source : null };
+    });
+  }
+
   // What can actually be sold is what sits in real inventory batches — that
   // is what consumeFifo draws from — so this checks the same thing, not
   // product.stockQuantity. The two numbers are meant to always agree (every
@@ -443,6 +466,10 @@ export class DocumentsService {
               lineTotal: 0,
               transportAllocated: 0,
               roundingAdjustment: 0,
+              // What the driver collects where: carried over so the note says
+              // which part is loaded here and which comes from elsewhere.
+              stockQty: i.stockQty,
+              supplierSource: i.supplierSource,
             })),
           },
         },
@@ -518,7 +545,12 @@ export class DocumentsService {
   // even if payment (credit) comes later. If the customer is a credit
   // account, this also books the invoice onto their credit ledger — see
   // brief §26, Customer.creditBalance is never touched directly.
-  async convertToInvoice(id: string, actorId: string, allowNegativeStock = false) {
+  async convertToInvoice(
+    id: string,
+    actorId: string,
+    allowNegativeStock = false,
+    fulfilmentInput: { itemId: string; stockQty: number; supplierSource?: string }[] = [],
+  ) {
     const doc = await this.findOne(id);
     if (doc.status !== DocumentStatus.QUOTED) {
       throw new BadRequestException('Only a quoted document can be converted to an invoice');
@@ -533,10 +565,23 @@ export class DocumentsService {
       allowNegative = true;
     }
 
+    // Where each line is supplied from. A line the caller said nothing about
+    // comes wholly from the shop, as it always did.
+    const itemIds = new Set(doc.items.map((i) => i.id));
+    const byItem = new Map<string, { stockQty?: number; supplierSource?: string }>();
+    for (const f of fulfilmentInput) {
+      if (!itemIds.has(f.itemId)) throw new BadRequestException('That line is not part of this quote');
+      byItem.set(f.itemId, f);
+    }
+    const fulfilment = this.resolveFulfilment(
+      doc.items.map((i) => ({ productId: i.productId, qty: i.qty, description: i.description })),
+      doc.items.map((i) => byItem.get(i.id)),
+    );
+
     // Checked up front so the operator gets the same structured confirmation
     // dialog the POS shows, rather than a transaction blowing up mid-way.
     if (!allowNegative) {
-      const missing = await this.findShortfalls(doc.items);
+      const missing = await this.findShortfalls(doc.items.map((i, idx) => ({ productId: i.productId, qty: fulfilment[idx].stockQty ?? i.qty, description: i.description })));
       if (missing.length > 0) throw this.insufficientStock(missing);
     }
 
@@ -549,12 +594,14 @@ export class DocumentsService {
         data: { type: DocumentType.INVOICE, status: DocumentStatus.INVOICED, invoicedAt: new Date(), invoiceNumber },
       });
 
-      for (const item of doc.items) {
-        if (item.productId) {
-          const { shortfall } = await this.inventory.consumeFifo(item.productId, item.qty, 'SALE', actorId, `Invoice ${doc.id}`, allowNegative, tx);
-          if (shortfall > 0) {
-            shortfalls.push({ productId: item.productId, name: item.product?.displayName ?? item.product?.name ?? item.description, shortfall });
-          }
+      for (const [idx, item] of doc.items.entries()) {
+        if (!item.productId) continue;
+        const { stockQty, supplierSource } = fulfilment[idx];
+        await tx.documentItem.update({ where: { id: item.id }, data: { stockQty, supplierSource } });
+        if (!stockQty) continue;
+        const { shortfall } = await this.inventory.consumeFifo(item.productId, stockQty, 'SALE', actorId, `Invoice ${doc.id}`, allowNegative, tx);
+        if (shortfall > 0) {
+          shortfalls.push({ productId: item.productId, name: item.product?.displayName ?? item.product?.name ?? item.description, shortfall });
         }
       }
 
@@ -585,6 +632,8 @@ export class DocumentsService {
         metadata: { shortfalls },
       });
     }
+
+    await this.auditExternalSupply(actorId, id, doc.items, fulfilment);
 
     return updated;
   }
@@ -677,8 +726,13 @@ export class DocumentsService {
       throw new ForbiddenException('You are not authorized to invoice against stock the system does not have recorded');
     }
     const allowNegative = !!input.allowNegativeStock && canOverrideStock;
+    // Only the part leaving the shop's own stock has to be on the shelf.
+    const fulfilment = this.resolveFulfilment(
+      input.items.map((i) => ({ productId: i.productId, qty: i.qty, description: productMap.get(i.productId)?.displayName ?? productMap.get(i.productId)?.name })),
+      input.items,
+    );
     if (!allowNegative) {
-      const missing = await this.findShortfalls(input.items.map((i) => ({ productId: i.productId, qty: i.qty })));
+      const missing = await this.findShortfalls(input.items.map((i, idx) => ({ productId: i.productId, qty: fulfilment[idx].stockQty ?? i.qty })));
       if (missing.length > 0) throw this.insufficientStock(missing);
     }
 
@@ -746,14 +800,16 @@ export class DocumentsService {
           paidAt: settleLater ? undefined : now,
           invoiceNumber: settleLater ? number : undefined,
           receiptNumber: settleLater ? undefined : number,
-          items: { create: computedLines },
+          items: { create: computedLines.map((l, i) => ({ ...l, stockQty: fulfilment[i].stockQty, supplierSource: fulfilment[i].supplierSource })) },
         },
       });
 
-      // Consume real stock, oldest cost lot first — inside this same transaction.
-      for (const line of computedLines) {
-        if (!line.productId) continue;
-        const { shortfall } = await this.inventory.consumeFifo(line.productId, line.qty, 'SALE', actorId, `Sale ${created.id}`, allowNegative, tx);
+      // Consume real stock, oldest cost lot first — inside this same
+      // transaction. Only the part that left the shop moves inventory.
+      for (const [idx, line] of computedLines.entries()) {
+        const fromShop = fulfilment[idx].stockQty ?? 0;
+        if (!line.productId || fromShop <= 0) continue;
+        const { shortfall } = await this.inventory.consumeFifo(line.productId, fromShop, 'SALE', actorId, `Sale ${created.id}`, allowNegative, tx);
         if (shortfall > 0) {
           saleShortfalls.push({ productId: line.productId, name: line.description, shortfall });
         }
@@ -793,7 +849,30 @@ export class DocumentsService {
       });
     }
 
+    await this.auditExternalSupply(actorId, doc!.id, computedLines, fulfilment);
+
     return doc;
+  }
+
+  // Leaves a trail of what was sold but not taken from the shop, since that
+  // part is invisible to inventory.
+  private async auditExternalSupply(
+    actorId: string,
+    documentId: string,
+    lines: { productId: string | null; description: string; qty: number }[],
+    fulfilment: { stockQty: number | null; supplierSource: string | null }[],
+  ) {
+    const external = lines
+      .map((l, i) => ({ productId: l.productId, name: l.description, qty: l.qty - (fulfilment[i].stockQty ?? l.qty), source: fulfilment[i].supplierSource }))
+      .filter((l) => l.productId && l.qty > 0);
+    if (external.length === 0) return;
+    await this.audit.log({
+      actorId,
+      action: 'document.supplied_externally',
+      entityType: 'Document',
+      entityId: documentId,
+      metadata: { lines: external },
+    });
   }
 
   // --- Suspended (parked) POS orders -------------------------------------

@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { Ban, Eye, FileCheck2, Pencil, Truck } from 'lucide-react';
 import { canEditQuote, documentsApi, type SaleDocument } from './documents-api';
 import { ApiError } from './api';
-import { readStockShortfalls } from './pos-api';
 import type { RowAction } from '../components/ui/ActionMenu';
 import { toast } from '../components/ui/Toast';
 
@@ -31,23 +30,14 @@ export function useDocumentActions({
 }) {
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  async function run(doc: SaleDocument, fn: () => Promise<unknown>, done: string, opts?: { detectStockShortfall?: boolean }) {
+  async function run(doc: SaleDocument, fn: () => Promise<unknown>, done: string) {
     setBusyId(doc.id);
     try {
       await fn();
       toast.success(done);
       onChanged();
     } catch (err) {
-      // Short stock needs the full confirmation (numbers, and the backorder
-      // decision), so the row hands off to the document itself rather than
-      // asking for that judgement from a menu.
-      const detected = opts?.detectStockShortfall && err instanceof ApiError ? readStockShortfalls(err.details) : null;
-      if (detected) {
-        toast.error('Not enough stock for this quote');
-        onOpen(doc.id);
-      } else {
-        toast.error(err instanceof ApiError ? err.message : "Couldn't complete action");
-      }
+      toast.error(err instanceof ApiError ? err.message : "Couldn't complete action");
     } finally {
       setBusyId(null);
     }
@@ -66,7 +56,9 @@ export function useDocumentActions({
         label: 'Convert to invoice',
         icon: FileCheck2,
         disabled: busy,
-        onClick: () => run(doc, () => documentsApi.convertToInvoice(doc.id), 'Quote converted to invoice', { detectStockShortfall: true }),
+        // Where the goods come from (the shop, a supplier, or both) is a
+        // decision per line, so this hands off to the detail drawer.
+        onClick: () => onOpen(doc.id),
       },
       // Capturing the delivery location is a small judgement call (site vs.
       // the customer's stored address), so this hands off to the detail

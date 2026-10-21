@@ -10,11 +10,10 @@ import { ThermalDocument } from './ThermalDocument';
 import { shareNotice } from '../../lib/pdf';
 import { printReceipt } from '../../lib/print-receipt';
 import { ApiError } from '../../lib/api';
-import { useAuth } from '../../lib/auth-context';
 import { shareDocumentAsPdf } from '../../lib/pdf/document-pdf';
-import { StockShortfallDialog } from './StockShortfallDialog';
+import { FulfilmentDialog, defaultStockQty, type FulfilmentLine } from './FulfilmentDialog';
 import { DeliveryLocationDialog } from './DeliveryLocationDialog';
-import { readStockShortfalls, type StockShortfall } from '../../lib/pos-api';
+import { readStockShortfalls } from '../../lib/pos-api';
 import { money } from '../../lib/format';
 import { toast } from '../ui/Toast';
 
@@ -52,7 +51,10 @@ export function DocumentDetailDrawer({
   const [doc, setDoc] = useState<SaleDocument | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [shortfalls, setShortfalls] = useState<StockShortfall[] | null>(null);
+  // Where the goods come from is settled when a quote becomes an invoice. The
+  // key remounts the dialog with fresh numbers if the shelf moved meanwhile.
+  const [fulfilmentOpen, setFulfilmentOpen] = useState(false);
+  const [fulfilmentKey, setFulfilmentKey] = useState(0);
   const [sharing, setSharing] = useState(false);
   const [askingDeliveryLocation, setAskingDeliveryLocation] = useState(false);
   const [settings, setSettings] = useState<BusinessSettings | null>(null);
@@ -61,8 +63,6 @@ export function DocumentDetailDrawer({
   // print, so clicking the button twice in a row still re-prints even
   // though there's only one format to switch to.
   const [printTick, setPrintTick] = useState(0);
-  const { user } = useAuth();
-  const canOverrideStock = user?.role === 'ADMIN' || !!user?.canInvoiceWithoutStock;
 
   useEffect(() => {
     settingsApi.get().then(setSettings).catch(() => {});
@@ -86,31 +86,63 @@ export function DocumentDetailDrawer({
 
   useEffect(() => {
     load();
-    setShortfalls(null);
+    setFulfilmentOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documentId]);
 
   if (!documentId) return null;
 
-  async function runAction(fn: () => Promise<SaleDocument>, opts?: { detectStockShortfall?: boolean }) {
+  async function runAction(fn: () => Promise<SaleDocument>) {
     setBusy(true);
     try {
       await fn();
-      setShortfalls(null);
       await load();
       onChanged();
     } catch (err) {
-      // A stock shortage isn't an error to show in red — it's a decision to
-      // put to the operator, with the numbers, in a confirmation dialog.
-      const detected = opts?.detectStockShortfall && err instanceof ApiError ? readStockShortfalls(err.details) : null;
-      if (detected) {
-        setShortfalls(detected);
+      toast.error(err instanceof ApiError ? err.message : "Couldn't complete action");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Splits each line between the shop's stock and goods supplied from
+  // elsewhere, then raises the invoice. Only the shop's part leaves inventory.
+  async function convertToInvoice(rows: FulfilmentLine[]) {
+    if (!doc) return;
+    setBusy(true);
+    try {
+      await documentsApi.convertToInvoice(doc.id, {
+        fulfilment: rows.map((r) => ({ itemId: r.key, stockQty: r.stockQty, supplierSource: r.stockQty < r.qty ? r.supplierSource.trim() || undefined : undefined })),
+      });
+      setFulfilmentOpen(false);
+      await load();
+      onChanged();
+    } catch (err) {
+      // The shelf moved since the dialog opened: show the new numbers.
+      if (err instanceof ApiError && readStockShortfalls(err.details)) {
+        toast.error('Stock changed — check where each item comes from');
+        await load();
+        setFulfilmentKey((k) => k + 1);
       } else {
-        toast.error(err instanceof ApiError ? err.message : "Couldn't complete action");
+        toast.error(err instanceof ApiError ? err.message : "Couldn't convert to invoice");
       }
     } finally {
       setBusy(false);
     }
+  }
+
+  // Lines of a quote as the fulfilment dialog sees them. Two lines of the same
+  // product share one shelf, so each is offered only what the earlier ones left.
+  function fulfilmentLines(d: SaleDocument): FulfilmentLine[] {
+    const shelf = new Map<string, number>();
+    return d.items
+      .filter((i) => i.productId)
+      .map((i) => {
+        const available = shelf.get(i.productId!) ?? Math.max(0, i.product?.stockQuantity ?? 0);
+        const stockQty = defaultStockQty(i.qty, available);
+        shelf.set(i.productId!, available - stockQty);
+        return { key: i.id, name: i.description, unit: i.product?.unit?.symbol ?? '', qty: i.qty, available, stockQty, supplierSource: '' };
+      });
   }
 
   async function handleShare() {
@@ -191,7 +223,7 @@ export function DocumentDetailDrawer({
                     <button type="button" disabled={busy} onClick={() => runAction(() => documentsApi.cancel(doc.id))} className="flex-1 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-status-bad)' }}>
                       Cancel quote
                     </button>
-                    <button type="button" disabled={busy} onClick={() => runAction(() => documentsApi.convertToInvoice(doc.id), { detectStockShortfall: true })} className="flex-1 rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
+                    <button type="button" disabled={busy} onClick={() => setFulfilmentOpen(true)} className="flex-1 rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
                       Convert to invoice
                     </button>
                   </>
@@ -229,14 +261,15 @@ export function DocumentDetailDrawer({
         }
       >
 
-      {doc && shortfalls && (
-        <StockShortfallDialog
-          shortfalls={shortfalls}
-          canProceed={canOverrideStock}
+      {doc && fulfilmentOpen && (
+        <FulfilmentDialog
+          key={fulfilmentKey}
+          title="Where does this order come from?"
+          lines={fulfilmentLines(doc)}
+          confirmLabel="Create invoice"
           busy={busy}
-          action="invoice"
-          onCancel={() => setShortfalls(null)}
-          onProceed={() => runAction(() => documentsApi.convertToInvoice(doc.id, true))}
+          onCancel={() => setFulfilmentOpen(false)}
+          onConfirm={convertToInvoice}
         />
       )}
 
@@ -304,6 +337,13 @@ export function DocumentDetailDrawer({
                   <tr key={item.id} className="border-b last:border-0" style={{ borderColor: 'var(--color-border)' }}>
                     <td className="px-3 py-2" style={{ color: 'var(--color-ink-900)' }}>
                       {item.description}
+                      {item.stockQty !== null && item.stockQty < item.qty && (
+                        <p className="data-num mt-0.5 text-xs" style={{ color: 'var(--color-status-warn)' }}>
+                          {isDeliveryNote
+                            ? `Collect ${item.qty - item.stockQty} ${item.product?.unit?.symbol ?? ''} from ${item.supplierSource || 'elsewhere'}`
+                            : `${item.stockQty} from shop · ${item.qty - item.stockQty} from ${item.supplierSource || 'elsewhere'}`}
+                        </p>
+                      )}
                     </td>
                     {isDeliveryNote ? (
                       <td className="px-3 py-2 text-right font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>

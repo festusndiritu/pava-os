@@ -499,6 +499,15 @@ model DocumentItem {
   roundingAdjustment Int      @default(0)
   lineTotal          Int
 
+  // How much of `qty` physically left the shop's own stock (and so was drawn
+  // off FIFO). The rest, qty - stockQty, was supplied from elsewhere (a
+  // supplier or another yard) and never touched this shop's inventory. Null
+  // means "not recorded": a quote that has not been invoiced yet, or a line
+  // from before this existed — both read as "all of it from the shop".
+  stockQty       Int?
+  // Free-text note of where the non-shop part came from or is collected.
+  supplierSource String?
+
   returnItems ReturnItem[]
 
   @@index([documentId])
@@ -532,6 +541,9 @@ model ReturnItem {
   product        Product?     @relation(fields: [productId], references: [id])
   description    String
   qty            Int
+  // How many of `qty` went back onto the shelf. A return of goods that were
+  // supplied from elsewhere does not add to this shop's stock.
+  restockedQty   Int          @default(0)
   unitPrice      Int
   lineTotal      Int
 

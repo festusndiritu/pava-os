@@ -45,9 +45,11 @@ export class ReturnsService {
     }
 
     const returnedByItem = new Map<string, number>();
+    const restockedByItem = new Map<string, number>();
     for (const ret of doc.returns) {
       for (const line of ret.items) {
         returnedByItem.set(line.documentItemId, (returnedByItem.get(line.documentItemId) || 0) + line.qty);
+        restockedByItem.set(line.documentItemId, (restockedByItem.get(line.documentItemId) || 0) + line.restockedQty);
       }
     }
 
@@ -72,6 +74,9 @@ export class ReturnsService {
           qtySold: item.qty,
           qtyReturned: returned,
           qtyReturnable: Math.max(0, item.qty - returned),
+          // Only goods that left the shop's own stock can go back onto its
+          // shelf; the part supplied from elsewhere is not the shop's to restock.
+          qtyRestockable: Math.max(0, (item.stockQty ?? item.qty) - (restockedByItem.get(item.id) || 0)),
         };
       }),
       returns: doc.returns.map((r) => ({
@@ -116,6 +121,7 @@ export class ReturnsService {
         productId: item.productId,
         description: item.description,
         qty,
+        restockedQty: item.productId ? Math.min(qty, item.qtyRestockable) : 0,
         unitPrice: item.unitPrice,
         lineTotal: qty * item.unitPrice,
       };
@@ -143,8 +149,8 @@ export class ReturnsService {
       });
 
       for (const line of returnLines) {
-        if (!line.productId) continue;
-        await this.inventory.restock(line.productId, line.qty, actorId, `Return ${returnNumber}`, tx);
+        if (!line.productId || line.restockedQty <= 0) continue;
+        await this.inventory.restock(line.productId, line.restockedQty, actorId, `Return ${returnNumber}`, tx);
       }
 
       if (onAccount) {

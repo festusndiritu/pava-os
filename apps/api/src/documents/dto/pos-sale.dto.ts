@@ -1,4 +1,4 @@
-import { ArrayMinSize, IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, MaxLength, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { IsMoney } from '../../common/validation/money.validator.js';
 
@@ -19,6 +19,20 @@ export class PosItemDto {
   // a fake "before" price to dodge the discount-limit check.
   @IsMoney()
   unitPrice!: number;
+
+  // How many of `qty` come out of the shop's own stock; the rest is supplied
+  // from elsewhere and never touches shop inventory. Omitted means all of it
+  // from the shop (the original behaviour, including its stock check).
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  stockQty?: number;
+
+  // Where the non-shop part comes from or is collected, e.g. "Bamburi depot".
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  supplierSource?: string;
 }
 
 export class ManualAllocationDto {

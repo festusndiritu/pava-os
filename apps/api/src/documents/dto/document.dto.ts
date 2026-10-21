@@ -1,7 +1,23 @@
-import { ArrayMinSize, IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, MaxLength, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { IsMoney } from '../../common/validation/money.validator.js';
 import { OptionalKenyanPhone } from '../../common/validation/phone.validator.js';
+
+// Where one invoice line is supplied from: how many units leave the shop's own
+// stock, and (for the rest) where they come from.
+export class FulfilmentLineDto {
+  @IsString()
+  itemId!: string;
+
+  @IsInt()
+  @Min(0)
+  stockQty!: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  supplierSource?: string;
+}
 
 export class ConvertToInvoiceDto {
   // Backorder promise (brief step 3): converts a quote to an invoice even
@@ -10,6 +26,14 @@ export class ConvertToInvoiceDto {
   @IsOptional()
   @IsBoolean()
   allowNegativeStock?: boolean;
+
+  // Per-line split between shop stock and goods supplied from elsewhere.
+  // A line left out is taken wholly from the shop.
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => FulfilmentLineDto)
+  fulfilment?: FulfilmentLineDto[];
 }
 
 export class CreateDeliveryNoteDto {

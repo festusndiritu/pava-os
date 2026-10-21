@@ -14,6 +14,7 @@ import {
   ShoppingCart,
   Trash2,
   Truck,
+  Warehouse,
   X,
 } from 'lucide-react';
 import { productsApi, type Category, type Product } from '../../../lib/products-api';
@@ -24,7 +25,6 @@ import {
   readStockShortfalls,
   type PosPaymentMethod,
   type PosSaleResult,
-  type StockShortfall,
   type SuspendedOrder,
 } from '../../../lib/pos-api';
 import { documentsApi } from '../../../lib/documents-api';
@@ -34,10 +34,9 @@ import { ReceiptDialog } from '../../../components/pos/ReceiptDialog';
 import { ProductIcon } from '../../../components/pos/ProductIcon';
 import { SuspendOrderDialog, SuspendedOrdersDialog } from '../../../components/pos/SuspendedOrders';
 import { ReturnDialog } from '../../../components/pos/ReturnDialog';
-import { StockShortfallDialog } from '../../../components/documents/StockShortfallDialog';
+import { FulfilmentDialog, defaultStockQty, type FulfilmentLine } from '../../../components/documents/FulfilmentDialog';
 import { DeliveryLocationDialog } from '../../../components/documents/DeliveryLocationDialog';
 import { ApiError } from '../../../lib/api';
-import { useAuth } from '../../../lib/auth-context';
 import { CommittedNumberInput } from '../../../components/ui/inputs';
 import { toast } from '../../../components/ui/Toast';
 import { money } from '../../../lib/format';
@@ -46,6 +45,13 @@ interface CartLine {
   product: Product;
   qty: number;
   unitPrice: number;
+}
+
+// A deliberate decision about where a line comes from. Lines without one are
+// split automatically: whatever the shop has, then the rest from elsewhere.
+interface Sourcing {
+  stockQty: number;
+  supplierSource: string;
 }
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
@@ -78,7 +84,8 @@ export default function PosPage() {
   // PAVA's only credit: the customer takes the goods and settles the same day.
   // The sale goes out as an unpaid invoice and is closed off from Invoices.
   const [settleLater, setSettleLater] = useState(false);
-  const [shortfalls, setShortfalls] = useState<StockShortfall[] | null>(null);
+  const [sourcing, setSourcing] = useState<Record<string, Sourcing>>({});
+  const [fulfilmentOpen, setFulfilmentOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [receipt, setReceipt] = useState<PosSaleResult | null>(null);
   const [deliveryNoteBusy, setDeliveryNoteBusy] = useState(false);
@@ -90,9 +97,6 @@ export default function PosPage() {
   const [heldOpen, setHeldOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
   const [heldCount, setHeldCount] = useState(0);
-
-  const { user } = useAuth();
-  const canOverrideStock = user?.role === 'ADMIN' || !!user?.canInvoiceWithoutStock;
 
   // Focus mode hides the app topbar (via the data-pos-focus attribute on
   // <html>) AND requests real browser fullscreen — the button was
@@ -246,6 +250,10 @@ export default function PosPage() {
 
   function removeLine(productId: string) {
     setCart((prev) => prev.filter((l) => l.product.id !== productId));
+    setSourcing((prev) => {
+      const { [productId]: _gone, ...rest } = prev;
+      return rest;
+    });
     setTransport((t) => (t ? { ...t, applyTo: t.applyTo.filter((id) => id !== productId) } : t));
   }
 
@@ -257,7 +265,8 @@ export default function PosPage() {
     setCustomerMode('walkin');
     setResumedFromId(null);
     setMobileCartOpen(false);
-    setShortfalls(null);
+    setSourcing({});
+    setFulfilmentOpen(false);
     setSettleLater(false);
   }
 
@@ -265,16 +274,71 @@ export default function PosPage() {
   const transportAmount = transport?.amount || 0;
   // Approximate — the server computes the precise, correctly-rounded total.
   const estimatedTotal = subtotal + transportAmount;
-  const shortLines = useMemo(() => cart.filter((l) => l.product.stockQuantity < l.qty), [cart]);
 
-  async function checkout(opts?: { allowNegativeStock?: boolean }) {
+  // How much of a line leaves the shop: the operator's decision if there is
+  // one (never more than is ordered or on the shelf), otherwise whatever the
+  // shop has.
+  const fromShop = useCallback(
+    (l: CartLine) => {
+      const available = Math.max(0, l.product.stockQuantity);
+      const chosen = sourcing[l.product.id];
+      return chosen ? Math.min(chosen.stockQty, l.qty, available) : defaultStockQty(l.qty, available);
+    },
+    [sourcing],
+  );
+  const elsewhereLines = useMemo(() => cart.filter((l) => fromShop(l) < l.qty), [cart, fromShop]);
+
+  const fulfilmentLines: FulfilmentLine[] = cart.map((l) => ({
+    key: l.product.id,
+    name: l.product.displayName ?? l.product.name,
+    unit: l.product.unit.symbol,
+    qty: l.qty,
+    available: l.product.stockQuantity,
+    stockQty: fromShop(l),
+    supplierSource: sourcing[l.product.id]?.supplierSource ?? '',
+  }));
+
+  function applyFulfilment(rows: FulfilmentLine[]) {
+    // Only a deliberate choice is remembered, so a line left on the automatic
+    // split keeps following its quantity.
+    const next: Record<string, Sourcing> = {};
+    for (const r of rows) {
+      const line = cart.find((l) => l.product.id === r.key);
+      if (!line) continue;
+      const source = r.stockQty < r.qty ? r.supplierSource.trim() : '';
+      if (r.stockQty !== defaultStockQty(line.qty, line.product.stockQuantity) || source) {
+        next[r.key] = { stockQty: r.stockQty, supplierSource: source };
+      }
+    }
+    setSourcing(next);
+    setFulfilmentOpen(false);
+  }
+
+  // The shelf can move between adding an item and paying for it (another
+  // till, a delivery received), so a refusal on stock re-reads the cart's
+  // products and puts the split back in front of the operator.
+  async function refreshCartStock() {
+    const fresh = await Promise.all(cart.map((l) => productsApi.get(l.product.id).catch(() => l.product)));
+    setCart((prev) => prev.map((l) => ({ ...l, product: fresh.find((p) => p.id === l.product.id) ?? l.product })));
+  }
+
+  async function checkout() {
     if (cart.length === 0) return;
     setSubmitting(true);
     try {
       const sale = await posApi.checkout({
         customerId: customerMode === 'existing' ? selectedCustomer?.id : undefined,
         customerName: customerMode === 'walkin' ? walkinName || undefined : undefined,
-        items: cart.map((l) => ({ productId: l.product.id, qty: l.qty, unitPrice: l.unitPrice })),
+        items: cart.map((l) => {
+          const stockQty = fromShop(l);
+          return {
+            productId: l.product.id,
+            qty: l.qty,
+            unitPrice: l.unitPrice,
+            stockQty,
+            supplierSource: stockQty < l.qty ? sourcing[l.product.id]?.supplierSource || undefined : undefined,
+          };
+        }),
         transportAmount: transport?.amount || undefined,
         transportAllocation: transport?.allocation,
         transportApplyTo: transport?.applyTo,
@@ -282,18 +346,20 @@ export default function PosPage() {
         foldTransportIntoPrices: transport?.fold ?? true,
         paymentMethod: settleLater ? undefined : paymentMethod,
         settleLater: settleLater || undefined,
-        allowNegativeStock: opts?.allowNegativeStock,
         suspendedFromId: resumedFromId ?? undefined,
       });
       setReceipt(sale);
       clearCounter();
       refreshHeldCount();
     } catch (err) {
-      // Short stock is a decision, not an error banner: the dialog states the
-      // numbers and lets an authorized operator continue as a backorder.
+      // The shelf changed under us: show the fresh numbers and let the
+      // operator re-split rather than failing the sale.
       const detected = err instanceof ApiError ? readStockShortfalls(err.details) : null;
-      if (detected) setShortfalls(detected);
-      else toast.error(err instanceof ApiError ? err.message : "Couldn't complete sale");
+      if (detected) {
+        toast.error('Stock changed while you were selling — check where each item comes from');
+        await refreshCartStock();
+        setFulfilmentOpen(true);
+      } else toast.error(err instanceof ApiError ? err.message : "Couldn't complete sale");
     } finally {
       setSubmitting(false);
     }
@@ -420,7 +486,8 @@ export default function PosPage() {
         )}
         <div className="flex flex-col">
           {cart.map((l) => {
-            const short = l.product.stockQuantity < l.qty;
+            const shopPart = fromShop(l);
+            const outside = l.qty - shopPart;
             return (
               <div key={l.product.id} className="flex gap-3 border-b py-3 last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
                 <ProductIcon product={l.product} size={40} />
@@ -430,8 +497,10 @@ export default function PosPage() {
                       <p className="truncate text-sm font-medium" style={{ color: 'var(--color-ink-900)' }}>
                         {l.product.displayName ?? l.product.name}
                       </p>
-                      <p className="truncate text-xs" style={{ color: short ? 'var(--color-status-warn)' : 'var(--color-ink-600)' }}>
-                        {short ? `Only ${l.product.stockQuantity} ${l.product.unit.symbol} in stock` : `${l.product.stockQuantity} ${l.product.unit.symbol} in stock`}
+                      <p className="truncate text-xs" style={{ color: outside > 0 ? 'var(--color-status-warn)' : 'var(--color-ink-600)' }}>
+                        {outside > 0
+                          ? `${shopPart} from shop · ${outside} from elsewhere`
+                          : `${l.product.stockQuantity} ${l.product.unit.symbol} in stock`}
                       </p>
                     </div>
                     <button
@@ -542,6 +611,28 @@ export default function PosPage() {
 
         <button
           type="button"
+          onClick={() => setFulfilmentOpen(true)}
+          disabled={cart.length === 0}
+          className="flex min-h-10 items-center justify-between rounded-md border px-3 text-sm disabled:opacity-50"
+          style={{
+            borderColor: elsewhereLines.length > 0 ? 'var(--color-status-warn)' : 'var(--color-border)',
+            backgroundColor: elsewhereLines.length > 0 ? 'var(--color-status-warnSoft)' : 'transparent',
+            color: elsewhereLines.length > 0 ? 'var(--color-status-warn)' : 'var(--color-ink-600)',
+          }}
+        >
+          <span className="flex items-center gap-1.5">
+            <Warehouse size={14} strokeWidth={2} />
+            Fulfilment
+          </span>
+          <span>
+            {elsewhereLines.length === 0
+              ? 'All from shop'
+              : `${elsewhereLines.length} item${elsewhereLines.length === 1 ? '' : 's'} from elsewhere`}
+          </span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setTransportOpen(true)}
           className="flex min-h-10 items-center justify-between rounded-md border px-3 text-sm"
           style={{ borderColor: 'var(--color-border)', color: transport ? 'var(--color-accent)' : 'var(--color-ink-600)' }}
@@ -591,12 +682,6 @@ export default function PosPage() {
           Pay later today
           <span className="ml-1 text-[11px] font-normal opacity-70">goods out, settle before close</span>
         </button>
-
-        {shortLines.length > 0 && (
-          <p className="rounded-md px-3 py-2 text-xs" style={{ backgroundColor: 'var(--color-status-warnSoft)', color: 'var(--color-status-warn)' }}>
-            {shortLines.length} line{shortLines.length === 1 ? '' : 's'} above recorded stock.
-          </p>
-        )}
 
         <div className="flex items-baseline justify-between">
           <span className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
@@ -827,18 +912,8 @@ export default function PosPage() {
         />
       )}
 
-      {shortfalls && (
-        <StockShortfallDialog
-          shortfalls={shortfalls}
-          canProceed={canOverrideStock}
-          busy={submitting}
-          action="sale"
-          onCancel={() => setShortfalls(null)}
-          onProceed={() => {
-            setShortfalls(null);
-            checkout({ allowNegativeStock: true });
-          }}
-        />
+      {fulfilmentOpen && cart.length > 0 && (
+        <FulfilmentDialog lines={fulfilmentLines} confirmLabel="Apply" onCancel={() => setFulfilmentOpen(false)} onConfirm={applyFulfilment} />
       )}
 
       {suspendOpen && (

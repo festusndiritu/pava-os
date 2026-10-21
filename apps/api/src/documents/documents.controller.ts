@@ -140,7 +140,7 @@ export class DocumentsController {
   @Permissions(Module.QUOTES, Module.INVOICES)
   @Post(':id/convert-to-invoice')
   convertToInvoice(@Param('id') id: string, @Req() req: any, @Body() body: ConvertToInvoiceDto) {
-    return this.documents.convertToInvoice(id, req.user.sub, body?.allowNegativeStock);
+    return this.documents.convertToInvoice(id, req.user.sub, body?.allowNegativeStock, body?.fulfilment);
   }
 
   @UseGuards(PermissionsGuard)
