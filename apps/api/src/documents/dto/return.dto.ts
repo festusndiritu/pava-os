@@ -1,8 +1,9 @@
 import { ArrayMinSize, IsArray, IsIn, IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
-// Money only ever goes back the way it came in at this till.
-const REFUND_METHODS = ['CASH', 'MPESA'] as const;
+// Money goes back the way it came in at this till, or — for a sale with a
+// customer on it — is left with the shop as that customer's credit.
+const REFUND_METHODS = ['CASH', 'MPESA', 'STORE_CREDIT'] as const;
 
 export class ReturnItemDto {
   @IsString()

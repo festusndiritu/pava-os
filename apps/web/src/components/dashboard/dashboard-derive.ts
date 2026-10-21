@@ -179,7 +179,8 @@ const PAYMENT_LABELS: Record<string, string> = {
   MPESA: 'M-Pesa',
   CARD: 'Card',
   CREDIT: 'On account',
-  MIXED: 'Cash + M-Pesa',
+  STORE_CREDIT: 'Store credit',
+  MIXED: 'Split payment',
 };
 
 export function paymentLabel(method: string) {
@@ -191,6 +192,7 @@ const PAYMENT_COLORS: Record<string, string> = {
   MPESA: 'var(--color-accent)',
   CARD: 'var(--color-ink-400)',
   CREDIT: 'var(--color-status-warn)',
+  STORE_CREDIT: 'var(--color-status-ok)',
 };
 
 export function paymentColor(method: string) {

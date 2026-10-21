@@ -3,6 +3,7 @@ import { DocumentStatus, DocumentType, EditRequestStatus, LedgerEntryType, Payme
 import { PrismaService } from '../prisma/prisma.service.js';
 import { InventoryService } from '../inventory/inventory.service.js';
 import { AuditService } from '../audit/audit.service.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 import { DocumentsService } from './documents.service.js';
 import type { CreateEditRequestDto, DecideEditRequestDto } from './dto/edit-request.dto.js';
 
@@ -23,7 +24,13 @@ export class DocumentEditsService {
     private documents: DocumentsService,
     private inventory: InventoryService,
     private audit: AuditService,
+    private notifications: NotificationsService,
   ) {}
+
+  private async labelOf(documentId: string) {
+    const d = await this.prisma.document.findUnique({ where: { id: documentId }, select: { receiptNumber: true, invoiceNumber: true } });
+    return d?.receiptNumber ?? d?.invoiceNumber ?? 'a sale';
+  }
 
   // Why a document can't be corrected at all. Shared by request and approval
   // so a sale that became ineligible while a request sat waiting is caught.
@@ -86,6 +93,19 @@ export class DocumentEditsService {
       entityId: documentId,
       metadata: { requestId: created.id, previousTotal: doc.total, proposedTotal: priced.total, reason: created.reason },
     });
+
+    const requester = await this.prisma.user.findUnique({ where: { id: actorId }, select: { name: true } });
+    await this.notifications.notifyAdmins(
+      {
+        kind: 'edit_requested',
+        title: 'Edit waiting for your approval',
+        body: `${requester?.name ?? 'Staff'} wants to change ${doc.receiptNumber ?? doc.invoiceNumber ?? 'a sale'} (KSh ${doc.total.toLocaleString('en-KE')} → KSh ${priced.total.toLocaleString('en-KE')}): ${created.reason}`,
+        url: '/invoices?approvals=1',
+        entityType: 'DocumentEditRequest',
+        entityId: created.id,
+      },
+      actorId,
+    );
     return created;
   }
 
@@ -107,6 +127,22 @@ export class DocumentEditsService {
     });
   }
 
+  // Clears the "waiting for approval" notice for every admin, and tells whoever
+  // asked what became of it.
+  private async afterDecision(req: { id: string; documentId: string; requestedById: string }, actorId: string, approved: boolean, note?: string) {
+    await this.notifications.resolveEntity('DocumentEditRequest', req.id);
+    if (req.requestedById === actorId) return;
+    const label = await this.labelOf(req.documentId);
+    await this.notifications.notifyUsers([req.requestedById], {
+      kind: approved ? 'edit_approved' : 'edit_rejected',
+      title: approved ? 'Your edit was approved' : 'Your edit was rejected',
+      body: `${label}${note?.trim() ? `: ${note.trim()}` : ''}`,
+      url: `/invoices?open=${req.documentId}`,
+      entityType: 'Document',
+      entityId: req.documentId,
+    });
+  }
+
   async reject(requestId: string, actorId: string, input: DecideEditRequestDto) {
     const req = await this.prisma.documentEditRequest.findUnique({ where: { id: requestId } });
     if (!req) throw new NotFoundException('Edit request not found');
@@ -117,6 +153,7 @@ export class DocumentEditsService {
       data: { status: EditRequestStatus.REJECTED, decidedById: actorId, decidedAt: new Date(), decisionNote: input.note?.trim() || null },
     });
     await this.audit.log({ actorId, action: 'document.edit_rejected', entityType: 'Document', entityId: req.documentId, metadata: { requestId, note: input.note } });
+    await this.afterDecision(req, actorId, false, input.note);
     return updated;
   }
 
@@ -245,6 +282,7 @@ export class DocumentEditsService {
       entityId: doc.id,
       metadata: { requestId, requestedById: req.requestedById, reason: req.reason, before, total: priced.total, difference: diff, settlement, deliveryNotesIssued },
     });
+    await this.afterDecision(req, actorId, true, input.note);
 
     return this.documents.findOne(doc.id);
   }

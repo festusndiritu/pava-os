@@ -7,9 +7,10 @@ import { DocumentsController } from './documents.controller.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { InventoryModule } from '../inventory/inventory.module.js';
 import { SettingsModule } from '../settings/settings.module.js';
+import { NotificationsModule } from '../notifications/notifications.module.js';
 
 @Module({
-  imports: [AuthModule, InventoryModule, SettingsModule],
+  imports: [AuthModule, InventoryModule, SettingsModule, NotificationsModule],
   providers: [DocumentsService, ReturnsService, DocumentEditsService],
   controllers: [DocumentsController],
 })

@@ -8,5 +8,6 @@ import { FollowUpReminderService } from './follow-up-reminder.service.js';
   imports: [AuthModule],
   controllers: [NotificationsController],
   providers: [NotificationsService, FollowUpReminderService],
+  exports: [NotificationsService],
 })
 export class NotificationsModule {}

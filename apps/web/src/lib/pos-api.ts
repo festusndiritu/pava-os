@@ -44,6 +44,8 @@ export interface PosSaleInput {
   payments?: PaymentLine[];
   /** For anything paid over the bill: hand it back (default) or keep it on the customer's credit (needs customerId). */
   changeAction?: 'GIVE' | 'CREDIT';
+  /** Pay up to this much of the bill out of credit the customer already holds (needs customerId). */
+  creditApplied?: number;
   allowNegativeStock?: boolean; // legacy: sell beyond shelf stock as a backorder. The till now splits fulfilment instead.
   suspendedFromId?: string;
   notes?: string;
@@ -116,6 +118,7 @@ export interface ReturnableSale {
   receiptNumber: string | null;
   invoiceNumber: string | null;
   paymentMethod: string | null;
+  customerId: string | null;
   customerLabel: string;
   createdAt: string;
   total: number;
@@ -128,7 +131,7 @@ export interface SaleReturn {
   returnNumber: string;
   documentId: string;
   total: number;
-  refundMethod: 'CASH' | 'MPESA' | null;
+  refundMethod: 'CASH' | 'MPESA' | 'STORE_CREDIT' | null;
   reason: string | null;
   createdAt: string;
   items: { id: string; documentItemId: string; description: string; qty: number; unitPrice: number; lineTotal: number }[];
@@ -158,10 +161,11 @@ export interface PosSaleResult {
   transportAmount: number;
   transportMode: string;
   roundingAdjustment: number;
-  paymentMethod: PosPaymentMethod | 'MIXED' | null;
+  paymentMethod: PosPaymentMethod | 'MIXED' | 'STORE_CREDIT' | null;
   changeGiven?: number;
   changeToCredit?: number;
-  payments?: { id: string; method: PosPaymentMethod; amount: number }[];
+  creditApplied?: number;
+  payments?: { id: string; method: PosPaymentMethod | 'STORE_CREDIT'; amount: number }[];
   customerName: string | null;
   customer: { name: string; businessName: string | null } | null;
   items: PosSaleResultItem[];
@@ -179,6 +183,6 @@ export const posApi = {
 
   // Returns against a completed sale.
   returnable: (documentId: string) => api.get<ReturnableSale>(`/documents/${documentId}/returnable`),
-  createReturn: (documentId: string, data: { items: { documentItemId: string; qty: number }[]; refundMethod?: 'CASH' | 'MPESA'; reason?: string }) =>
+  createReturn: (documentId: string, data: { items: { documentItemId: string; qty: number }[]; refundMethod?: 'CASH' | 'MPESA' | 'STORE_CREDIT'; reason?: string }) =>
     api.post<SaleReturn>(`/documents/${documentId}/returns`, data),
 };

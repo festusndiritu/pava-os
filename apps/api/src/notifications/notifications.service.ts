@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import webpush from 'web-push';
+import { Role } from '../../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 export interface PushPayload {
@@ -16,6 +17,19 @@ interface StoredSubscription {
   endpoint: string;
   p256dh: string;
   auth: string;
+}
+
+/** What lands on the notifications page (and is pushed to the person's devices). */
+export interface InboxItem {
+  /** Short machine name, e.g. 'edit_requested'. Also the push tag, with the entity id. */
+  kind: string;
+  title: string;
+  body: string;
+  /** Where tapping it goes, relative to the web app. */
+  url?: string;
+  /** What it is about, so every copy can be cleared once that thing is dealt with. */
+  entityType?: string;
+  entityId?: string;
 }
 
 export interface SendResult {
@@ -87,6 +101,74 @@ export class NotificationsService {
     // since been taken over by someone else.
     const { count } = await this.prisma.pushSubscription.deleteMany({ where: { endpoint, userId } });
     return { removed: count };
+  }
+
+  // ------------------------------------------------------------------ Inbox
+
+  /**
+   * Records the notification for each person and pushes it to their devices.
+   * Never throws: telling someone about a request must not fail the request.
+   */
+  async notifyUsers(userIds: string[], item: InboxItem): Promise<void> {
+    const ids = [...new Set(userIds)];
+    if (ids.length === 0) return;
+    try {
+      await this.prisma.notification.createMany({ data: ids.map((userId) => ({ userId, ...item })) });
+      const subs = await this.prisma.pushSubscription.findMany({ where: { userId: { in: ids } } });
+      await this.sendToSubscriptions(subs, {
+        title: item.title,
+        body: item.body,
+        url: item.url,
+        tag: item.entityId ? `${item.kind}:${item.entityId}` : item.kind,
+      });
+    } catch (err) {
+      this.log.warn(`Couldn't notify (${item.kind}): ${(err as Error)?.message ?? err}`);
+    }
+  }
+
+  /** Every active admin, except the person who caused it (no point telling them). */
+  async notifyAdmins(item: InboxItem, exceptUserId?: string): Promise<void> {
+    try {
+      const admins = await this.prisma.user.findMany({
+        where: { role: Role.ADMIN, active: true, ...(exceptUserId ? { id: { not: exceptUserId } } : {}) },
+        select: { id: true },
+      });
+      await this.notifyUsers(admins.map((a) => a.id), item);
+    } catch (err) {
+      this.log.warn(`Couldn't notify admins (${item.kind}): ${(err as Error)?.message ?? err}`);
+    }
+  }
+
+  /** Once something has been decided, its notification stops being news for anyone. */
+  async resolveEntity(entityType: string, entityId: string): Promise<void> {
+    try {
+      await this.prisma.notification.updateMany({ where: { entityType, entityId, readAt: null }, data: { readAt: new Date() } });
+    } catch (err) {
+      this.log.warn(`Couldn't clear notifications for ${entityType} ${entityId}: ${(err as Error)?.message ?? err}`);
+    }
+  }
+
+  list(userId: string, opts: { unreadOnly?: boolean; limit?: number } = {}) {
+    return this.prisma.notification.findMany({
+      where: { userId, ...(opts.unreadOnly ? { readAt: null } : {}) },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(Math.max(opts.limit ?? 50, 1), 200),
+    });
+  }
+
+  async unreadCount(userId: string) {
+    return { count: await this.prisma.notification.count({ where: { userId, readAt: null } }) };
+  }
+
+  // Scoped to the caller: nobody can clear somebody else's.
+  async markRead(userId: string, id: string) {
+    const { count } = await this.prisma.notification.updateMany({ where: { id, userId, readAt: null }, data: { readAt: new Date() } });
+    return { updated: count };
+  }
+
+  async markAllRead(userId: string) {
+    const { count } = await this.prisma.notification.updateMany({ where: { userId, readAt: null }, data: { readAt: new Date() } });
+    return { updated: count };
   }
 
   async sendToUser(userId: string, payload: PushPayload): Promise<SendResult> {

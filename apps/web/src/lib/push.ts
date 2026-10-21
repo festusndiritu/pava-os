@@ -158,3 +158,33 @@ export async function releaseDeviceOnLogout(): Promise<void> {
 }
 
 export const sendTestPush = () => api.post<{ delivered: number }>('/notifications/test');
+
+
+// ------------------------------------------------------------------- Inbox
+// What the notifications page and the topbar bell read. Push (above) is only
+// the nudge to look; this is the record of what is waiting.
+
+export interface AppNotification {
+  id: string;
+  kind: string;
+  title: string;
+  body: string;
+  url: string | null;
+  entityType: string | null;
+  entityId: string | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export const notificationsApi = {
+  list: (opts: { unreadOnly?: boolean; limit?: number } = {}) => {
+    const qs = new URLSearchParams();
+    if (opts.unreadOnly) qs.set('unread', '1');
+    if (opts.limit) qs.set('limit', String(opts.limit));
+    const q = qs.toString();
+    return api.get<AppNotification[]>(`/notifications${q ? `?${q}` : ''}`);
+  },
+  unreadCount: () => api.get<{ count: number }>('/notifications/unread-count'),
+  markRead: (id: string) => api.post(`/notifications/${id}/read`),
+  markAllRead: () => api.post('/notifications/read-all'),
+};

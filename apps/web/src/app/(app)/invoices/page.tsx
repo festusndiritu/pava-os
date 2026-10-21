@@ -56,8 +56,12 @@ export default function InvoicesPage() {
   // drawer via `/invoices?open=<id>` — it fetches by id itself, independent
   // of which tab/list is currently loaded.
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get('open');
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('open');
     if (id) setDetailId(id);
+    // A notification about an edit waiting for approval lands on its queue.
+    if (params.get('approvals') && isAdmin) setQueueOpen(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Newest first, a page at a time — the server orders and pages one combined

@@ -44,6 +44,7 @@ export interface SaleDocument {
   payments?: { id: string; method: string; amount: number }[];
   changeGiven?: number;
   changeToCredit?: number;
+  creditApplied?: number;
   subtotal: number;
   total: number;
   notes: string | null;

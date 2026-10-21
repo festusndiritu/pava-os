@@ -29,7 +29,7 @@ import { documentsApi } from '../../../lib/documents-api';
 import { thicknessLabel } from '../../../lib/shape-config';
 import { TransportDialog, type TransportSettings } from '../../../components/pos/TransportDialog';
 import { ReceiptDialog } from '../../../components/pos/ReceiptDialog';
-import { PaymentPanel, emptyPayment, resolvePayment, type PaymentDraft } from '../../../components/pos/PaymentPanel';
+import { PaymentPanel, QuickCustomerDialog, emptyPayment, resolvePayment, type PaymentDraft } from '../../../components/pos/PaymentPanel';
 import { ProductIcon } from '../../../components/pos/ProductIcon';
 import { SuspendOrderDialog, SuspendedOrdersDialog } from '../../../components/pos/SuspendedOrders';
 import { ReturnDialog } from '../../../components/pos/ReturnDialog';
@@ -77,6 +77,8 @@ export default function PosPage() {
   const [customerQuery, setCustomerQuery] = useState('');
   const [customerResults, setCustomerResults] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  // Opened when change is to be kept as credit but the sale has no customer yet.
+  const [quickCustomerOpen, setQuickCustomerOpen] = useState(false);
 
   // M-Pesa Paybill is how most of the counter pays, so it leads.
   const [payment, setPayment] = useState<PaymentDraft>(emptyPayment);
@@ -275,7 +277,16 @@ export default function PosPage() {
   // Approximate — the server computes the precise, correctly-rounded total.
   const estimatedTotal = subtotal + transportAmount;
   const hasCustomer = customerMode === 'existing' && !!selectedCustomer;
-  const paying = resolvePayment(payment, Math.max(0, estimatedTotal), hasCustomer);
+  // Held credit is a negative balance: money the customer left with the shop.
+  const creditAvailable = hasCustomer ? Math.max(0, -(selectedCustomer?.creditBalance ?? 0)) : 0;
+  const paying = resolvePayment(payment, Math.max(0, estimatedTotal), hasCustomer, creditAvailable);
+
+  // Picking someone who has credit puts it to use straight away; the toggle in
+  // the payment panel turns it off.
+  function chooseCustomer(c: Customer | null) {
+    setSelectedCustomer(c);
+    setPayment((p) => ({ ...p, useCredit: !!c && c.creditBalance < 0 }));
+  }
 
   // How much of a line leaves the shop: the operator's decision if there is
   // one (never more than is ordered or on the shelf), otherwise whatever the
@@ -353,6 +364,7 @@ export default function PosPage() {
         paymentMethod: settleLater ? undefined : paying.method,
         payments: settleLater ? undefined : paying.tenders,
         changeAction: settleLater ? undefined : paying.changeAction,
+        creditApplied: settleLater || paying.creditApplied <= 0 ? undefined : paying.creditApplied,
         settleLater: settleLater || undefined,
         suspendedFromId: resumedFromId ?? undefined,
       });
@@ -417,9 +429,13 @@ export default function PosPage() {
     );
     if (order.customer) {
       setCustomerMode('existing');
-      // The held order carries only the identifying fields of the customer;
-      // that is all the checkout needs (it posts the id).
+      // The held order carries only the identifying fields of the customer, so
+      // use that at once and then read the full record for their credit.
       setSelectedCustomer(order.customer as unknown as Customer);
+      customersApi
+        .get(order.customer.id)
+        .then((c) => chooseCustomer(c))
+        .catch(() => {});
     } else {
       setCustomerMode('walkin');
       setWalkinName(order.customerName ?? '');
@@ -585,7 +601,7 @@ export default function PosPage() {
               {selectedCustomer ? (
                 <div className="flex min-h-10 items-center justify-between rounded-md border px-3 text-sm" style={inputStyle}>
                   <span className="truncate">{selectedCustomer.businessName || selectedCustomer.name}</span>
-                  <button type="button" onClick={() => setSelectedCustomer(null)} aria-label="Clear customer" style={{ color: 'var(--color-ink-600)' }}>
+                  <button type="button" onClick={() => chooseCustomer(null)} aria-label="Clear customer" style={{ color: 'var(--color-ink-600)' }}>
                     <X size={14} strokeWidth={2} />
                   </button>
                 </div>
@@ -599,7 +615,7 @@ export default function PosPage() {
                           key={c.id}
                           type="button"
                           onClick={() => {
-                            setSelectedCustomer(c);
+                            chooseCustomer(c);
                             setCustomerQuery('');
                             setCustomerResults([]);
                           }}
@@ -660,6 +676,8 @@ export default function PosPage() {
           }}
           total={Math.max(0, estimatedTotal)}
           hasCustomer={hasCustomer}
+          creditAvailable={creditAvailable}
+          onNeedCustomer={() => setQuickCustomerOpen(true)}
           disabled={settleLater}
         />
 
@@ -685,6 +703,12 @@ export default function PosPage() {
             {money(Math.max(0, estimatedTotal))}
           </span>
         </div>
+        {!settleLater && paying.creditApplied > 0 && (
+          <div className="-mt-2 flex items-baseline justify-between text-sm" style={{ color: 'var(--color-status-ok)' }}>
+            <span>Credit used {money(paying.creditApplied)}</span>
+            <span className="data-num font-medium">To collect {money(paying.due)}</span>
+          </div>
+        )}
 
         <button
           type="button"
@@ -918,6 +942,24 @@ export default function PosPage() {
           busy={submitting}
           onCancel={() => setSuspendOpen(false)}
           onConfirm={suspendCurrent}
+        />
+      )}
+
+      {quickCustomerOpen && (
+        <QuickCustomerDialog
+          initialName={walkinName}
+          amount={paying.over > 0 ? paying.over : undefined}
+          onClose={() => {
+            // No account to hold it, so the change goes back to being handed over.
+            setQuickCustomerOpen(false);
+            if (!hasCustomer) setPayment((p) => ({ ...p, changeAction: 'GIVE' }));
+          }}
+          onCreated={(c) => {
+            setCustomerMode('existing');
+            chooseCustomer(c);
+            setQuickCustomerOpen(false);
+            toast.success(`${c.businessName || c.name} added — change will be kept on their account`);
+          }}
         />
       )}
 

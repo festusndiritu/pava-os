@@ -12,10 +12,18 @@ export type SettledPayments = {
   changeGiven: number;
   /** Surplus the customer left with the shop, to be booked as their credit. */
   changeToCredit: number;
+  /** Part of the bill paid out of credit the customer already held. */
+  creditApplied: number;
 };
 
 /**
  * Turns what the customer handed over into what is stored against the bill.
+ *
+ * `creditApplied` is money the customer already left with the shop, spent on
+ * this bill. It is asked for as "up to", so it is capped at the bill; whatever
+ * it doesn't cover has to be tendered. It is stored as its own STORE_CREDIT row
+ * (the cash was counted when it was deposited), so the rows still add up to the
+ * bill.
  *
  * Tenders can add up to more than the bill. The surplus is either handed back
  * as change (it can only come out of cash) or, when the customer leaves it
@@ -29,9 +37,14 @@ export function settlePayments(
   fallbackMethod: 'CASH' | 'MPESA' | undefined,
   changeAction: 'GIVE' | 'CREDIT' = 'GIVE',
   hasCustomer: boolean,
+  creditRequested = 0,
 ): SettledPayments {
-  const input: TenderInput[] = tenders?.length ? tenders : fallbackMethod ? [{ method: fallbackMethod, amount: total }] : [];
-  if (input.length === 0) throw new BadRequestException('Choose how the customer paid');
+  if (creditRequested > 0 && !hasCustomer) throw new BadRequestException('Select a customer to use their credit');
+  const credit = Math.min(Math.max(0, creditRequested), total);
+  const due = total - credit;
+
+  const input: TenderInput[] = tenders?.length ? tenders : fallbackMethod && due > 0 ? [{ method: fallbackMethod, amount: due }] : [];
+  if (input.length === 0 && due > 0) throw new BadRequestException('Choose how the customer paid');
 
   const byMethod = new Map<'CASH' | 'MPESA', number>();
   for (const t of input) {
@@ -40,11 +53,11 @@ export function settlePayments(
   }
 
   const paid = [...byMethod.values()].reduce((a, b) => a + b, 0);
-  if (paid < total) {
-    throw new BadRequestException(`Payments add up to KSh ${paid}, which is short of the bill (KSh ${total})`);
+  if (paid < due) {
+    throw new BadRequestException(`Payments add up to KSh ${paid}, which is short of the KSh ${due} still to pay`);
   }
 
-  const surplus = paid - total;
+  const surplus = paid - due;
   const cash = byMethod.get('CASH') || 0;
   if (surplus > 0) {
     if (changeAction === 'CREDIT' && !hasCustomer) {
@@ -67,10 +80,13 @@ export function settlePayments(
     if (gross - take > 0) rows.push({ method: method as PaymentMethod, amount: gross - take });
   }
 
+  if (credit > 0) rows.push({ method: PaymentMethod.STORE_CREDIT, amount: credit });
+
   return {
     rows,
     paymentMethod: rows.length > 1 ? PaymentMethod.MIXED : rows[0]?.method ?? PaymentMethod.CASH,
     changeGiven: changeAction === 'GIVE' ? surplus : 0,
     changeToCredit: changeAction === 'CREDIT' ? surplus : 0,
+    creditApplied: credit,
   };
 }

@@ -156,7 +156,7 @@ export default function CustomersPage() {
       align: 'right',
       cell: (c) => (
         <span className="font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>
-          {c.isCredit ? `KSh ${fmtNumber(c.creditBalance)}` : '—'}
+          {c.creditBalance < 0 ? <span style={{ color: 'var(--color-status-ok)' }}>{`KSh ${fmtNumber(-c.creditBalance)} credit`}</span> : c.isCredit ? `KSh ${fmtNumber(c.creditBalance)}` : '—'}
         </span>
       ),
     },
@@ -175,10 +175,16 @@ export default function CustomersPage() {
             </p>
           )}
         </div>
-        {c.isCredit && (
-          <p className="shrink-0 font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>
-            KSh {fmtNumber(c.creditBalance)}
+        {c.creditBalance < 0 ? (
+          <p className="shrink-0 font-medium data-num" style={{ color: 'var(--color-status-ok)' }}>
+            KSh {fmtNumber(-c.creditBalance)} credit
           </p>
+        ) : (
+          c.isCredit && (
+            <p className="shrink-0 font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>
+              KSh {fmtNumber(c.creditBalance)}
+            </p>
+          )
         )}
       </div>
       <div className="flex items-center justify-between text-sm">

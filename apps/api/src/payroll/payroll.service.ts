@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { AdvanceStatus, PayrollItemStatus, PayrollStatus } from '../../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuditService } from '../audit/audit.service.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 import { roundMoney } from '../common/money.js';
 import { CreateAdvanceDto, CreatePayrollRunDto, DecideAdvanceDto, UpdatePayrollItemDto } from './dto/payroll.dto.js';
 
@@ -10,6 +11,7 @@ export class PayrollService {
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
+    private notifications: NotificationsService,
   ) {}
 
   // ---------------------------------------------------------------- Advances
@@ -36,6 +38,19 @@ export class PayrollService {
       },
     });
     await this.audit.log({ actorId: createdById, action: 'payroll.advance_requested', entityType: 'EmployeeAdvance', entityId: advance.id, metadata: { employeeId: dto.employeeId, amount: dto.amount } });
+
+    const requester = await this.prisma.user.findUnique({ where: { id: createdById }, select: { name: true } });
+    await this.notifications.notifyAdmins(
+      {
+        kind: 'advance_requested',
+        title: 'Advance waiting for your approval',
+        body: `${requester?.name ?? 'Staff'} requested KSh ${advance.amount.toLocaleString('en-KE')} for ${employee.displayName}${dto.reason ? `: ${dto.reason}` : ''}`,
+        url: '/payroll?tab=advances',
+        entityType: 'EmployeeAdvance',
+        entityId: advance.id,
+      },
+      createdById,
+    );
     return advance;
   }
 
@@ -50,6 +65,7 @@ export class PayrollService {
       data: { status: dto.status as AdvanceStatus, approvedById: actorId },
     });
     await this.audit.log({ actorId, action: `payroll.advance_${dto.status.toLowerCase()}`, entityType: 'EmployeeAdvance', entityId: id, metadata: { amount: advance.amount } });
+    await this.notifications.resolveEntity('EmployeeAdvance', id);
     return updated;
   }
 

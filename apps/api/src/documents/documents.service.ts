@@ -278,6 +278,22 @@ export class DocumentsService {
     await tx.customer.update({ where: { id: customerId }, data: { creditBalance: { decrement: amount } } });
   }
 
+  // Spends credit the customer already left with the shop. Held credit is a
+  // negative balance, so spending it moves the balance back toward zero. The
+  // update is conditional on the balance still being there, so two tills can't
+  // both spend the same money.
+  private async spendCredit(tx: any, customerId: string, amount: number, documentId: string, actorId: string) {
+    if (amount <= 0) return;
+    const taken = await tx.customer.updateMany({
+      where: { id: customerId, creditBalance: { lte: -amount } },
+      data: { creditBalance: { increment: amount } },
+    });
+    if (taken.count === 0) throw new BadRequestException('This customer does not have that much credit left');
+    await tx.customerLedgerEntry.create({
+      data: { customerId, type: LedgerEntryType.CREDIT_APPLIED, amount, documentId, note: 'Credit used on a sale', createdById: actorId },
+    });
+  }
+
   // Everything that turns a quote form into priced lines — product lookup,
   // pricing, the discount-limit check. Shared by create() and update() so an
   // edited quote is priced by exactly the same rules as a new one.
@@ -840,9 +856,12 @@ export class DocumentsService {
     const saleShortfalls: { productId: string; name: string; shortfall: number }[] = [];
     // Worked out before the transaction so a bad payment fails fast, before
     // any number is drawn or stock touched.
+    if (input.settleLater && input.creditApplied) {
+      throw new BadRequestException('Credit can’t be used on a pay-later sale — settle it from the invoice instead');
+    }
     const settled = input.settleLater
       ? null
-      : settlePayments(total, input.payments, input.paymentMethod, input.changeAction, !!input.customerId);
+      : settlePayments(total, input.payments, input.paymentMethod, input.changeAction, !!input.customerId, input.creditApplied);
     // Settle-later: the customer takes the goods now and pays the same day.
     // It is an unpaid invoice until then — stock still leaves the yard.
     const settleLater = !!input.settleLater;
@@ -866,6 +885,7 @@ export class DocumentsService {
           paymentMethod: settled ? settled.paymentMethod : null,
           changeGiven: settled?.changeGiven ?? 0,
           changeToCredit: settled?.changeToCredit ?? 0,
+          creditApplied: settled?.creditApplied ?? 0,
           payments: settled ? { create: settled.rows } : undefined,
           subtotal,
           total,
@@ -889,7 +909,10 @@ export class DocumentsService {
         }
       }
 
-      if (settled && input.customerId) await this.depositChange(tx, input.customerId, settled.changeToCredit, created.id, actorId);
+      if (settled && input.customerId) {
+        await this.spendCredit(tx, input.customerId, settled.creditApplied, created.id, actorId);
+        await this.depositChange(tx, input.customerId, settled.changeToCredit, created.id, actorId);
+      }
 
       // A resumed hold disappears the moment its sale is committed — same
       // transaction, so a failed checkout leaves the order still parked.
@@ -918,6 +941,7 @@ export class DocumentsService {
         payments: settled?.rows,
         changeGiven: settled?.changeGiven,
         changeToCredit: settled?.changeToCredit,
+        creditApplied: settled?.creditApplied,
         itemCount: input.items.length,
       },
     });

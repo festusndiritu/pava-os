@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  Bell,
   CalendarDays,
   ChevronDown,
   LogOut,
@@ -18,6 +19,7 @@ import { Avatar } from '../Avatar';
 import { ThemeToggle } from '../ThemeToggle';
 import { QuickCalculator } from './QuickCalculator';
 import { GlobalSearch } from './GlobalSearch';
+import { notificationsApi } from '../../lib/push';
 
 function useTodayLabel() {
   const format = () =>
@@ -37,6 +39,35 @@ function useTodayLabel() {
   return label;
 }
 
+// Unread count for the bell. Polled gently, and re-read when the tab comes back
+// into view or the notifications page changes something.
+function useUnreadCount(enabled: boolean) {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (!enabled) return;
+    let stale = false;
+    const load = () =>
+      notificationsApi
+        .unreadCount()
+        .then((r) => !stale && setCount(r.count))
+        .catch(() => {});
+    load();
+    const id = setInterval(load, 45_000);
+    const onVisible = () => document.visibilityState === 'visible' && load();
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('pava:notifications-changed', load);
+    return () => {
+      stale = true;
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('pava:notifications-changed', load);
+    };
+  }, [enabled]);
+
+  return count;
+}
+
 export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const { user, hasPermission, logout } = useAuth();
   const pathname = usePathname();
@@ -49,6 +80,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   const today = useTodayLabel();
+  const unread = useUnreadCount(!!user);
 
   // Cmd/Ctrl+K opens global search everywhere except POS.
   useEffect(() => {
@@ -213,6 +245,25 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
         )}
 
         <QuickCalculator />
+
+        {/* Notifications */}
+        <Link
+          href="/notifications"
+          aria-label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
+          title="Notifications"
+          className="relative flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-[var(--color-bg)]"
+          style={{ color: pathname === '/notifications' ? 'var(--color-accent)' : 'var(--color-ink-600)' }}
+        >
+          <Bell size={18} strokeWidth={2} />
+          {unread > 0 && (
+            <span
+              className="data-num absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold leading-none text-white"
+              style={{ backgroundColor: 'var(--color-status-bad)' }}
+            >
+              {unread > 99 ? '99+' : unread}
+            </span>
+          )}
+        </Link>
 
         {/* Account */}
         <div className="relative" ref={menuRef}>

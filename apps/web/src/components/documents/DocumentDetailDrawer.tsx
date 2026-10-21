@@ -451,7 +451,7 @@ export function DocumentDetailDrawer({
             {doc.invoicedAt && <p>Invoiced: {fmtDate(doc.invoicedAt)}</p>}
             {doc.paidAt && <p>Paid: {fmtDate(doc.paidAt)}</p>}
             {doc.payments && doc.payments.length > 1 && (
-              <p>Paid with: {doc.payments.map((p) => `${p.method === 'MPESA' ? 'M-Pesa' : 'Cash'} ${money(p.amount)}`).join(' + ')}</p>
+              <p>Paid with: {doc.payments.map((p) => `${p.method === 'MPESA' ? 'M-Pesa' : p.method === 'STORE_CREDIT' ? 'Store credit' : 'Cash'} ${money(p.amount)}`).join(' + ')}</p>
             )}
             {!!doc.changeGiven && <p>Change given: {money(doc.changeGiven)}</p>}
             {!!doc.changeToCredit && <p>Change kept as customer credit: {money(doc.changeToCredit)}</p>}

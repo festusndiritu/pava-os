@@ -22,6 +22,8 @@ const ENTRY_LABEL: Record<CustomerLedgerEntry['type'], string> = {
   OPENING: 'Opening balance',
   REFUND: 'Refund',
   WRITE_OFF: 'Write-off',
+  CHANGE_DEPOSIT: 'Left as credit',
+  CREDIT_APPLIED: 'Credit used',
 };
 
 export function CustomerDetailDrawer({
@@ -167,6 +169,16 @@ export function CustomerDetailDrawer({
 
         {customer && !loading && (
           <div className="flex flex-col gap-5">
+            {customer.creditBalance < 0 && (
+              <div className="rounded-md border p-3" style={{ borderColor: 'var(--color-status-ok)', backgroundColor: 'var(--color-status-okSoft)' }}>
+                <p className="text-[11px] uppercase" style={{ color: 'var(--color-status-ok)' }}>
+                  Credit held for them
+                </p>
+                <p className="mt-0.5 text-lg font-semibold data-num" style={{ color: 'var(--color-status-ok)' }}>
+                  {money(-customer.creditBalance)}
+                </p>
+              </div>
+            )}
             {customer.isCredit && (
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-md border p-3" style={{ borderColor: overLimit ? 'var(--color-status-bad)' : 'var(--color-border)' }}>

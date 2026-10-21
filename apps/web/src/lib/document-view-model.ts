@@ -27,6 +27,7 @@ const PAYMENT_LABEL: Record<string, string> = {
   CASH: 'Cash',
   CARD: 'Card',
   CREDIT: 'On account',
+  STORE_CREDIT: 'Store credit',
   MIXED: 'Cash + M-Pesa',
 };
 

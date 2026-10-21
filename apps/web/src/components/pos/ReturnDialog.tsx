@@ -25,7 +25,7 @@ export function ReturnDialog({ onClose, onCompleted }: { onClose: () => void; on
   const [results, setResults] = useState<SaleDocument[] | null>(null);
   const [sale, setSale] = useState<ReturnableSale | null>(null);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
-  const [refundMethod, setRefundMethod] = useState<'CASH' | 'MPESA'>('CASH');
+  const [refundMethod, setRefundMethod] = useState<'CASH' | 'MPESA' | 'STORE_CREDIT'>('CASH');
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<SaleReturn | null>(null);
@@ -74,6 +74,10 @@ export function ReturnDialog({ onClose, onCompleted }: { onClose: () => void; on
   const selected = sale ? sale.items.filter((i) => (quantities[i.documentItemId] || 0) > 0) : [];
   const refundTotal = selected.reduce((sum, i) => sum + (quantities[i.documentItemId] || 0) * i.unitPrice, 0);
   const onAccount = sale?.paymentMethod === 'CREDIT';
+  // A sale with a customer on it can be refunded onto their credit; one that
+  // was paid out of their credit can only go back there.
+  const creditOnly = sale?.paymentMethod === 'STORE_CREDIT';
+  const canCredit = !!sale?.customerId;
 
   async function submit() {
     if (!sale || selected.length === 0) return;
@@ -81,7 +85,7 @@ export function ReturnDialog({ onClose, onCompleted }: { onClose: () => void; on
     try {
       const result = await posApi.createReturn(sale.id, {
         items: selected.map((i) => ({ documentItemId: i.documentItemId, qty: quantities[i.documentItemId] })),
-        refundMethod: onAccount ? undefined : refundMethod,
+        refundMethod: onAccount ? undefined : creditOnly ? 'STORE_CREDIT' : refundMethod,
         reason: reason.trim() || undefined,
       });
       setDone(result);
@@ -242,9 +246,13 @@ export function ReturnDialog({ onClose, onCompleted }: { onClose: () => void; on
                   <p className="mt-1.5 rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-600)' }}>
                     Credited back to the customer&apos;s account.
                   </p>
+                ) : creditOnly ? (
+                  <p className="mt-1.5 rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-600)' }}>
+                    Paid from the customer&apos;s credit, so it goes back onto their credit.
+                  </p>
                 ) : (
-                  <div className="mt-1.5 grid grid-cols-2 gap-2">
-                    {(['MPESA', 'CASH'] as const).map((m) => (
+                  <div className={`mt-1.5 grid gap-2 ${canCredit ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                    {(canCredit ? (['MPESA', 'CASH', 'STORE_CREDIT'] as const) : (['MPESA', 'CASH'] as const)).map((m) => (
                       <button
                         key={m}
                         type="button"
@@ -256,7 +264,7 @@ export function ReturnDialog({ onClose, onCompleted }: { onClose: () => void; on
                           backgroundColor: refundMethod === m ? 'var(--color-accent-soft)' : 'transparent',
                         }}
                       >
-                        {m === 'MPESA' ? 'M-Pesa' : 'Cash'}
+                        {m === 'MPESA' ? 'M-Pesa' : m === 'CASH' ? 'Cash' : 'Keep as credit'}
                       </button>
                     ))}
                   </div>

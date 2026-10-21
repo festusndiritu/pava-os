@@ -58,6 +58,7 @@ export class ReturnsService {
       receiptNumber: doc.receiptNumber,
       invoiceNumber: doc.invoiceNumber,
       paymentMethod: doc.paymentMethod,
+      customerId: doc.customerId,
       customerLabel: doc.customer?.businessName || doc.customer?.name || doc.customerName || 'Walk-in customer',
       createdAt: doc.createdAt,
       total: doc.total,
@@ -133,7 +134,11 @@ export class ReturnsService {
     const onAccount = snapshot.paymentMethod === PaymentMethod.CREDIT;
     // A mixed sale has no single route back, so default to cash unless told.
     const paidBy = snapshot.paymentMethod === PaymentMethod.MIXED ? null : (snapshot.paymentMethod as PaymentMethod | null);
-    const refundMethod = onAccount ? null : ((input.refundMethod as PaymentMethod) ?? paidBy ?? PaymentMethod.CASH);
+    // A sale that was paid out of the customer's held credit goes back to that
+    // credit; any other sale with a customer can be refunded that way if asked.
+    const toCredit = !onAccount && (input.refundMethod === PaymentMethod.STORE_CREDIT || snapshot.paymentMethod === PaymentMethod.STORE_CREDIT);
+    if (toCredit && !snapshot.customerId) throw new BadRequestException('There is no customer on this sale to hold the refund as credit');
+    const refundMethod = onAccount ? null : toCredit ? PaymentMethod.STORE_CREDIT : ((input.refundMethod as PaymentMethod) ?? paidBy ?? PaymentMethod.CASH);
 
     const created = await this.prisma.$transaction(async (tx) => {
       const returnNumber = await this.settings.nextNumber('RETURN', tx);
@@ -170,6 +175,20 @@ export class ReturnsService {
           });
           await tx.customer.update({ where: { id: doc.customerId }, data: { creditBalance: { decrement: total } } });
         }
+      }
+
+      if (toCredit && snapshot.customerId) {
+        await tx.customerLedgerEntry.create({
+          data: {
+            customerId: snapshot.customerId,
+            type: LedgerEntryType.REFUND,
+            amount: -total,
+            documentId,
+            note: `Return ${returnNumber} kept as credit`,
+            createdById: actorId,
+          },
+        });
+        await tx.customer.update({ where: { id: snapshot.customerId }, data: { creditBalance: { decrement: total } } });
       }
 
       return record;

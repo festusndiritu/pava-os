@@ -69,6 +69,10 @@ enum PaymentMethod {
   // A sale settled with more than one method (e.g. cash + M-Pesa). The split
   // itself lives in DocumentPayment.
   MIXED
+  // Paid out of money the customer had already left with the shop (a held
+  // balance), not by a new tender. The cash/M-Pesa was counted when it was
+  // deposited.
+  STORE_CREDIT
 }
 
 enum EmploymentStatus {
@@ -153,6 +157,7 @@ model User {
   editDecided           DocumentEditRequest[] @relation("EditDecidedBy")
   pushSubscriptions     PushSubscription[]
   followUpDigests       FollowUpDigest[]
+  notifications         Notification[]
 
   @@index([role])
 }
@@ -365,6 +370,8 @@ enum LedgerEntryType {
   // Change the customer chose to leave with the shop. Stored as a negative
   // amount: the shop holds the customer's money (credit in their favour).
   CHANGE_DEPOSIT
+  // Held credit spent on a later sale. Positive: it shrinks what the shop holds.
+  CREDIT_APPLIED
 }
 
 model Customer {
@@ -471,6 +478,8 @@ model Document {
   // Change handed back in cash vs. change left with the shop as customer credit.
   changeGiven        Int            @default(0)
   changeToCredit     Int            @default(0)
+  // Part of the bill paid from the customer's held credit.
+  creditApplied      Int            @default(0)
   subtotal           Int            @default(0)
   total              Int            @default(0)
   quoteNumber        String?        @unique
@@ -758,6 +767,27 @@ model PushSubscription {
   lastUsedAt DateTime?
 
   @@index([userId])
+}
+
+// What the notifications page lists. One row per person it was meant for, so
+// each admin reads and clears their own. Push is only the nudge; this is the
+// record. `entityType`/`entityId` tie it to the thing waiting (an edit request,
+// an advance) so it can be cleared for everyone the moment someone decides it.
+model Notification {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind       String
+  title      String
+  body       String
+  url        String?
+  entityType String?
+  entityId   String?
+  readAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, readAt])
+  @@index([entityType, entityId])
 }
 
 // One row per user per local day once that day's lead follow-up summary has

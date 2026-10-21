@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Headers, Post, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Headers, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { NotificationsService } from './notifications.service.js';
 import { FollowUpReminderService } from './follow-up-reminder.service.js';
@@ -14,6 +14,26 @@ export class NotificationsController {
     private notifications: NotificationsService,
     private reminders: FollowUpReminderService,
   ) {}
+
+  @Get()
+  list(@Req() req: any, @Query('unread') unread?: string, @Query('limit') limit?: string) {
+    return this.notifications.list(req.user.sub, { unreadOnly: unread === '1' || unread === 'true', limit: limit ? Number(limit) || undefined : undefined });
+  }
+
+  @Get('unread-count')
+  unreadCount(@Req() req: any) {
+    return this.notifications.unreadCount(req.user.sub);
+  }
+
+  @Post('read-all')
+  readAll(@Req() req: any) {
+    return this.notifications.markAllRead(req.user.sub);
+  }
+
+  @Post(':id/read')
+  read(@Req() req: any, @Param('id') id: string) {
+    return this.notifications.markRead(req.user.sub, id);
+  }
 
   @Get('config')
   config() {

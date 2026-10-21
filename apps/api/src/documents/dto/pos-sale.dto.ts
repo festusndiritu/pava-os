@@ -115,6 +115,14 @@ export class CreatePosSaleDto {
   @IsIn(CHANGE_ACTIONS)
   changeAction?: (typeof CHANGE_ACTIONS)[number];
 
+  // How much of the bill to pay out of credit the customer already holds with
+  // the shop. Asked for as "up to": it is capped at the bill and at what they
+  // actually have. Needs a customerId; not available on a settle-later sale.
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  creditApplied?: number;
+
   @IsOptional()
   @IsBoolean()
   allowNegativeStock?: boolean;

@@ -11,13 +11,14 @@ export interface Customer {
   notes: string | null;
   isCredit: boolean;
   creditLimit: number | null;
+  /** What they owe the shop. Negative means the shop is holding their money — credit they can spend. */
   creditBalance: number;
   active: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
-export type LedgerEntryType = 'INVOICE' | 'PAYMENT' | 'ADJUSTMENT' | 'OPENING' | 'REFUND' | 'WRITE_OFF';
+export type LedgerEntryType = 'INVOICE' | 'PAYMENT' | 'ADJUSTMENT' | 'OPENING' | 'REFUND' | 'WRITE_OFF' | 'CHANGE_DEPOSIT' | 'CREDIT_APPLIED';
 
 export interface CustomerLedgerEntry {
   id: string;

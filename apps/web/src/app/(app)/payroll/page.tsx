@@ -146,6 +146,11 @@ function RunsTab() {
 export default function PayrollPage() {
   const [tab, setTab] = useState<'runs' | 'advances'>('runs');
 
+  // A notification about an advance waiting for approval lands on its tab.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('tab') === 'advances') setTab('advances');
+  }, []);
+
   return (
     <div className="p-6">
       <div>
