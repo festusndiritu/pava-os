@@ -179,6 +179,7 @@ const PAYMENT_LABELS: Record<string, string> = {
   MPESA: 'M-Pesa',
   CARD: 'Card',
   CREDIT: 'On account',
+  MIXED: 'Cash + M-Pesa',
 };
 
 export function paymentLabel(method: string) {

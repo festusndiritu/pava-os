@@ -1,6 +1,7 @@
 import { ArrayMinSize, IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, MaxLength, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { IsMoney } from '../../common/validation/money.validator.js';
+import { CHANGE_ACTIONS, PaymentLineDto } from './payment.dto.js';
 import { OptionalKenyanPhone } from '../../common/validation/phone.validator.js';
 
 // Where one invoice line is supplied from: how many units leave the shop's own
@@ -58,6 +59,17 @@ export class MarkPaidDto {
   @IsOptional()
   @IsIn(['CASH', 'MPESA'] as const)
   paymentMethod?: 'CASH' | 'MPESA';
+
+  // Cash that needed change, or a cash + M-Pesa split — see CreatePosSaleDto.
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PaymentLineDto)
+  payments?: PaymentLineDto[];
+
+  @IsOptional()
+  @IsIn(CHANGE_ACTIONS)
+  changeAction?: (typeof CHANGE_ACTIONS)[number];
 }
 
 export class DocumentItemDto {

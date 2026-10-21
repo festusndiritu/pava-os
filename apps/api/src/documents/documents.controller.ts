@@ -1,5 +1,5 @@
-import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
-import { DocumentStatus, DocumentType } from '../../generated/prisma/client.js';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { DocumentStatus, DocumentType, EditRequestStatus, Role } from '../../generated/prisma/client.js';
 import { DocumentsService } from './documents.service.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { PermissionsGuard } from '../auth/permissions.guard.js';
@@ -9,6 +9,10 @@ import { CreatePosSaleDto, SuspendOrderDto } from './dto/pos-sale.dto.js';
 import { CreateDocumentDto, UpdateDocumentDto, ConvertToInvoiceDto, MarkPaidDto, CreateDeliveryNoteDto } from './dto/document.dto.js';
 import { CreateReturnDto } from './dto/return.dto.js';
 import { ReturnsService } from './returns.service.js';
+import { DocumentEditsService } from './document-edits.service.js';
+import { CreateEditRequestDto, DecideEditRequestDto } from './dto/edit-request.dto.js';
+import { Roles } from '../auth/roles.decorator.js';
+import { RolesGuard } from '../auth/roles.guard.js';
 import { parsePaging, sendTotal } from '../common/paging.js';
 
 @UseGuards(JwtAuthGuard)
@@ -17,6 +21,7 @@ export class DocumentsController {
   constructor(
     private documents: DocumentsService,
     private returns: ReturnsService,
+    private edits: DocumentEditsService,
   ) {}
 
   // Listing/detail were previously ungated — any authenticated user, even
@@ -75,6 +80,46 @@ export class DocumentsController {
   @Get('returns/recent')
   listReturns(@Query('limit') limit?: string) {
     return this.returns.list(limit ? parseInt(limit) : 50);
+  }
+
+  // The approval queue. Registered before :id so "edit-requests" isn't read
+  // as a document id.
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  @Get('edit-requests')
+  listEditRequests(@Query('status') status?: string) {
+    const valid = new Set<string>(Object.values(EditRequestStatus));
+    if (status && !valid.has(status)) throw new BadRequestException(`Unknown status "${status}"`);
+    return this.edits.list({ status: status as EditRequestStatus | undefined });
+  }
+
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  @Post('edit-requests/:requestId/approve')
+  approveEdit(@Param('requestId') requestId: string, @Req() req: any, @Body() body: DecideEditRequestDto) {
+    return this.edits.approve(requestId, req.user.sub, req.user.role, body ?? {});
+  }
+
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  @Post('edit-requests/:requestId/reject')
+  rejectEdit(@Param('requestId') requestId: string, @Req() req: any, @Body() body: DecideEditRequestDto) {
+    return this.edits.reject(requestId, req.user.sub, body ?? {});
+  }
+
+  @UseGuards(PermissionsGuard)
+  @Permissions(Module.QUOTES, Module.INVOICES, Module.POS)
+  @Get(':id/edit-requests')
+  documentEditRequests(@Param('id') id: string) {
+    return this.edits.list({ documentId: id });
+  }
+
+  // Staff ask; an admin decides. The document itself is untouched until then.
+  @UseGuards(PermissionsGuard)
+  @Permissions(Module.QUOTES, Module.INVOICES, Module.POS)
+  @Post(':id/edit-requests')
+  requestEdit(@Param('id') id: string, @Req() req: any, @Body() body: CreateEditRequestDto) {
+    return this.edits.request(id, req.user.sub, req.user.role, body);
   }
 
   @UseGuards(PermissionsGuard)
@@ -147,7 +192,15 @@ export class DocumentsController {
   @Permissions(Module.INVOICES)
   @Post(':id/mark-paid')
   markPaid(@Param('id') id: string, @Req() req: any, @Body() body: MarkPaidDto) {
-    return this.documents.markPaid(id, req.user.sub, body?.paymentMethod);
+    return this.documents.markPaid(id, req.user.sub, body ?? {});
+  }
+
+  // Only a cancelled quote that never became an invoice can be removed.
+  @UseGuards(PermissionsGuard)
+  @Permissions(Module.QUOTES)
+  @Delete(':id')
+  deleteCancelledQuote(@Param('id') id: string, @Req() req: any) {
+    return this.documents.deleteCancelledQuote(id, req.user.sub);
   }
 
   @UseGuards(PermissionsGuard)

@@ -9,6 +9,12 @@ export const POS_PAYMENT_METHODS: { value: PosPaymentMethod; label: string; hint
   { value: 'MPESA', label: 'M-Pesa', hint: 'Paybill' },
   { value: 'CASH', label: 'Cash', hint: 'At the counter' },
 ];
+/** One tender: what the customer handed over by this method (cash may exceed the bill — the rest is change). */
+export interface PaymentLine {
+  method: PosPaymentMethod;
+  amount: number;
+}
+
 export type TransportAllocation = 'QUANTITY' | 'VALUE' | 'MANUAL';
 
 export interface PosCartItemInput {
@@ -34,6 +40,10 @@ export interface PosSaleInput {
   foldTransportIntoPrices?: boolean;
   roundingIncrement?: number;
   paymentMethod?: PosPaymentMethod;
+  /** What was handed over per method — for change or a cash + M-Pesa split. Overrides paymentMethod. */
+  payments?: PaymentLine[];
+  /** For anything paid over the bill: hand it back (default) or keep it on the customer's credit (needs customerId). */
+  changeAction?: 'GIVE' | 'CREDIT';
   allowNegativeStock?: boolean; // legacy: sell beyond shelf stock as a backorder. The till now splits fulfilment instead.
   suspendedFromId?: string;
   notes?: string;
@@ -148,7 +158,10 @@ export interface PosSaleResult {
   transportAmount: number;
   transportMode: string;
   roundingAdjustment: number;
-  paymentMethod: PosPaymentMethod | null;
+  paymentMethod: PosPaymentMethod | 'MIXED' | null;
+  changeGiven?: number;
+  changeToCredit?: number;
+  payments?: { id: string; method: PosPaymentMethod; amount: number }[];
   customerName: string | null;
   customer: { name: string; businessName: string | null } | null;
   items: PosSaleResultItem[];

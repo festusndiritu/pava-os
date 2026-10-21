@@ -1,6 +1,7 @@
 import { ArrayMinSize, IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, MaxLength, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { IsMoney } from '../../common/validation/money.validator.js';
+import { CHANGE_ACTIONS, PaymentLineDto } from './payment.dto.js';
 
 export class PosItemDto {
   @IsString()
@@ -98,6 +99,21 @@ export class CreatePosSaleDto {
   @IsOptional()
   @IsIn(PAYMENT_METHODS)
   paymentMethod?: (typeof PAYMENT_METHODS)[number];
+
+  // What the customer actually handed over, per method — use this for cash
+  // that needs change or for a cash + M-Pesa split. When omitted,
+  // paymentMethod above means "paid the whole bill by that one method".
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PaymentLineDto)
+  payments?: PaymentLineDto[];
+
+  // What to do with any amount paid over the bill: hand it back (default) or
+  // keep it on the customer's credit. Leaving it needs a customerId.
+  @IsOptional()
+  @IsIn(CHANGE_ACTIONS)
+  changeAction?: (typeof CHANGE_ACTIONS)[number];
 
   @IsOptional()
   @IsBoolean()

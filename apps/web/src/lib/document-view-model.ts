@@ -1,5 +1,6 @@
 import type { BusinessSettings } from './settings-api';
 import type { DocumentType, SaleDocument } from './documents-api';
+import { money } from './format';
 
 /**
  * The single function every document template — PDF or thermal, any of the
@@ -26,6 +27,7 @@ const PAYMENT_LABEL: Record<string, string> = {
   CASH: 'Cash',
   CARD: 'Card',
   CREDIT: 'On account',
+  MIXED: 'Cash + M-Pesa',
 };
 
 export interface DocumentViewModelLetterhead {
@@ -79,7 +81,10 @@ export interface DocumentViewModel {
   total: number;
 
   paymentMethod: string | null;
+  /** "Cash" / "M-Pesa Paybill", or for a split sale each part with its amount. */
   paymentLabel: string | null;
+  /** What happened to change: handed back, or kept as the customer's credit. */
+  changeNote: string | null;
   /** INVOICED and not yet paid — "Unpaid" badge, "payable on collection" note. */
   isUnpaid: boolean;
 
@@ -109,6 +114,9 @@ export interface DocumentViewModelSource {
   transportMode: string;
   total: number;
   paymentMethod: string | null;
+  payments?: { method: string; amount: number }[];
+  changeGiven?: number;
+  changeToCredit?: number;
   notes: string | null;
 }
 
@@ -116,7 +124,18 @@ function buildFromSource(source: DocumentViewModelSource, settings: BusinessSett
   const isDeliveryNote = source.type === 'DELIVERY_NOTE';
   const showTransportLine = source.transportMode === 'ITEMIZED' && source.transportAmount > 0;
   const showTransportIncludedNote = source.transportMode === 'DISTRIBUTED' && source.transportAmount > 0;
-  const paymentLabel = source.paymentMethod ? (PAYMENT_LABEL[source.paymentMethod] ?? source.paymentMethod) : null;
+  const parts = (source.payments ?? []).filter((p) => p.amount > 0);
+  const paymentLabel =
+    source.paymentMethod === 'MIXED' && parts.length > 1
+      ? parts.map((p) => `${PAYMENT_LABEL[p.method] ?? p.method} ${money(p.amount)}`).join(' + ')
+      : source.paymentMethod
+        ? (PAYMENT_LABEL[source.paymentMethod] ?? source.paymentMethod)
+        : null;
+  const changeNote = source.changeGiven
+    ? `Change given ${money(source.changeGiven)}`
+    : source.changeToCredit
+      ? `${money(source.changeToCredit)} change kept as credit`
+      : null;
 
   return {
     type: source.type,
@@ -154,6 +173,7 @@ function buildFromSource(source: DocumentViewModelSource, settings: BusinessSett
 
     paymentMethod: source.paymentMethod,
     paymentLabel,
+    changeNote,
     isUnpaid: source.status === 'INVOICED',
 
     notes: source.notes,
@@ -206,6 +226,9 @@ export function buildDocumentViewModel(doc: SaleDocument, settings: BusinessSett
       transportMode: doc.transportMode,
       total: doc.total,
       paymentMethod: doc.paymentMethod,
+      payments: doc.payments,
+      changeGiven: doc.changeGiven,
+      changeToCredit: doc.changeToCredit,
       notes: doc.notes,
     },
     settings,
@@ -246,6 +269,9 @@ export function buildPosReceiptViewModel(sale: PosSaleResultLike, settings: Busi
       transportMode: sale.transportMode,
       total: sale.total,
       paymentMethod: sale.paymentMethod,
+      payments: sale.payments,
+      changeGiven: sale.changeGiven,
+      changeToCredit: sale.changeToCredit,
       notes: null,
     },
     settings,
@@ -264,6 +290,9 @@ export interface PosSaleResultLike {
   transportAmount: number;
   transportMode: string;
   paymentMethod: string | null;
+  payments?: { method: string; amount: number }[];
+  changeGiven?: number;
+  changeToCredit?: number;
   customerName: string | null;
   customer: { name: string; businessName: string | null } | null;
   items: { id: string; description: string; qty: number; unitPrice: number; lineTotal: number }[];

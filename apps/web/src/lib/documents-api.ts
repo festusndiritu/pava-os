@@ -1,6 +1,7 @@
 import { api } from './api';
 import type { Product } from './products-api';
 import type { Customer } from './customers-api';
+import type { PaymentLine } from './pos-api';
 
 export type DocumentType = 'QUOTE' | 'INVOICE' | 'RECEIPT' | 'DELIVERY_NOTE';
 export type DocumentStatus = 'DRAFT' | 'QUOTED' | 'INVOICED' | 'PAID' | 'CANCELLED' | 'SUSPENDED';
@@ -40,6 +41,9 @@ export interface SaleDocument {
   transportAmount: number;
   roundingAdjustment: number;
   paymentMethod: string | null;
+  payments?: { id: string; method: string; amount: number }[];
+  changeGiven?: number;
+  changeToCredit?: number;
   subtotal: number;
   total: number;
   notes: string | null;
@@ -109,6 +113,43 @@ function documentQuery(params: DocumentListParams) {
   return s ? `?${s}` : '';
 }
 
+export type EditRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface EditRequestInput {
+  reason: string;
+  items: { itemId?: string; productId?: string; description?: string; qty: number; unitPrice: number }[];
+  transportAmount?: number;
+  foldTransportIntoPrices?: boolean;
+}
+
+export interface EditRequest {
+  id: string;
+  documentId: string;
+  status: EditRequestStatus;
+  reason: string;
+  changes: EditRequestInput & {
+    before?: { description: string; qty: number; unitPrice: number; lineTotal: number }[];
+    before_transport?: number;
+    after?: { description: string; qty: number; unitPrice: number; lineTotal: number }[];
+  };
+  previousTotal: number;
+  proposedTotal: number;
+  decisionNote: string | null;
+  createdAt: string;
+  decidedAt: string | null;
+  requestedBy?: { name: string };
+  decidedBy?: { name: string } | null;
+  document?: {
+    id: string;
+    type: string;
+    status: string;
+    invoiceNumber: string | null;
+    receiptNumber: string | null;
+    customerName: string | null;
+    customer: { name: string; businessName: string | null } | null;
+  };
+}
+
 export const documentsApi = {
   // `from`/`to` are YYYY-MM-DD calendar days, inclusive at both ends — the
   // backend widens `to` to the end of that day. The API has always accepted
@@ -129,7 +170,19 @@ export const documentsApi = {
     api.post<SaleDocument>(`/documents/${id}/convert-to-invoice`, opts),
   // paymentMethod records how the customer actually settled — PAVA's credit
   // is same-day, so an invoice raised at the till is closed off here.
-  markPaid: (id: string, paymentMethod?: 'CASH' | 'MPESA') => api.post<SaleDocument>(`/documents/${id}/mark-paid`, { paymentMethod }),
+  // Pass `payments` when cash needed change or the bill was split across
+  // cash and M-Pesa; `changeAction` says what to do with anything over.
+  markPaid: (id: string, opts: { paymentMethod?: 'CASH' | 'MPESA'; payments?: PaymentLine[]; changeAction?: 'GIVE' | 'CREDIT' } = {}) =>
+    api.post<SaleDocument>(`/documents/${id}/mark-paid`, opts),
+  // Only a cancelled quote that was never invoiced can be deleted.
+  deleteQuote: (id: string) => api.delete<{ id: string }>(`/documents/${id}`),
+  // Corrections to an issued invoice/receipt: staff ask, an admin approves.
+  requestEdit: (id: string, data: EditRequestInput) => api.post<EditRequest>(`/documents/${id}/edit-requests`, data),
+  editRequestsFor: (id: string) => api.get<EditRequest[]>(`/documents/${id}/edit-requests`),
+  listEditRequests: (status?: EditRequestStatus) => api.get<EditRequest[]>(`/documents/edit-requests${status ? `?status=${status}` : ''}`),
+  approveEdit: (requestId: string, opts: { note?: string; settlement?: 'CASH' | 'MPESA' | 'CREDIT' } = {}) =>
+    api.post<SaleDocument>(`/documents/edit-requests/${requestId}/approve`, opts),
+  rejectEdit: (requestId: string, opts: { note?: string } = {}) => api.post<EditRequest>(`/documents/edit-requests/${requestId}/reject`, opts),
   cancel: (id: string) => api.post<SaleDocument>(`/documents/${id}/cancel`),
   createDeliveryNote: (id: string, deliveryLocation?: string, deliveryPhone?: string) =>
     api.post<SaleDocument>(`/documents/${id}/delivery-note`, { deliveryLocation, deliveryPhone }),

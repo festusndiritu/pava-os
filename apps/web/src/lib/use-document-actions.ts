@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Ban, Eye, FileCheck2, Pencil, Truck } from 'lucide-react';
+import { Ban, Eye, FileCheck2, Pencil, Trash2, Truck } from 'lucide-react';
 import { canEditQuote, documentsApi, type SaleDocument } from './documents-api';
 import { ApiError } from './api';
 import type { RowAction } from '../components/ui/ActionMenu';
@@ -49,6 +49,7 @@ export function useDocumentActions({
     const canDeliveryNote = doc.type !== 'DELIVERY_NOTE' && (doc.status === 'QUOTED' || doc.status === 'INVOICED' || doc.status === 'PAID');
     const canCancel = doc.status === 'QUOTED' || doc.status === 'INVOICED';
     const canEdit = !!onEdit && canEditQuote(doc);
+    const canDelete = doc.type === 'QUOTE' && doc.status === 'CANCELLED';
     return [
       { label: 'Open document', icon: Eye, onClick: () => onOpen(doc.id) },
       canEdit && { label: 'Edit quote', icon: Pencil, disabled: busy, onClick: () => onEdit!(doc.id) },
@@ -64,6 +65,8 @@ export function useDocumentActions({
       // the customer's stored address), so this hands off to the detail
       // drawer's dialog rather than firing straight from the row.
       canDeliveryNote && { label: 'Create delivery note', icon: Truck, disabled: busy, onClick: () => onOpen(doc.id) },
+      // Deleting needs a deliberate second tap, which the detail drawer provides.
+      canDelete && { label: 'Delete quote…', icon: Trash2, tone: 'danger', disabled: busy, separatorBefore: true, onClick: () => onOpen(doc.id) },
       canCancel && { label: 'Cancel', icon: Ban, tone: 'danger', disabled: busy, separatorBefore: true, onClick: () => run(doc, () => documentsApi.cancel(doc.id), 'Document cancelled') },
     ];
   };

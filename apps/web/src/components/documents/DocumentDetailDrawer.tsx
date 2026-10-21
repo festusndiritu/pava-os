@@ -1,9 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Pencil, Receipt, Share2, Truck } from 'lucide-react';
+import { FilePenLine, Pencil, Receipt, Share2, Trash2, Truck } from 'lucide-react';
 import { Drawer } from '../ui/Drawer';
-import { canEditQuote, documentsApi, type SaleDocument } from '../../lib/documents-api';
+import { canEditQuote, documentsApi, type EditRequest, type SaleDocument } from '../../lib/documents-api';
+import { useAuth } from '../../lib/auth-context';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { PaymentPanel, emptyPayment, resolvePayment, type PaymentDraft } from '../pos/PaymentPanel';
+import { EditRequestCard, EditRequestDialog } from './EditRequests';
 import { settingsApi, type BusinessSettings } from '../../lib/settings-api';
 import { buildDocumentViewModel } from '../../lib/document-view-model';
 import { ThermalDocument } from './ThermalDocument';
@@ -56,6 +60,12 @@ export function DocumentDetailDrawer({
   const [fulfilmentOpen, setFulfilmentOpen] = useState(false);
   const [fulfilmentKey, setFulfilmentKey] = useState(0);
   const [sharing, setSharing] = useState(false);
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN';
+  const [payment, setPayment] = useState<PaymentDraft>(emptyPayment);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [editRequests, setEditRequests] = useState<EditRequest[]>([]);
   const [askingDeliveryLocation, setAskingDeliveryLocation] = useState(false);
   const [settings, setSettings] = useState<BusinessSettings | null>(null);
   // Thermal is the only print format here now — the A4 off-screen sheet and
@@ -80,17 +90,25 @@ export function DocumentDetailDrawer({
   async function load() {
     if (!documentId) return;
     setLoading(true);
-    setDoc(await documentsApi.get(documentId));
+    const loaded = await documentsApi.get(documentId);
+    setDoc(loaded);
     setLoading(false);
+    // Edits only apply to issued invoices and receipts; a failure to read the
+    // list must never stop the document itself from opening.
+    if (loaded.status === 'INVOICED' || loaded.status === 'PAID') {
+      documentsApi.editRequestsFor(documentId).then(setEditRequests).catch(() => setEditRequests([]));
+    } else setEditRequests([]);
   }
 
   useEffect(() => {
     load();
     setFulfilmentOpen(false);
+    setPayment(emptyPayment);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documentId]);
 
   if (!documentId) return null;
+  const settling = resolvePayment(payment, doc?.total ?? 0, !!doc?.customerId);
 
   async function runAction(fn: () => Promise<SaleDocument>) {
     setBusy(true);
@@ -200,19 +218,17 @@ export function DocumentDetailDrawer({
                   <p className="text-xs font-medium" style={{ color: 'var(--color-ink-600)' }}>
                     Settle this invoice
                   </p>
-                  <div className="mt-2 flex gap-2">
-                    {(['MPESA', 'CASH'] as const).map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        disabled={busy}
-                        onClick={() => runAction(() => documentsApi.markPaid(doc.id, m))}
-                        className="min-h-10 flex-1 rounded-md px-3 text-sm font-semibold text-white disabled:opacity-60"
-                        style={{ backgroundColor: 'var(--color-accent)' }}
-                      >
-                        Paid · {m === 'MPESA' ? 'M-Pesa' : 'Cash'}
-                      </button>
-                    ))}
+                  <div className="mt-2 flex flex-col gap-2">
+                    <PaymentPanel draft={payment} onChange={setPayment} total={doc.total} hasCustomer={!!doc.customerId} />
+                    <button
+                      type="button"
+                      disabled={busy || !!settling.problem}
+                      onClick={() => runAction(() => documentsApi.markPaid(doc.id, { paymentMethod: settling.method, payments: settling.tenders, changeAction: settling.changeAction }))}
+                      className="min-h-10 rounded-md px-3 text-sm font-semibold text-white disabled:opacity-60"
+                      style={{ backgroundColor: 'var(--color-accent)' }}
+                    >
+                      {settling.problem ?? `Mark paid · ${money(doc.total)}`}
+                    </button>
                   </div>
                 </div>
               )}
@@ -239,6 +255,18 @@ export function DocumentDetailDrawer({
                   <button type="button" disabled={busy} onClick={() => onEdit(doc.id)} className="flex flex-1 items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
                     <Pencil size={14} strokeWidth={2} />
                     Edit quote
+                  </button>
+                )}
+                {(doc.status === 'INVOICED' || doc.status === 'PAID') && doc.type !== 'DELIVERY_NOTE' && (
+                  <button type="button" disabled={busy || editRequests.some((r) => r.status === 'PENDING')} onClick={() => setEditOpen(true)} className="flex flex-1 items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
+                    <FilePenLine size={14} strokeWidth={2} />
+                    Request edit
+                  </button>
+                )}
+                {doc.status === 'CANCELLED' && doc.type === 'QUOTE' && (
+                  <button type="button" disabled={busy} onClick={() => setDeleteOpen(true)} className="flex flex-1 items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-status-bad)' }}>
+                    <Trash2 size={14} strokeWidth={2} />
+                    Delete quote
                   </button>
                 )}
                 {doc.type !== 'DELIVERY_NOTE' && (doc.status === 'QUOTED' || doc.status === 'INVOICED' || doc.status === 'PAID') && (
@@ -270,6 +298,32 @@ export function DocumentDetailDrawer({
           busy={busy}
           onCancel={() => setFulfilmentOpen(false)}
           onConfirm={convertToInvoice}
+        />
+      )}
+
+      {doc && editOpen && <EditRequestDialog doc={doc} onClose={() => setEditOpen(false)} onSent={load} />}
+
+      {doc && deleteOpen && (
+        <ConfirmDialog
+          title="Delete this quote?"
+          description="It was cancelled and never invoiced. Deleting removes it for good; a record of the deletion is kept in the audit log."
+          confirmLabel="Delete quote"
+          busy={busy}
+          onCancel={() => setDeleteOpen(false)}
+          onConfirm={async () => {
+            setBusy(true);
+            try {
+              await documentsApi.deleteQuote(doc.id);
+              toast.success('Quote deleted');
+              onChanged();
+              onClose();
+            } catch (err) {
+              toast.error(err instanceof ApiError ? err.message : "Couldn't delete the quote");
+              setDeleteOpen(false);
+            } finally {
+              setBusy(false);
+            }
+          }}
         />
       )}
 
@@ -396,7 +450,32 @@ export function DocumentDetailDrawer({
           <div className="flex flex-col gap-0.5 text-xs" style={{ color: 'var(--color-ink-600)' }}>
             {doc.invoicedAt && <p>Invoiced: {fmtDate(doc.invoicedAt)}</p>}
             {doc.paidAt && <p>Paid: {fmtDate(doc.paidAt)}</p>}
+            {doc.payments && doc.payments.length > 1 && (
+              <p>Paid with: {doc.payments.map((p) => `${p.method === 'MPESA' ? 'M-Pesa' : 'Cash'} ${money(p.amount)}`).join(' + ')}</p>
+            )}
+            {!!doc.changeGiven && <p>Change given: {money(doc.changeGiven)}</p>}
+            {!!doc.changeToCredit && <p>Change kept as customer credit: {money(doc.changeToCredit)}</p>}
           </div>
+
+          {editRequests.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--color-ink-600)' }}>
+                Edit requests
+              </p>
+              {editRequests.map((r) => (
+                <EditRequestCard
+                  key={r.id}
+                  request={r}
+                  isAdmin={!!isAdmin}
+                  paid={doc.status === 'PAID'}
+                  onDecided={() => {
+                    load();
+                    onChanged();
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </Drawer>

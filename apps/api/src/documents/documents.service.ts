@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { DocumentStatus, DocumentType, LedgerEntryType, PaymentMethod, Role, TransportMode } from '../../generated/prisma/client.js';
+import { DocumentStatus, DocumentType, LedgerEntryType, Role, TransportMode } from '../../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { InventoryService } from '../inventory/inventory.service.js';
 import { AuditService } from '../audit/audit.service.js';
@@ -7,6 +7,7 @@ import { SettingsService } from '../settings/settings.service.js';
 import { roundMoney } from '../common/money.js';
 import { nullsLast, parseSort, type SortDir } from '../common/paging.js';
 import type { CreatePosSaleDto } from './dto/pos-sale.dto.js';
+import { settlePayments, type TenderInput } from './payments.js';
 
 /** Exclusive upper bound covering the whole of the given calendar day. */
 function endOfDay(date: string) {
@@ -229,7 +230,7 @@ export class DocumentsService {
   // pre-check being batch-based itself means a shortfall is always caught
   // here, with the full confirmation dialog, rather than surfacing as a
   // raw error from mid-transaction if the two ever drift.
-  private async findShortfalls(lines: { productId: string | null; qty: number; description?: string }[]) {
+  async findShortfalls(lines: { productId: string | null; qty: number; description?: string }[]) {
     const ids = [...new Set(lines.map((l) => l.productId).filter((id): id is string => !!id))];
     if (ids.length === 0) return [];
     const [products, batchSums] = await Promise.all([
@@ -266,10 +267,21 @@ export class DocumentsService {
     return shortfalls;
   }
 
+  // Change the customer left with the shop. Credit in the customer's favour
+  // is a negative balance (the same field invoices push up), so it nets off
+  // against anything they later owe and can never be edited directly.
+  private async depositChange(tx: any, customerId: string, amount: number, documentId: string, actorId: string) {
+    if (amount <= 0) return;
+    await tx.customerLedgerEntry.create({
+      data: { customerId, type: LedgerEntryType.CHANGE_DEPOSIT, amount: -amount, documentId, note: 'Change left with the shop', createdById: actorId },
+    });
+    await tx.customer.update({ where: { id: customerId }, data: { creditBalance: { decrement: amount } } });
+  }
+
   // Everything that turns a quote form into priced lines — product lookup,
   // pricing, the discount-limit check. Shared by create() and update() so an
   // edited quote is priced by exactly the same rules as a new one.
-  private async priceQuoteInput(actorId: string, actorRole: Role, input: CreateDocumentInput) {
+  async priceQuoteInput(actorId: string, actorRole: Role, input: CreateDocumentInput) {
     if (!input.items || input.items.length === 0) {
       throw new BadRequestException('A document needs at least one item');
     }
@@ -410,6 +422,7 @@ export class DocumentsService {
       where: { id },
       include: {
         items: { include: { product: { include: { unit: true } } } },
+        payments: true,
         customer: true,
         createdBy: { select: { name: true } },
         // A delivery note prints the order it was dispatched against.
@@ -642,11 +655,20 @@ export class DocumentsService {
   // again. For a credit customer this assumes the invoice is paid in full —
   // partial payments against an open invoice are a deeper Phase 6 concern;
   // for now the ledger's PAYMENT entry always matches the invoice total.
-  async markPaid(id: string, actorId: string, paymentMethod?: 'CASH' | 'MPESA') {
+  async markPaid(
+    id: string,
+    actorId: string,
+    input: { paymentMethod?: 'CASH' | 'MPESA'; payments?: TenderInput[]; changeAction?: 'GIVE' | 'CREDIT' } = {},
+  ) {
     const doc = await this.findOne(id);
     if (doc.status !== DocumentStatus.INVOICED) {
       throw new BadRequestException('Only an invoiced document can be marked paid');
     }
+
+    // Older callers only say "paid"; with nothing stated, whatever was
+    // already recorded is kept and no payment rows are written.
+    const stated = !!(input.payments?.length || input.paymentMethod);
+    const settled = stated ? settlePayments(doc.total, input.payments, input.paymentMethod, input.changeAction, !!doc.customerId) : null;
 
     return this.prisma.$transaction(async (tx) => {
       const receiptNumber = await this.settings.nextNumber('RECEIPT', tx);
@@ -657,8 +679,14 @@ export class DocumentsService {
           status: DocumentStatus.PAID,
           paidAt: new Date(),
           receiptNumber,
-          // Keep whatever was already recorded if the caller doesn't say.
-          ...(paymentMethod ? { paymentMethod: paymentMethod as PaymentMethod } : {}),
+          ...(settled
+            ? {
+                paymentMethod: settled.paymentMethod,
+                changeGiven: settled.changeGiven,
+                changeToCredit: settled.changeToCredit,
+                payments: { create: settled.rows },
+              }
+            : {}),
         },
       });
 
@@ -668,6 +696,8 @@ export class DocumentsService {
         });
         await tx.customer.update({ where: { id: doc.customerId }, data: { creditBalance: { decrement: doc.total } } });
       }
+
+      if (settled && doc.customerId) await this.depositChange(tx, doc.customerId, settled.changeToCredit, id, actorId);
 
       return updated;
     });
@@ -684,6 +714,42 @@ export class DocumentsService {
       metadata: { previousStatus: doc.status, total: doc.total },
     });
     return updated;
+  }
+
+  // Quotes that were only ever a price check are clutter once cancelled, so
+  // a cancelled quote can be removed for good. Anything that has been
+  // invoiced is a real sale and is never deletable — it keeps its numbers.
+  async deleteCancelledQuote(id: string, actorId: string) {
+    const doc = await this.findOne(id);
+    if (doc.status !== DocumentStatus.CANCELLED) {
+      throw new BadRequestException('Cancel the quote first — only a cancelled quote can be deleted');
+    }
+    if (doc.type !== DocumentType.QUOTE || doc.invoicedAt) {
+      throw new BadRequestException('Only a quote that was never invoiced can be deleted');
+    }
+    const deliveryNotes = await this.prisma.document.count({ where: { sourceDocumentId: id } });
+    if (deliveryNotes > 0) {
+      throw new BadRequestException('A delivery note was raised from this quote, so it is kept on record');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.documentItem.deleteMany({ where: { documentId: id } });
+      await tx.document.delete({ where: { id } });
+    });
+
+    await this.audit.log({
+      actorId,
+      action: 'document.quote_deleted',
+      entityType: 'Document',
+      entityId: id,
+      metadata: {
+        quoteNumber: doc.quoteNumber,
+        total: doc.total,
+        customer: doc.customer?.businessName || doc.customer?.name || doc.customerName,
+        items: doc.items.map((i) => ({ description: i.description, qty: i.qty, unitPrice: i.unitPrice })),
+      },
+    });
+    return { id };
   }
 
   // Minimal dashboard aggregate — real reports page can build on this later.
@@ -772,6 +838,11 @@ export class DocumentsService {
     this.assertDiscountWithinLimit(actorRole, actor, subtotalAtListPrice, impliedDiscountTotal);
 
     const saleShortfalls: { productId: string; name: string; shortfall: number }[] = [];
+    // Worked out before the transaction so a bad payment fails fast, before
+    // any number is drawn or stock touched.
+    const settled = input.settleLater
+      ? null
+      : settlePayments(total, input.payments, input.paymentMethod, input.changeAction, !!input.customerId);
     // Settle-later: the customer takes the goods now and pays the same day.
     // It is an unpaid invoice until then — stock still leaves the yard.
     const settleLater = !!input.settleLater;
@@ -792,7 +863,10 @@ export class DocumentsService {
           transportMode,
           transportAmount: input.transportAmount || 0,
           roundingAdjustment: roundingAdjustmentTotal,
-          paymentMethod: settleLater ? null : (input.paymentMethod as PaymentMethod),
+          paymentMethod: settled ? settled.paymentMethod : null,
+          changeGiven: settled?.changeGiven ?? 0,
+          changeToCredit: settled?.changeToCredit ?? 0,
+          payments: settled ? { create: settled.rows } : undefined,
           subtotal,
           total,
           notes: input.notes,
@@ -815,6 +889,8 @@ export class DocumentsService {
         }
       }
 
+      if (settled && input.customerId) await this.depositChange(tx, input.customerId, settled.changeToCredit, created.id, actorId);
+
       // A resumed hold disappears the moment its sale is committed — same
       // transaction, so a failed checkout leaves the order still parked.
       if (input.suspendedFromId) {
@@ -827,7 +903,7 @@ export class DocumentsService {
 
       return tx.document.findUnique({
         where: { id: created.id },
-        include: { items: { include: { product: true } }, customer: true, createdBy: { select: { name: true } } },
+        include: { items: { include: { product: true } }, payments: true, customer: true, createdBy: { select: { name: true } } },
       });
     });
 
@@ -836,7 +912,14 @@ export class DocumentsService {
       action: 'documents.pos_sale',
       entityType: 'Document',
       entityId: doc!.id,
-      metadata: { total, paymentMethod: settleLater ? 'SETTLE_LATER' : input.paymentMethod, itemCount: input.items.length },
+      metadata: {
+        total,
+        paymentMethod: settled ? settled.paymentMethod : 'SETTLE_LATER',
+        payments: settled?.rows,
+        changeGiven: settled?.changeGiven,
+        changeToCredit: settled?.changeToCredit,
+        itemCount: input.items.length,
+      },
     });
 
     if (saleShortfalls.length > 0) {

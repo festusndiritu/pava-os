@@ -145,6 +145,7 @@ function PricedBody({ vm }: { vm: DocumentViewModel }) {
       {vm.type === 'RECEIPT' && vm.paymentLabel && (
         <p style={{ marginTop: '8px', textAlign: 'center' }}>Paid by {vm.paymentLabel}</p>
       )}
+      {vm.type === 'RECEIPT' && vm.changeNote && <p style={{ textAlign: 'center' }}>{vm.changeNote}</p>}
       {vm.type !== 'RECEIPT' && vm.letterhead.paymentDetails && (
         <p style={{ marginTop: '8px', textAlign: 'center', color: MUTED }}>How to pay: {vm.letterhead.paymentDetails}</p>
       )}

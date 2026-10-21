@@ -45,11 +45,9 @@ export class ReturnsService {
     }
 
     const returnedByItem = new Map<string, number>();
-    const restockedByItem = new Map<string, number>();
     for (const ret of doc.returns) {
       for (const line of ret.items) {
         returnedByItem.set(line.documentItemId, (returnedByItem.get(line.documentItemId) || 0) + line.qty);
-        restockedByItem.set(line.documentItemId, (restockedByItem.get(line.documentItemId) || 0) + line.restockedQty);
       }
     }
 
@@ -74,9 +72,11 @@ export class ReturnsService {
           qtySold: item.qty,
           qtyReturned: returned,
           qtyReturnable: Math.max(0, item.qty - returned),
-          // Only goods that left the shop's own stock can go back onto its
-          // shelf; the part supplied from elsewhere is not the shop's to restock.
-          qtyRestockable: Math.max(0, (item.stockQty ?? item.qty) - (restockedByItem.get(item.id) || 0)),
+          // Returns always come back to the shop, even goods that were
+          // supplied from elsewhere: there is no way to know whether a
+          // supplier's driver took them back, so the shop's shelf is the
+          // single place a return lands.
+          qtyRestockable: Math.max(0, item.qty - returned),
         };
       }),
       returns: doc.returns.map((r) => ({
@@ -131,7 +131,9 @@ export class ReturnsService {
     // An account sale is refunded to the customer's ledger, not out of the
     // till; a cash/M-Pesa sale is refunded by the same route it was paid.
     const onAccount = snapshot.paymentMethod === PaymentMethod.CREDIT;
-    const refundMethod = onAccount ? null : ((input.refundMethod as PaymentMethod) ?? (snapshot.paymentMethod as PaymentMethod) ?? PaymentMethod.CASH);
+    // A mixed sale has no single route back, so default to cash unless told.
+    const paidBy = snapshot.paymentMethod === PaymentMethod.MIXED ? null : (snapshot.paymentMethod as PaymentMethod | null);
+    const refundMethod = onAccount ? null : ((input.refundMethod as PaymentMethod) ?? paidBy ?? PaymentMethod.CASH);
 
     const created = await this.prisma.$transaction(async (tx) => {
       const returnNumber = await this.settings.nextNumber('RETURN', tx);

@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Download, Receipt } from 'lucide-react';
+import { Download, FilePenLine, Receipt } from 'lucide-react';
 import { documentsApi, type DocumentListParams, type SaleDocument } from '../../../lib/documents-api';
+import { EditRequestsDialog } from '../../../components/documents/EditRequests';
+import { useAuth } from '../../../lib/auth-context';
 import { DocumentDetailDrawer } from '../../../components/documents/DocumentDetailDrawer';
 import { useDocumentActions } from '../../../lib/use-document-actions';
 import { fmtNumber } from '../../../lib/format';
@@ -39,6 +41,16 @@ type Tab = 'invoices' | 'delivery-notes';
 export default function InvoicesPage() {
   const [tab, setTab] = useState<Tab>('invoices');
   const [detailId, setDetailId] = useState<string | null>(null);
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN';
+  const [queueOpen, setQueueOpen] = useState(false);
+  const [pendingEdits, setPendingEdits] = useState(0);
+  // Admins see how many corrections are waiting on them.
+  const countPending = () => {
+    if (!isAdmin) return;
+    documentsApi.listEditRequests('PENDING').then((r) => setPendingEdits(r.length)).catch(() => {});
+  };
+  useEffect(countPending, [isAdmin]);
 
   // Lets global search (Ctrl/Cmd+K) land straight on a document's detail
   // drawer via `/invoices?open=<id>` — it fetches by id itself, independent
@@ -138,6 +150,17 @@ export default function InvoicesPage() {
             {tab === 'invoices' ? "Converted from quotes. New invoices are created from a quote's detail view." : "Frozen at creation — printing a delivery note again later won't reflect changes to the source invoice."}
           </p>
         </div>
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={() => setQueueOpen(true)}
+            className="flex min-h-10 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium"
+            style={{ borderColor: pendingEdits > 0 ? 'var(--color-status-warn)' : 'var(--color-border)', color: pendingEdits > 0 ? 'var(--color-status-warn)' : 'var(--color-ink-900)', backgroundColor: 'var(--color-surface)' }}
+          >
+            <FilePenLine size={14} strokeWidth={2} />
+            Edit requests{pendingEdits > 0 ? ` (${pendingEdits})` : ''}
+          </button>
+        )}
       </div>
 
       <div className="mt-4 flex gap-1.5" role="group" aria-label="Document type">
@@ -177,7 +200,24 @@ export default function InvoicesPage() {
         />
       </div>
 
-      <DocumentDetailDrawer documentId={detailId} onClose={() => setDetailId(null)} onChanged={load} onNavigate={setDetailId} />
+      <DocumentDetailDrawer
+        documentId={detailId}
+        onClose={() => setDetailId(null)}
+        onChanged={() => {
+          load();
+          countPending();
+        }}
+        onNavigate={setDetailId}
+      />
+      {queueOpen && (
+        <EditRequestsDialog
+          onClose={() => setQueueOpen(false)}
+          onChanged={() => {
+            load();
+            countPending();
+          }}
+        />
+      )}
     </div>
   );
 }

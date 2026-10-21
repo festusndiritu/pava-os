@@ -66,6 +66,9 @@ enum PaymentMethod {
   CASH
   MPESA
   CREDIT
+  // A sale settled with more than one method (e.g. cash + M-Pesa). The split
+  // itself lives in DocumentPayment.
+  MIXED
 }
 
 enum EmploymentStatus {
@@ -146,6 +149,8 @@ model User {
   payrollRuns           PayrollRun[]
   expenses              Expense[]
   returns               Return[]
+  editRequested         DocumentEditRequest[] @relation("EditRequestedBy")
+  editDecided           DocumentEditRequest[] @relation("EditDecidedBy")
   pushSubscriptions     PushSubscription[]
   followUpDigests       FollowUpDigest[]
 
@@ -357,6 +362,9 @@ enum LedgerEntryType {
   OPENING
   REFUND
   WRITE_OFF
+  // Change the customer chose to leave with the shop. Stored as a negative
+  // amount: the shop holds the customer's money (credit in their favour).
+  CHANGE_DEPOSIT
 }
 
 model Customer {
@@ -460,6 +468,9 @@ model Document {
   transportAmount    Int            @default(0)
   roundingAdjustment Int            @default(0)
   paymentMethod      PaymentMethod?
+  // Change handed back in cash vs. change left with the shop as customer credit.
+  changeGiven        Int            @default(0)
+  changeToCredit     Int            @default(0)
   subtotal           Int            @default(0)
   total              Int            @default(0)
   quoteNumber        String?        @unique
@@ -477,11 +488,56 @@ model Document {
   deliveryPhone String?
 
   items         DocumentItem[]
+  payments      DocumentPayment[]
+  editRequests  DocumentEditRequest[]
   ledgerEntries CustomerLedgerEntry[]
   returns       Return[]
 
   @@index([status])
   @@index([createdAt])
+}
+
+// One row per payment taken against a sale, so a cash + M-Pesa sale keeps both
+// halves. `amount` is what was applied to the bill (change already excluded).
+model DocumentPayment {
+  id         String        @id @default(cuid())
+  documentId String
+  document   Document      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  method     PaymentMethod
+  amount     Int
+  createdAt  DateTime      @default(now())
+
+  @@index([documentId])
+}
+
+enum EditRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// A staff member's request to correct a completed invoice/receipt. Nothing on
+// the document changes until an admin approves; `changes` holds the proposed
+// items (with quantities and prices) and transport.
+model DocumentEditRequest {
+  id           String            @id @default(cuid())
+  documentId   String
+  document     Document          @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  status       EditRequestStatus @default(PENDING)
+  reason       String
+  changes      Json
+  previousTotal Int
+  proposedTotal Int
+  requestedById String
+  requestedBy  User              @relation("EditRequestedBy", fields: [requestedById], references: [id])
+  decidedById  String?
+  decidedBy    User?             @relation("EditDecidedBy", fields: [decidedById], references: [id])
+  decisionNote String?
+  createdAt    DateTime          @default(now())
+  decidedAt    DateTime?
+
+  @@index([documentId])
+  @@index([status])
 }
 
 model DocumentItem {

@@ -208,6 +208,9 @@ export function TotalsBlock({ vm }: { vm: DocumentViewModel }) {
         {vm.type === 'RECEIPT' && vm.paymentLabel && (
           <Text style={{ marginTop: 4, textAlign: 'right', fontSize: 9, color: MUTED }}>Paid by {vm.paymentLabel}</Text>
         )}
+        {vm.type === 'RECEIPT' && vm.changeNote && (
+          <Text style={{ marginTop: 2, textAlign: 'right', fontSize: 9, color: MUTED }}>{vm.changeNote}</Text>
+        )}
         {vm.isUnpaid && <Text style={{ marginTop: 4, textAlign: 'right', fontSize: 9, color: MUTED }}>Payable on collection.</Text>}
       </View>
     </View>

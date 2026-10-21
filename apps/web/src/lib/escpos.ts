@@ -174,6 +174,7 @@ export function buildReceiptBytes(vm: DocumentViewModel, opts: EscPosOptions = {
     b.bold(false).align('center');
     b.line();
     if (vm.type === 'RECEIPT' && vm.paymentLabel) center(`Paid by ${vm.paymentLabel}`);
+    if (vm.type === 'RECEIPT' && vm.changeNote) center(vm.changeNote);
     if (vm.type !== 'RECEIPT' && vm.letterhead.paymentDetails) center(`How to pay: ${vm.letterhead.paymentDetails}`);
     if (vm.issuedByName) center(`Served by ${vm.issuedByName}`);
   }

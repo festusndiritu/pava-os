@@ -20,10 +20,8 @@ import {
 import { productsApi, type Category, type Product } from '../../../lib/products-api';
 import { customersApi, type Customer } from '../../../lib/customers-api';
 import {
-  POS_PAYMENT_METHODS,
   posApi,
   readStockShortfalls,
-  type PosPaymentMethod,
   type PosSaleResult,
   type SuspendedOrder,
 } from '../../../lib/pos-api';
@@ -31,6 +29,7 @@ import { documentsApi } from '../../../lib/documents-api';
 import { thicknessLabel } from '../../../lib/shape-config';
 import { TransportDialog, type TransportSettings } from '../../../components/pos/TransportDialog';
 import { ReceiptDialog } from '../../../components/pos/ReceiptDialog';
+import { PaymentPanel, emptyPayment, resolvePayment, type PaymentDraft } from '../../../components/pos/PaymentPanel';
 import { ProductIcon } from '../../../components/pos/ProductIcon';
 import { SuspendOrderDialog, SuspendedOrdersDialog } from '../../../components/pos/SuspendedOrders';
 import { ReturnDialog } from '../../../components/pos/ReturnDialog';
@@ -80,7 +79,7 @@ export default function PosPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
   // M-Pesa Paybill is how most of the counter pays, so it leads.
-  const [paymentMethod, setPaymentMethod] = useState<PosPaymentMethod>('MPESA');
+  const [payment, setPayment] = useState<PaymentDraft>(emptyPayment);
   // PAVA's only credit: the customer takes the goods and settles the same day.
   // The sale goes out as an unpaid invoice and is closed off from Invoices.
   const [settleLater, setSettleLater] = useState(false);
@@ -268,12 +267,15 @@ export default function PosPage() {
     setSourcing({});
     setFulfilmentOpen(false);
     setSettleLater(false);
+    setPayment(emptyPayment);
   }
 
   const subtotal = cart.reduce((s, l) => s + l.qty * l.unitPrice, 0);
   const transportAmount = transport?.amount || 0;
   // Approximate — the server computes the precise, correctly-rounded total.
   const estimatedTotal = subtotal + transportAmount;
+  const hasCustomer = customerMode === 'existing' && !!selectedCustomer;
+  const paying = resolvePayment(payment, Math.max(0, estimatedTotal), hasCustomer);
 
   // How much of a line leaves the shop: the operator's decision if there is
   // one (never more than is ordered or on the shelf), otherwise whatever the
@@ -324,6 +326,10 @@ export default function PosPage() {
 
   async function checkout() {
     if (cart.length === 0) return;
+    if (!settleLater && paying.problem) {
+      toast.error(paying.problem);
+      return;
+    }
     setSubmitting(true);
     try {
       const sale = await posApi.checkout({
@@ -344,7 +350,9 @@ export default function PosPage() {
         transportApplyTo: transport?.applyTo,
         manualAllocations: undefined,
         foldTransportIntoPrices: transport?.fold ?? true,
-        paymentMethod: settleLater ? undefined : paymentMethod,
+        paymentMethod: settleLater ? undefined : paying.method,
+        payments: settleLater ? undefined : paying.tenders,
+        changeAction: settleLater ? undefined : paying.changeAction,
         settleLater: settleLater || undefined,
         suspendedFromId: resumedFromId ?? undefined,
       });
@@ -644,30 +652,16 @@ export default function PosPage() {
           <span className="data-num">{transport ? money(transport.amount) : '+ Add'}</span>
         </button>
 
-        <div className="grid grid-cols-2 gap-2">
-          {POS_PAYMENT_METHODS.map((m) => {
-            const active = !settleLater && paymentMethod === m.value;
-            return (
-              <button
-                key={m.value}
-                type="button"
-                onClick={() => {
-                  setPaymentMethod(m.value);
-                  setSettleLater(false);
-                }}
-                className="min-h-11 rounded-md border px-2 text-sm font-medium"
-                style={{
-                  borderColor: active ? 'var(--color-accent)' : 'var(--color-border)',
-                  backgroundColor: active ? 'var(--color-accent-soft)' : 'transparent',
-                  color: active ? 'var(--color-accent)' : 'var(--color-ink-600)',
-                }}
-              >
-                {m.label}
-                <span className="ml-1 text-[11px] font-normal opacity-70">{m.hint}</span>
-              </button>
-            );
-          })}
-        </div>
+        <PaymentPanel
+          draft={payment}
+          onChange={(next) => {
+            setPayment(next);
+            setSettleLater(false);
+          }}
+          total={Math.max(0, estimatedTotal)}
+          hasCustomer={hasCustomer}
+          disabled={settleLater}
+        />
 
         <button
           type="button"
@@ -695,7 +689,7 @@ export default function PosPage() {
         <button
           type="button"
           onClick={() => checkout()}
-          disabled={cart.length === 0 || submitting}
+          disabled={cart.length === 0 || submitting || (!settleLater && !!paying.problem)}
           className="min-h-12 rounded-md px-4 text-sm font-semibold text-white disabled:opacity-50"
           style={{ backgroundColor: 'var(--color-accent)' }}
         >
