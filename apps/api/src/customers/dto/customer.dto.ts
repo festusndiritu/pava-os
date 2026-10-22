@@ -89,7 +89,7 @@ const ADJUST_TYPES = ['ADJUSTMENT', 'OPENING', 'REFUND', 'WRITE_OFF'] as const;
 
 export class AdjustBalanceDto {
   @IsMoney({ allowNegative: true })
-  amount!: number; // signed
+  amount!: number;
 
   @IsIn(ADJUST_TYPES)
   type!: (typeof ADJUST_TYPES)[number];

@@ -29,12 +29,9 @@ const TONE_STYLES: Record<IconTone, { fg: string; bg: string }> = {
   neutral: { fg: 'var(--color-ink-600)', bg: 'var(--color-bg)' },
 };
 
-// Shape is the catalogue's own structured field, so it is the most reliable
-// signal — matched first, before falling back to category and then to name
-// keywords for products that predate the shape taxonomy. Only genuinely
-// dimensioned steel profiles live here; a cutting disc or a nail was never
-// really a "shape" in the SHS/angle-bar sense, and the keyword list below
-// already identifies them by name/category, so they don't need one.
+// Shape is the catalogue's own structured field, so it is the most reliable signal — matched first,
+// before falling back to category and then to name keywords for products that predate the shape
+// taxonomy.
 const SHAPE_ICONS: Record<string, { icon: LucideIcon; tone: IconTone }> = {
   SQUARE_TUBE: { icon: Square, tone: 'steel' },
   RECT_TUBE: { icon: Grid2x2, tone: 'steel' },
@@ -69,11 +66,7 @@ export function productIcon(product: Pick<Product, 'name' | 'displayName' | 'sha
   return { icon: Blocks, tone: 'neutral' as IconTone };
 }
 
-/**
- * Square icon tile used everywhere a product appears in the POS. PAVA does not
- * store product photography on purpose, so this is the product's real visual
- * identity rather than a placeholder waiting for an upload.
- */
+/** Square icon tile used everywhere a product appears in the POS. */
 export function ProductIcon({
   product,
   size = 44,

@@ -133,11 +133,7 @@ export function PartiesRow({ vm }: { vm: DocumentViewModel }) {
   );
 }
 
-/**
- * Percentage widths, not fixed mm — the same reasoning as the old
- * DocumentSheet: values that add up fine for a six-column invoice run past
- * the page edge on the delivery note's wider four-column layout.
- */
+/** Percentage widths, not fixed mm — the same reasoning as the old DocumentSheet: values that add up fine for a six-column invoice run past the page edge on the delivery note's wider four-column layout. */
 export function ItemsTable({ vm }: { vm: DocumentViewModel }) {
   const cols = vm.showPrices
     ? [
@@ -236,9 +232,7 @@ export function NotesAndPayment({ vm }: { vm: DocumentViewModel }) {
           </Field>
         </View>
       )}
-      {/* Payment details belong on documents the customer still has to act
-          on — never on a delivery note, never on a receipt that's already
-          been settled. */}
+      {/* Payment details belong on documents the customer still has to act on — never on a delivery note, never on a receipt that's already been settled. */}
       {!vm.isDeliveryNote && vm.type !== 'RECEIPT' && vm.letterhead.paymentDetails && (
         <View style={styles.paymentBox}>
           <Field label="How to pay">

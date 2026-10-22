@@ -4,9 +4,7 @@ import { NotificationsService } from './notifications.service.js';
 import { FollowUpReminderService } from './follow-up-reminder.service.js';
 import { SubscribeDto, UnsubscribeDto } from './dto/notifications.dto.js';
 
-// Deliberately not module-gated: any signed-in user can switch notifications
-// on for their own devices. What they are *sent* is decided server-side from
-// what they own and may access.
+// Deliberately not module-gated: any signed-in user can switch notifications on for their own devices.
 @UseGuards(JwtAuthGuard)
 @Controller('notifications')
 export class NotificationsController {

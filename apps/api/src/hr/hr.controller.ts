@@ -8,8 +8,6 @@ import { EmploymentStatus, Module, Role } from '../../generated/prisma/client.js
 import { HrService } from './hr.service.js';
 import { CreateEmployeeDto, UpdateEmployeeDto } from './dto/employee.dto.js';
 
-// Salary is sensitive (brief §36) — every route here is HR-gated, unlike
-// Customers/Contacts which stay readable to any logged-in user.
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Permissions(Module.HR)
 @Controller('employees')
@@ -36,9 +34,7 @@ export class HrController {
     return this.hr.update(id, req.user.sub, body);
   }
 
-  // Permanent deletion is admin-only, same as every other hard-delete
-  // route in the system. The service enforces the employee is already
-  // Terminated and has no advance/payroll history.
+  // Permanent deletion is admin-only, same as every other hard-delete route in the system.
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN)
   @Delete(':id/permanent')

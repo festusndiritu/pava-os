@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 
-/** True when the user's OS asks for less motion. Used to switch off chart animation. */
 export function useReducedMotion() {
   const [reduced, setReduced] = useState(false);
 

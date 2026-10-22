@@ -4,8 +4,6 @@ import { IsMoney } from '../../common/validation/money.validator.js';
 import { CHANGE_ACTIONS, PaymentLineDto } from './payment.dto.js';
 import { OptionalKenyanPhone } from '../../common/validation/phone.validator.js';
 
-// Where one invoice line is supplied from: how many units leave the shop's own
-// stock, and (for the rest) where they come from.
 export class FulfilmentLineDto {
   @IsString()
   itemId!: string;
@@ -21,15 +19,10 @@ export class FulfilmentLineDto {
 }
 
 export class ConvertToInvoiceDto {
-  // Backorder promise (brief step 3): converts a quote to an invoice even
-  // though recorded stock is short. Backend re-checks the actor actually
-  // holds `canInvoiceWithoutStock` (or is admin) regardless of this flag.
   @IsOptional()
   @IsBoolean()
   allowNegativeStock?: boolean;
 
-  // Per-line split between shop stock and goods supplied from elsewhere.
-  // A line left out is taken wholly from the shop.
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
@@ -38,29 +31,23 @@ export class ConvertToInvoiceDto {
 }
 
 export class CreateDeliveryNoteDto {
-  // Dispatch/site address for this note — distinct from the customer's
-  // stored address (delivery site and billing address aren't always the
-  // same). Optional: falls back to the customer's stored address at render
-  // time when omitted.
+  // Dispatch/site address for this note — distinct from the customer's stored address (delivery
+  // site and billing address aren't always the same).
   @IsOptional()
   @IsString()
   deliveryLocation?: string;
 
-  // A contact number for whoever's at the drop-off site — often not the
-  // customer themselves. Optional: falls back to the customer's stored
-  // phone at render time when omitted.
+  // A contact number for whoever's at the drop-off site — often not the customer themselves.
   @OptionalKenyanPhone()
   deliveryPhone?: string;
 }
 
 export class MarkPaidDto {
-  // How the outstanding invoice was actually settled, so the receipt says
-  // so. Optional for invoices raised before this was recorded.
+  // How the outstanding invoice was actually settled, so the receipt says so.
   @IsOptional()
   @IsIn(['CASH', 'MPESA'] as const)
   paymentMethod?: 'CASH' | 'MPESA';
 
-  // Cash that needed change, or a cash + M-Pesa split — see CreatePosSaleDto.
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
@@ -77,9 +64,7 @@ export class DocumentItemDto {
   @IsString()
   productId?: string;
 
-  // Required for a manual/custom line with no productId (e.g. a one-off
-  // labour charge); ignored for a catalogue line, whose description is
-  // taken from the product itself so it can't drift from the catalogue.
+  // Required for a manual/custom line with no productId (e.g.
   @IsOptional()
   @IsString()
   description?: string;
@@ -89,8 +74,7 @@ export class DocumentItemDto {
   @Min(1)
   qty!: number;
 
-  // The final, negotiated per-unit price — see PosItemDto for why there's
-  // no separate "discount" field. Same rule here.
+  // The final, negotiated per-unit price — see PosItemDto for why there's no separate "discount" field.
   @IsMoney()
   unitPrice!: number;
 }
@@ -131,7 +115,7 @@ export class CreateDocumentDto {
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  transportApplyTo?: string[]; // productIds; defaults to all lines
+  transportApplyTo?: string[];
 
   @IsOptional()
   @IsArray()
@@ -139,8 +123,6 @@ export class CreateDocumentDto {
   @Type(() => ManualAllocationDto)
   manualAllocations?: ManualAllocationDto[];
 
-  // true (default): transport folded into item prices, "Delivery included"
-  // on the quote. false: transport shown as its own line, item prices untouched.
   @IsOptional()
   @IsBoolean()
   foldTransportIntoPrices?: boolean;
@@ -155,8 +137,7 @@ export class CreateDocumentDto {
   notes?: string;
 }
 
-// Editing a quote is a full replacement of everything the create form
-// captures (customer, lines, transport, notes) — the same shape and the same
-// validation as creating one, so the two can never drift apart. Anything left
-// out is cleared, exactly as it would be on a fresh quote.
+// Editing a quote is a full replacement of everything the create form captures (customer, lines,
+// transport, notes) — the same shape and the same validation as creating one, so the two can never
+// drift apart.
 export class UpdateDocumentDto extends CreateDocumentDto {}

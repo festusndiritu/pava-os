@@ -6,10 +6,8 @@ import type { ModuleKey } from '../../lib/constants';
 import { iconFor } from './nav-icons';
 import { useNav } from './use-nav';
 
-// The four destinations most likely to be a one-tap job on a phone
 const PRIMARY: ModuleKey[] = ['DASHBOARD', 'POS', 'INVOICES', 'PRODUCTS', 'CUSTOMERS', 'INVENTORY'];
 
-/** Phone navigation: a bottom tab bar, reachable with a thumb. Hidden from `md` up. */
 export function BottomNav({ onMore, moreOpen }: { onMore: () => void; moreOpen: boolean }) {
   const { sections, isActive } = useNav();
   const all = sections.flatMap((s) => s.items);

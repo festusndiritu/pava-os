@@ -57,7 +57,6 @@ export default function NotificationsPage() {
 
   function open(n: AppNotification) {
     if (!n.readAt) {
-      // Optimistic: the row reads as done at once; the server catches up.
       setItems((prev) => prev?.map((x) => (x.id === n.id ? { ...x, readAt: new Date().toISOString() } : x)) ?? prev);
       notificationsApi.markRead(n.id).then(announce).catch(() => {});
     }
@@ -82,7 +81,7 @@ export default function NotificationsPage() {
             Notifications
           </h1>
           <p className="mt-0.5 text-sm" style={muted}>
-            Things waiting on you, and what happened to the ones you sent.
+            Requests and approvals
           </p>
         </div>
         <button
@@ -119,7 +118,7 @@ export default function NotificationsPage() {
           style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-600)' }}
         >
           <BellRing size={15} strokeWidth={2} style={{ color: 'var(--color-accent)' }} />
-          Switch on alerts for this device in your profile to be pinged the moment something comes in.
+          Turn on alerts in your profile.
         </Link>
       )}
 

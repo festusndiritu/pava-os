@@ -5,9 +5,10 @@ import { useAuth } from '../../../lib/auth-context';
 import { api, ApiError } from '../../../lib/api';
 import { DEFAULT_AVATAR } from '../../../lib/constants';
 import { Avatar, AvatarPicker } from '../../../components/Avatar';
+import { Switch } from '../../../components/ui/Switch';
 import { PinPad } from '../../../components/login/PinPad';
 import { toast } from '../../../components/ui/Toast';
-import { disablePush, enablePush, getPushConfig, getPushStatus, sendTestPush, type PushStatus } from '../../../lib/push';
+import { disablePush, enablePush, getPushStatus, type PushStatus } from '../../../lib/push';
 
 function Card({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
@@ -50,7 +51,7 @@ function NameAvatarCard() {
   }
 
   return (
-    <Card title="Profile" description="Your display name and avatar — visible to the whole team on the staff login screen.">
+    <Card title="Profile" description="Your display name and avatar">
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
         <div className="flex flex-col gap-1.5">
           <label htmlFor="name" className="text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
@@ -88,34 +89,25 @@ function NameAvatarCard() {
   );
 }
 
-function formatHour(h: number) {
-  const suffix = h >= 12 ? 'pm' : 'am';
-  return `${h % 12 === 0 ? 12 : h % 12}:00 ${suffix}`;
-}
-
 function NotificationsCard() {
   const { user } = useAuth();
   const userId = user?.id ?? '';
   const [status, setStatus] = useState<PushStatus>('loading');
-  const [hour, setHour] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!userId) return;
     let live = true;
     getPushStatus(userId).then((st) => live && setStatus(st));
-    getPushConfig()
-      .then((c) => live && setHour(c.reminderHour))
-      .catch(() => undefined);
     return () => {
       live = false;
     };
   }, [userId]);
 
-  async function run(action: () => Promise<void>) {
+  async function toggle(on: boolean) {
     setBusy(true);
     try {
-      await action();
+      setStatus(on ? await enablePush(userId) : await disablePush(userId));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't update notifications");
     } finally {
@@ -123,90 +115,28 @@ function NotificationsCard() {
     }
   }
 
-  const when = hour === null ? 'each morning' : `each morning at ${formatHour(hour)}`;
-  const note = (text: string) => (
-    <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
-      {text}
-    </p>
-  );
-  const primary = 'rounded-md px-4 py-2 text-sm font-medium text-white transition-colors disabled:opacity-60';
-  const secondary = 'rounded-md border px-4 py-2 text-sm font-medium transition-colors disabled:opacity-60';
-
-  let body: React.ReactNode = null;
-  if (status === 'loading') body = note('Checking this device…');
-  else if (status === 'ios-needs-install')
-    body = note('On iPhone and iPad, notifications only work once Pava OS is added to your Home Screen. In Safari tap Share → Add to Home Screen, then open Pava OS from there and come back to this page.');
-  else if (status === 'unsupported') body = note('This browser doesn’t support push notifications.');
-  else if (status === 'denied')
-    body = note('Notifications are blocked for Pava OS on this device. Allow them in your browser or phone settings (site or app notification settings), then reload this page.');
-  else if (status === 'off')
-    body = (
-      <button
-        type="button"
-        disabled={busy}
-        className={primary}
-        style={{ backgroundColor: 'var(--color-accent)' }}
-        onClick={() =>
-          run(async () => {
-            const next = await enablePush(userId);
-            setStatus(next);
-            if (next === 'on') toast.success('Notifications on');
-          })
-        }
-      >
-        {busy ? 'Turning on…' : 'Turn on notifications'}
-      </button>
-    );
-  else
-    body = (
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="text-sm font-medium" style={{ color: 'var(--color-status-ok)' }}>
-          On for this device
-        </span>
-        <button
-          type="button"
-          disabled={busy}
-          className={secondary}
-          style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}
-          onClick={() =>
-            run(async () => {
-              await sendTestPush();
-              toast.success('Test notification sent');
-            })
-          }
-        >
-          Send a test
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          className={secondary}
-          style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}
-          onClick={() =>
-            run(async () => {
-              setStatus(await disablePush(userId));
-            })
-          }
-        >
-          Turn off
-        </button>
-      </div>
-    );
-
   return (
-    <Card title="Notifications" description={`A summary of the leads you own that have a follow-up due or overdue, ${when} — on this device, even when the app is closed.`}>
-      <div className="flex flex-col gap-3">
-        {body}
-      </div>
-    </Card>
+    <div className="flex items-center justify-between rounded-lg border p-6" style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
+      <h2 className="text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>
+        Notifications
+      </h2>
+      <Switch label="Notifications" checked={status === 'on'} disabled={busy || (status !== 'on' && status !== 'off')} onChange={toggle} />
+    </div>
   );
 }
 
 function ChangePinCard() {
+  const [open, setOpen] = useState(false);
   const [step, setStep] = useState<'current' | 'new'>('current');
   const [currentPin, setCurrentPin] = useState('');
   const [error, setError] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  function reset() {
+    setOpen(false);
+    setStep('current');
+    setCurrentPin('');
+  }
 
   async function submitNewPin(newPin: string) {
     setSaving(true);
@@ -214,8 +144,7 @@ function ChangePinCard() {
     try {
       await api.post('/auth/change-pin', { currentPin, newPin });
       toast.success('PIN changed');
-      setStep('current');
-      setCurrentPin('');
+      reset();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Couldn't change PIN");
       setError(true);
@@ -226,8 +155,18 @@ function ChangePinCard() {
     }
   }
 
+  if (!open) {
+    return (
+      <Card title="PIN">
+        <button type="button" onClick={() => setOpen(true)} className="rounded-md border px-4 py-2 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
+          Change PIN
+        </button>
+      </Card>
+    );
+  }
+
   return (
-    <Card title="Change PIN" description={step === 'current' ? 'Enter your current PIN to continue.' : 'Now enter your new 4-digit PIN.'}>
+    <Card title="Change PIN" description={step === 'current' ? 'Current PIN' : 'New PIN'}>
       <div className="flex justify-center py-2">
         <PinPad
           key={step}
@@ -244,6 +183,9 @@ function ChangePinCard() {
           }}
         />
       </div>
+      <button type="button" onClick={reset} disabled={saving} className="mt-2 text-sm font-medium" style={{ color: 'var(--color-ink-600)' }}>
+        Cancel
+      </button>
     </Card>
   );
 }
@@ -302,7 +244,6 @@ function ChangePasswordCard() {
             style={fieldStyle()}
           />
         </div>
-
 
         <button
           type="submit"

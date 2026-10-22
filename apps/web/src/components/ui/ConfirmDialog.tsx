@@ -4,12 +4,7 @@ import type { LucideIcon } from 'lucide-react';
 import { AlertTriangle } from 'lucide-react';
 import { Modal } from './Modal';
 
-/**
- * The one confirm-before-you-act dialog for the whole app. Archiving a
- * product, archiving a customer, discarding something — anything that needs
- * a deliberate second tap uses this instead of a bespoke inline prompt, so
- * the pause feels the same everywhere.
- */
+/** The one confirm-before-you-act dialog for the whole app. */
 export function ConfirmDialog({
   title,
   description,

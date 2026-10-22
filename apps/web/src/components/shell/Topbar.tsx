@@ -39,8 +39,6 @@ function useTodayLabel() {
   return label;
 }
 
-// Unread count for the bell. Polled gently, and re-read when the tab comes back
-// into view or the notifications page changes something.
 function useUnreadCount(enabled: boolean) {
   const [count, setCount] = useState(0);
 
@@ -82,7 +80,6 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const today = useTodayLabel();
   const unread = useUnreadCount(!!user);
 
-  // Cmd/Ctrl+K opens global search everywhere except POS.
   useEffect(() => {
     if (isPos) return;
 
@@ -97,7 +94,6 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [isPos]);
 
-  // Close account menu when clicking outside or pressing Escape.
   useEffect(() => {
     if (!menuOpen) return;
 
@@ -134,7 +130,6 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
         borderColor: 'var(--color-border)',
       }}
     >
-      {/* Left side */}
       <div className="flex min-w-0 items-center gap-3">
         {isPos && (
           <button
@@ -148,7 +143,6 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
           </button>
         )}
 
-        {/* Mobile brand */}
         {!isPos && (
           <div className="flex shrink-0 items-center gap-2 md:hidden">
             <Image
@@ -167,7 +161,6 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
           </div>
         )}
 
-        {/* Date */}
         <div
           className="hidden items-center gap-1.5 text-sm md:flex"
           style={{ color: 'var(--color-ink-600)' }}
@@ -177,9 +170,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
         </div>
       </div>
 
-      {/* Right side */}
       <div className="flex shrink-0 items-center gap-1.5">
-        {/* Desktop global search */}
         {!isPos && (
           <button
             type="button"
@@ -210,7 +201,6 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
           </button>
         )}
 
-        {/* Compact search on smaller screens */}
         {!isPos && (
           <button
             type="button"
@@ -224,7 +214,6 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
           </button>
         )}
 
-        {/* POS */}
         {hasPermission('POS') && !isPos && (
           <Link
             href="/pos"
@@ -246,7 +235,6 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
 
         <QuickCalculator />
 
-        {/* Notifications */}
         <Link
           href="/notifications"
           aria-label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
@@ -265,7 +253,6 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
           )}
         </Link>
 
-        {/* Account */}
         <div className="relative" ref={menuRef}>
           <button
             ref={menuButtonRef}
@@ -305,7 +292,6 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
                 boxShadow: 'var(--shadow-card)',
               }}
             >
-              {/* User identity */}
               <div className="flex items-center gap-2.5 px-3 py-2.5">
                 <Avatar name={user.name} avatar={user.avatar} size={32} />
 
@@ -324,7 +310,6 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
                 style={{ borderColor: 'var(--color-border)' }}
               />
 
-              {/* Profile */}
               <Link
                 href="/profile"
                 onClick={() => setMenuOpen(false)}
@@ -335,7 +320,6 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
                 Profile
               </Link>
 
-              {/* Appearance */}
               <div className="flex items-center justify-between px-3 py-2">
                 <span
                   className="text-sm"
@@ -352,7 +336,6 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
                 style={{ borderColor: 'var(--color-border)' }}
               />
 
-              {/* Sign out */}
               <button
                 type="button"
                 onClick={() => logout()}

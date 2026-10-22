@@ -87,8 +87,7 @@ export function ProductFormDrawer({
   open: boolean;
   onClose: () => void;
   onSaved: () => void;
-  product: Product | null; // null = creating
-  /** When creating, start from this product's details (name and aliases are left for the person to fill in). */
+  product: Product | null;
   duplicateFrom?: Product | null;
   brands: Brand[];
   categories: Category[];
@@ -130,8 +129,8 @@ export function ProductFormDrawer({
     setOpeningCost('');
     const source = product ?? duplicateFrom ?? null;
     if (source) {
-      // A copy keeps the shape of the original so a run of similar sizes is quick
-      // to enter, but not its name or aliases: those identify one specific product.
+      // A copy keeps the shape of the original so a run of similar sizes is quick to enter, but not
+      // its name or aliases: those identify one specific product.
       setName(product ? source.name : '');
       setDisplayName(product ? (source.displayName ?? '') : '');
       setSpec(source.spec ?? '');
@@ -171,7 +170,6 @@ export function ProductFormDrawer({
   }, [open, product, duplicateFrom, units]);
 
   // Two products with the same technical name are almost always a double entry.
-  // Not blocked (a genuine repeat is possible), just pointed out before saving.
   const debouncedName = useDebounced(name.trim());
   useEffect(() => {
     setSameName(null);

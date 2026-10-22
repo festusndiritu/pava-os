@@ -195,12 +195,6 @@ function FamilyRow({
   );
 }
 
-/**
- * Product families — grouping variants (e.g. Square Pipe 1.5" across gauges)
- * for search, marketing and shared low-stock alerts. Assigning a product to a
- * family still happens on the product form; this is just where families
- * themselves are created and tuned.
- */
 export function FamiliesManager({
   canEdit,
 }: {
@@ -341,9 +335,7 @@ export function FamiliesManager({
               className="mx-auto mt-1 max-w-sm text-sm leading-5"
               style={{ color: 'var(--color-ink-600)' }}
             >
-              Create a family above, then assign products to it from the
-              product form. Families are useful for grouping variants such as
-              different gauges or sizes.
+              Create a family, then assign products to it.
             </p>
           </div>
         ) : (

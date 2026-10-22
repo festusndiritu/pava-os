@@ -13,40 +13,24 @@ function fmtDateTime(iso: string) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));
 }
 
-// A receipt is paper. It is black on white at every step — on screen, in the
-// print dialog and in the exported PDF — no matter which theme the app is
-// running in, so none of these values may be a theme variable.
+// A receipt is paper.
 const INK = '#111827';
 const MUTED = '#4b5563';
 const RULE = '1px dashed #9ca3af';
 
-/**
- * The real PAVA logo in black and white — the same picture the printer
- * produces from the 1-bit bitmap in lib/escpos-logo.ts.
- */
 function ThermalBrandMark() {
-  // The real logo, forced to black and white to match what the printer produces.
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img src="/pava-logo.png" width={56} height={56} alt="PAVA" style={{ display: 'block', margin: '0 auto 8px', filter: 'grayscale(1) contrast(3)' }} />
   );
 }
 
-/**
- * One component for all four document types, parameterized entirely by
- * `DocumentViewModel` — the thermal-side counterpart to the PDF templates in
- * `lib/pdf/`. A delivery note is the structural exception, same as
- * everywhere else in this system: `DeliveryNoteBody` below is a genuinely
- * thermal-native compact packing-slip, not a shrunk copy of the money
- * layout — items and quantities only, the delivery location, and a single
- * signature line rather than the PDF's two-column block.
- */
+/** One component for all four document types, parameterized entirely by `DocumentViewModel` — the thermal-side counterpart to the PDF templates in `lib/pdf/`. */
 export function ThermalDocument({
   vm,
   variant,
 }: {
   vm: DocumentViewModel;
-  /** `print` renders the off-screen capture/print source carrying #print-area. */
   variant: 'preview' | 'print';
 }) {
   const rootProps =
@@ -54,10 +38,8 @@ export function ThermalDocument({
       ? { id: 'print-area', className: 'print-thermal printable-doc pdf-capture-offscreen' }
       : { className: 'printable-doc' };
 
-  // The print source is portalled to <body> so that, at print time, it can be
-  // the only thing in the document (see the @media print block in
-  // globals.css). Rendered in place it sits inside the app shell, whose
-  // height and overflow decide where the page breaks fall.
+  // The print source is portalled to <body> so that, at print time, it can be the only thing in the
+  // document (see the @media print block in globals.css).
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -76,10 +58,10 @@ export function ThermalDocument({
       }}
     >
       <div style={{ textAlign: 'center' }}>
-        <ThermalBrandMark />
+        {!vm.isDeliveryNote && <ThermalBrandMark />}
         <p style={{ fontSize: '17px', fontWeight: 700, letterSpacing: '0.08em' }}>{vm.letterhead.businessName.toUpperCase()}</p>
-        {vm.letterhead.address && <p style={{ color: MUTED }}>{vm.letterhead.address}</p>}
-        {vm.letterhead.phone && <p style={{ color: MUTED }}>{vm.letterhead.phone}</p>}
+        {!vm.isDeliveryNote && vm.letterhead.address && <p style={{ color: MUTED }}>{vm.letterhead.address}</p>}
+        {!vm.isDeliveryNote && vm.letterhead.phone && <p style={{ color: MUTED }}>{vm.letterhead.phone}</p>}
         <p style={{ marginTop: '6px', fontWeight: 700, letterSpacing: '0.12em' }}>{vm.title.toUpperCase()}</p>
         <p style={{ fontWeight: 600 }}>{vm.number}</p>
         <p style={{ color: MUTED }}>{fmtDateTime(vm.createdAt)}</p>
@@ -90,9 +72,12 @@ export function ThermalDocument({
 
       {vm.isDeliveryNote ? <DeliveryNoteBody vm={vm} /> : <PricedBody vm={vm} />}
 
-      <div style={{ borderTop: RULE, margin: '10px 0' }} />
-
-      <p style={{ textAlign: 'center', whiteSpace: 'pre-line' }}>{vm.letterhead.footerText}</p>
+      {vm.letterhead.footerText && (
+        <>
+          <div style={{ borderTop: RULE, margin: '10px 0' }} />
+          <p style={{ textAlign: 'center', whiteSpace: 'pre-line' }}>{vm.letterhead.footerText}</p>
+        </>
+      )}
     </div>
   );
 
@@ -100,12 +85,10 @@ export function ThermalDocument({
   return doc;
 }
 
-/** Quote, Invoice, Receipt — items with prices, a totals block, payment status. */
 function PricedBody({ vm }: { vm: DocumentViewModel }) {
   return (
     <>
-      {/* qty × unit price = line total. The unit price already IS the price
-          agreed for this document — there is no separate discount figure. */}
+      {/* qty × unit price = line total. */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
         {vm.items.map((item) => (
           <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
@@ -154,13 +137,7 @@ function PricedBody({ vm }: { vm: DocumentViewModel }) {
   );
 }
 
-/**
- * Delivery note — the thermal-native packing slip. Quantities only, no
- * pricing of any kind, the delivery location, and one signature line rather
- * than the PDF's two-column released-by/received-by block: a driver signing
- * for a compact slip at the door doesn't need two labeled boxes to know
- * where to sign.
- */
+/** Delivery note — the thermal-native packing slip. */
 function DeliveryNoteBody({ vm }: { vm: DocumentViewModel }) {
   return (
     <>
@@ -169,9 +146,6 @@ function DeliveryNoteBody({ vm }: { vm: DocumentViewModel }) {
       )}
       {vm.customerPhone && (
         <p style={{ textAlign: 'center', color: MUTED, marginBottom: '8px' }}>{vm.customerPhone}</p>
-      )}
-      {vm.sourceReference && (
-        <p style={{ textAlign: 'center', color: MUTED, marginBottom: '8px' }}>Order ref {vm.sourceReference}</p>
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>

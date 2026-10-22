@@ -52,8 +52,6 @@ export class UpdatePayrollItemDto {
   @IsMoney()
   otherDeductions?: number;
 
-  // Signed on purpose: a positive adjustment is a bonus/top-up, a negative
-  // one is a manual deduction outside otherDeductions.
   @IsOptional()
   @IsMoney({ allowNegative: true })
   adjustments?: number;

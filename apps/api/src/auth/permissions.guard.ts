@@ -3,10 +3,7 @@ import { Reflector } from '@nestjs/core';
 import { PERMISSIONS_KEY } from './permissions.decorator.js';
 import { Module, Role } from '../../generated/prisma/client.js';
 
-// Backend-authoritative module gating. The frontend hides nav items the user
-// can't reach, but this guard is what actually stops the request — per the
-// master brief, "Frontend visibility should reflect permissions, but API
-// authorization remains authoritative."
+// Backend-authoritative module gating.
 @Injectable()
 export class PermissionsGuard implements CanActivate {
   constructor(private reflector: Reflector) {}

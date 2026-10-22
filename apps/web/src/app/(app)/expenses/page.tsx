@@ -62,7 +62,7 @@ export default function ExpensesPage() {
 
   const total = expenses?.reduce((s, e) => s + e.amount, 0) ?? 0;
 
-  // Newest first. The whole filtered list is in the browser, so the table sorts and pages it there.
+  // Newest first.
   const table = useClientTable<Expense>({
     rows: expenses,
     sortValues: {

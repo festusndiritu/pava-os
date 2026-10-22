@@ -56,15 +56,11 @@ export class LeadsService {
     const { followUpAt, ...rest } = data;
     return this.prisma.lead.update({
       where: { id },
-      // undefined leaves the date alone; null clears it.
       data: { ...rest, ...(followUpAt === null ? { followUpAt: null } : followUpAt ? { followUpAt: new Date(followUpAt) } : {}) } as any,
     });
   }
 
   // Closes the loop brief §31 describes: Lead -> Quote -> Customer -> Sale.
-  // Creates a real Customer from the lead's contact details, links it back,
-  // and marks the lead WON. Does not touch quotes/documents — associating a
-  // specific quote with the new customer is a manual follow-up step for now.
   async convertToCustomer(id: string, actorId: string) {
     const lead = await this.findOne(id);
     if (lead.convertedCustomerId) {
@@ -85,8 +81,7 @@ export class LeadsService {
     return { lead: updated, customer };
   }
 
-  // Soft delete — same convention as Customer/Product. A lead can be
-  // archived at any stage; it never cascades to convertedCustomer.
+  // Soft delete — same convention as Customer/Product.
   async archive(id: string, actorId: string) {
     const lead = await this.findOne(id);
     const updated = await this.prisma.lead.update({ where: { id }, data: { active: false } });
@@ -100,11 +95,8 @@ export class LeadsService {
     return updated;
   }
 
-  // Permanent — only ever called on an already-archived lead (enforced by
-  // the controller/guard below), and only once nothing references it.
-  // Leads have no children of their own; the one thing worth checking is
-  // that it hasn't been converted, since deleting it would silently orphan
-  // Customer.convertedFromLeads for that customer.
+  // Permanent — only ever called on an already-archived lead (enforced by the controller/guard
+  // below), and only once nothing references it.
   async hardDelete(id: string, actorId: string) {
     const lead = await this.findOne(id);
     if (lead.active) throw new BadRequestException('Archive this lead before deleting it permanently');

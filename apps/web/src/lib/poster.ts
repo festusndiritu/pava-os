@@ -78,8 +78,6 @@ export interface PosterInput {
 
 export function posterCategoriesFromProducts(
   grouped: [string, Product[]][],
-  // Defaults to the catalogue list price; the Marketing page passes its own
-  // to apply promo / wholesale prices typed for this poster or pricelist.
   priceFor: (p: Product) => number = (p) => p.basePrice,
 ): PosterCategory[] {
   return grouped.map(([name, items]) => ({

@@ -38,9 +38,6 @@ export default function QuotesPage() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
 
-  // Lets global search (Ctrl/Cmd+K) land straight on a quote's detail drawer
-  // via `/quotes?open=<id>` — it fetches by id itself, independent of the
-  // currently loaded list.
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get('open');
     if (id) setDetailId(id);
@@ -149,13 +146,11 @@ export default function QuotesPage() {
           setDetailId(id);
         }}
       />
-      {/* Editing hands off from the detail drawer to the form (one drawer at a
-          time); saving reopens the detail so the new numbers are what you see. */}
+      {/* Editing hands off from the detail drawer to the form (one drawer at a time); saving reopens the detail so the new numbers are what you see. */}
       <DocumentDetailDrawer
         documentId={detailId}
         onClose={() => setDetailId(null)}
         onChanged={load}
-        onNavigate={setDetailId}
         onEdit={(id) => {
           setDetailId(null);
           setEditId(id);

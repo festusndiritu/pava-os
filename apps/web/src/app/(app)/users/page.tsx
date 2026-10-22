@@ -42,7 +42,6 @@ export default function UsersPage() {
     load();
   }, []);
 
-  // Administrators first, then by name; every column can be re-sorted.
   const table = useClientTable<StaffUser>({
     rows: users,
     sortValues: {

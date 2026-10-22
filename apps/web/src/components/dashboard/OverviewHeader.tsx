@@ -164,12 +164,7 @@ function Freshness({
   );
 }
 
-/**
- * Greeting, quick actions, and the "needs attention" strip. Every line here
- * is conditional: if the underlying data is missing — because of permissions
- * or because there is simply nothing yet — the line is dropped rather than
- * filled in. Sales figures live in the stat cards, not repeated here.
- */
+/** Greeting, quick actions, and the "needs attention" strip. */
 export function OverviewHeader({
   userName,
   data,

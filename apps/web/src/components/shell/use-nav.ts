@@ -4,7 +4,6 @@ import { usePathname } from 'next/navigation';
 import { NAV_SECTIONS } from '../../lib/constants';
 import { useAuth } from '../../lib/auth-context';
 
-/** Navigation sections filtered to what this user's permissions allow. */
 export function useNav() {
   const pathname = usePathname() ?? '';
   const { hasPermission } = useAuth();

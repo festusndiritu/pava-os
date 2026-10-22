@@ -25,7 +25,7 @@ import {
   type PosSaleResult,
   type SuspendedOrder,
 } from '../../../lib/pos-api';
-import { documentsApi } from '../../../lib/documents-api';
+import { documentsApi, type SaleDocument } from '../../../lib/documents-api';
 import { thicknessLabel } from '../../../lib/shape-config';
 import { TransportDialog, type TransportSettings } from '../../../components/pos/TransportDialog';
 import { ReceiptDialog } from '../../../components/pos/ReceiptDialog';
@@ -34,7 +34,7 @@ import { ProductIcon } from '../../../components/pos/ProductIcon';
 import { SuspendOrderDialog, SuspendedOrdersDialog } from '../../../components/pos/SuspendedOrders';
 import { ReturnDialog } from '../../../components/pos/ReturnDialog';
 import { FulfilmentDialog, defaultStockQty, type FulfilmentLine } from '../../../components/documents/FulfilmentDialog';
-import { DeliveryLocationDialog } from '../../../components/documents/DeliveryLocationDialog';
+import { DeliveryNoteDialog } from '../../../components/documents/DeliveryNoteDialog';
 import { ApiError } from '../../../lib/api';
 import { CommittedNumberInput } from '../../../components/ui/inputs';
 import { toast } from '../../../components/ui/Toast';
@@ -46,15 +46,13 @@ interface CartLine {
   unitPrice: number;
 }
 
-// A deliberate decision about where a line comes from. Lines without one are
-// split automatically: whatever the shop has, then the rest from elsewhere.
+// A deliberate decision about where a line comes from.
 interface Sourcing {
   stockQty: number;
   supplierSource: string;
 }
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
-
 
 export default function PosPage() {
   const [query, setQuery] = useState('');
@@ -69,7 +67,6 @@ export default function PosPage() {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [transport, setTransport] = useState<TransportSettings | null>(null);
   const [transportOpen, setTransportOpen] = useState(false);
-  // Set when the cart came from a held order, so completing the sale clears it.
   const [resumedFromId, setResumedFromId] = useState<string | null>(null);
 
   const [customerMode, setCustomerMode] = useState<'walkin' | 'existing'>('walkin');
@@ -80,17 +77,15 @@ export default function PosPage() {
   // Opened when change is to be kept as credit but the sale has no customer yet.
   const [quickCustomerOpen, setQuickCustomerOpen] = useState(false);
 
-  // M-Pesa Paybill is how most of the counter pays, so it leads.
   const [payment, setPayment] = useState<PaymentDraft>(emptyPayment);
   // PAVA's only credit: the customer takes the goods and settles the same day.
-  // The sale goes out as an unpaid invoice and is closed off from Invoices.
   const [settleLater, setSettleLater] = useState(false);
   const [sourcing, setSourcing] = useState<Record<string, Sourcing>>({});
   const [fulfilmentOpen, setFulfilmentOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [receipt, setReceipt] = useState<PosSaleResult | null>(null);
   const [deliveryNoteBusy, setDeliveryNoteBusy] = useState(false);
-  const [askingDeliveryLocation, setAskingDeliveryLocation] = useState(false);
+  const [deliveryNoteDoc, setDeliveryNoteDoc] = useState<SaleDocument | null>(null);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
 
   const [focusMode, setFocusMode] = useState(false);
@@ -99,11 +94,9 @@ export default function PosPage() {
   const [returnOpen, setReturnOpen] = useState(false);
   const [heldCount, setHeldCount] = useState(0);
 
-  // Focus mode hides the app topbar (via the data-pos-focus attribute on
-  // <html>) AND requests real browser fullscreen — the button was
-  // previously only doing the former while claiming to be "Full-screen
-  // POS". The attribute is always cleaned up on the way out, so leaving
-  // POS can never strand the rest of the app without its navigation.
+  // Focus mode hides the app topbar (via the data-pos-focus attribute on <html>) AND requests real
+  // browser fullscreen — the button was previously only doing the former while claiming to be
+  // "Full-screen POS".
   useEffect(() => {
     const root = document.documentElement;
     if (focusMode) root.dataset.posFocus = 'on';
@@ -115,16 +108,15 @@ export default function PosPage() {
 
   useEffect(() => {
     if (!focusMode) return;
-    // Fullscreen requires a user gesture and can be refused (some mobile
-    // Safari versions, embedded webviews) — the topbar-hiding CSS above
-    // still applies either way, so a refusal just means the till doesn't
-    // also take over the OS chrome.
+    // Fullscreen requires a user gesture and can be refused (some mobile Safari versions, embedded
+    // webviews) — the topbar-hiding CSS above still applies either way, so a refusal just means the
+    // till doesn't also take over the OS chrome.
     document.documentElement.requestFullscreen?.().catch(() => {});
   }, [focusMode]);
 
-  // The browser's own Esc-to-exit (or swipe-down on mobile) leaves
-  // fullscreen without going through our button — this keeps focusMode
-  // (and the Minimize2/Maximize2 icon) truthful when that happens.
+  // The browser's own Esc-to-exit (or swipe-down on mobile) leaves fullscreen without going through
+  // our button — this keeps focusMode (and the Minimize2/Maximize2 icon) truthful when that
+  // happens.
   useEffect(() => {
     function onFullscreenChange() {
       if (!document.fullscreenElement) setFocusMode(false);
@@ -154,8 +146,8 @@ export default function PosPage() {
   }, [refreshHeldCount]);
 
   useEffect(() => {
-    // `stale` drops a slow response that arrives after a newer request was made —
-    // otherwise tapping through categories quickly can end on the wrong list.
+    // `stale` drops a slow response that arrives after a newer request was made — otherwise tapping
+    // through categories quickly can end on the wrong list.
     let stale = false;
     productsApi.list({ categoryId: activeCategory || undefined }).then((r) => {
       if (!stale) setBrowseProducts(r.slice(0, 60));
@@ -202,8 +194,8 @@ export default function PosPage() {
     };
   }, [customerQuery, customerMode]);
 
-  // "/" jumps back to the search box from anywhere on the till — the fastest
-  // path back to adding the next item without reaching for the mouse.
+  // "/" jumps back to the search box from anywhere on the till — the fastest path back to adding
+  // the next item without reaching for the mouse.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key !== '/' || e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -274,23 +266,18 @@ export default function PosPage() {
 
   const subtotal = cart.reduce((s, l) => s + l.qty * l.unitPrice, 0);
   const transportAmount = transport?.amount || 0;
-  // Approximate — the server computes the precise, correctly-rounded total.
   const estimatedTotal = subtotal + transportAmount;
   const hasCustomer = customerMode === 'existing' && !!selectedCustomer;
-  // Held credit is a negative balance: money the customer left with the shop.
   const creditAvailable = hasCustomer ? Math.max(0, -(selectedCustomer?.creditBalance ?? 0)) : 0;
   const paying = resolvePayment(payment, Math.max(0, estimatedTotal), hasCustomer, creditAvailable);
 
-  // Picking someone who has credit puts it to use straight away; the toggle in
-  // the payment panel turns it off.
   function chooseCustomer(c: Customer | null) {
     setSelectedCustomer(c);
     setPayment((p) => ({ ...p, useCredit: !!c && c.creditBalance < 0 }));
   }
 
-  // How much of a line leaves the shop: the operator's decision if there is
-  // one (never more than is ordered or on the shelf), otherwise whatever the
-  // shop has.
+  // How much of a line leaves the shop: the operator's decision if there is one (never more than is
+  // ordered or on the shelf), otherwise whatever the shop has.
   const fromShop = useCallback(
     (l: CartLine) => {
       const available = Math.max(0, l.product.stockQuantity);
@@ -312,8 +299,8 @@ export default function PosPage() {
   }));
 
   function applyFulfilment(rows: FulfilmentLine[]) {
-    // Only a deliberate choice is remembered, so a line left on the automatic
-    // split keeps following its quantity.
+    // Only a deliberate choice is remembered, so a line left on the automatic split keeps following
+    // its quantity.
     const next: Record<string, Sourcing> = {};
     for (const r of rows) {
       const line = cart.find((l) => l.product.id === r.key);
@@ -327,9 +314,6 @@ export default function PosPage() {
     setFulfilmentOpen(false);
   }
 
-  // The shelf can move between adding an item and paying for it (another
-  // till, a delivery received), so a refusal on stock re-reads the cart's
-  // products and puts the split back in front of the operator.
   async function refreshCartStock() {
     const fresh = await Promise.all(cart.map((l) => productsApi.get(l.product.id).catch(() => l.product)));
     setCart((prev) => prev.map((l) => ({ ...l, product: fresh.find((p) => p.id === l.product.id) ?? l.product })));
@@ -372,8 +356,6 @@ export default function PosPage() {
       clearCounter();
       refreshHeldCount();
     } catch (err) {
-      // The shelf changed under us: show the fresh numbers and let the
-      // operator re-split rather than failing the sale.
       const detected = err instanceof ApiError ? readStockShortfalls(err.details) : null;
       if (detected) {
         toast.error('Stock changed while you were selling — check where each item comes from');
@@ -396,7 +378,6 @@ export default function PosPage() {
         transportAmount: transport?.amount || undefined,
         foldTransportIntoPrices: transport?.fold ?? true,
       });
-      // A resumed order that is suspended again is re-parked as a new hold.
       if (resumedFromId) await posApi.discardSuspended(resumedFromId).catch(() => {});
       clearCounter();
       setSuspendOpen(false);
@@ -429,8 +410,8 @@ export default function PosPage() {
     );
     if (order.customer) {
       setCustomerMode('existing');
-      // The held order carries only the identifying fields of the customer, so
-      // use that at once and then read the full record for their credit.
+      // The held order carries only the identifying fields of the customer, so use that at once and
+      // then read the full record for their credit.
       setSelectedCustomer(order.customer as unknown as Customer);
       customersApi
         .get(order.customer.id)
@@ -446,16 +427,13 @@ export default function PosPage() {
     refreshHeldCount();
   }
 
-  async function createDeliveryNote(deliveryLocation: string, deliveryPhone: string) {
+  async function openDeliveryNote() {
     if (!receipt) return;
     setDeliveryNoteBusy(true);
     try {
-      const note = await documentsApi.createDeliveryNote(receipt.id, deliveryLocation || undefined, deliveryPhone || undefined);
-      setAskingDeliveryLocation(false);
-      setReceipt(null);
-      toast.success(note.deliveryNoteNumber ? `Delivery note ${note.deliveryNoteNumber} created` : 'Delivery note created');
+      setDeliveryNoteDoc(await documentsApi.get(receipt.id));
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Couldn't create delivery note");
+      toast.error(err instanceof ApiError ? err.message : "Couldn't open delivery note");
     } finally {
       setDeliveryNoteBusy(false);
     }
@@ -504,7 +482,7 @@ export default function PosPage() {
           <div className="py-12 text-center">
             <ShoppingCart size={26} strokeWidth={1.5} className="mx-auto mb-2" style={{ color: 'var(--color-ink-600)' }} />
             <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
-              Search or tap a product to add it.
+              Search or tap a product.
             </p>
           </div>
         )}
@@ -691,8 +669,8 @@ export default function PosPage() {
             color: settleLater ? 'var(--color-status-warn)' : 'var(--color-ink-600)',
           }}
         >
-          Pay later today
-          <span className="ml-1 text-[11px] font-normal opacity-70">goods out, settle before close</span>
+          Pay Later
+          <span className="ml-1 text-[11px] font-normal opacity-70">Release goods, pay later</span>
         </button>
 
         <div className="flex items-baseline justify-between">
@@ -725,7 +703,6 @@ export default function PosPage() {
 
   return (
     <div className={`flex flex-col ${focusMode ? 'h-[100dvh]' : 'h-[calc(100dvh-56px)]'}`}>
-      {/* POS mode bar — the way out of the till is always on screen. */}
       <div className="flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
         <Link
           href="/dashboard"
@@ -815,7 +792,6 @@ export default function PosPage() {
               />
             </div>
 
-            {/* Categories collapse to a scrolling strip where the rail is hidden. */}
             <div className="mt-2 flex gap-1.5 overflow-x-auto pb-0.5 xl:hidden">
               <button
                 type="button"
@@ -849,7 +825,11 @@ export default function PosPage() {
                   <button
                     key={p.id}
                     type="button"
-                    onClick={() => addToCart(p)}
+                    onClick={() => {
+                      addToCart(p);
+                      // Touch screens would pop the keyboard on every tap.
+                      if (window.matchMedia('(pointer: fine)').matches) searchRef.current?.focus();
+                    }}
                     onMouseEnter={() => query.trim().length > 0 && setHighlighted(i)}
                     className="flex min-h-[7.5rem] flex-col gap-2 rounded-lg border p-3 text-left transition-colors active:scale-[0.99]"
                     style={{
@@ -894,13 +874,11 @@ export default function PosPage() {
           </div>
         </div>
 
-        {/* Desktop cart — the working surface at a real till. */}
         <div className="hidden w-[26rem] shrink-0 border-l lg:block 2xl:w-[28rem]" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
           {cartContent}
         </div>
       </div>
 
-      {/* Mobile: sticky summary bar -> full-screen cart */}
       {cart.length > 0 && !mobileCartOpen && (
         <button
           type="button"
@@ -976,18 +954,13 @@ export default function PosPage() {
         <ReceiptDialog
           sale={receipt}
           onClose={() => setReceipt(null)}
-          onCreateDeliveryNote={() => setAskingDeliveryLocation(true)}
+          onCreateDeliveryNote={openDeliveryNote}
           deliveryNoteBusy={deliveryNoteBusy}
+          suspended={!!deliveryNoteDoc}
         />
       )}
 
-      {receipt && askingDeliveryLocation && (
-        <DeliveryLocationDialog
-          busy={deliveryNoteBusy}
-          onCancel={() => setAskingDeliveryLocation(false)}
-          onConfirm={createDeliveryNote}
-        />
-      )}
+      {deliveryNoteDoc && <DeliveryNoteDialog doc={deliveryNoteDoc} onClose={() => setDeliveryNoteDoc(null)} />}
     </div>
   );
 }

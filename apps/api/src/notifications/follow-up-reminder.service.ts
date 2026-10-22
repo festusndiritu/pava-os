@@ -11,9 +11,7 @@ function readHour(): number {
   return Number.isInteger(n) && n >= 0 && n <= 23 ? n : 8;
 }
 
-// The wall-clock date and hour in the business's time zone. Follow-up dates
-// are picked as plain calendar dates, so "today" has to mean today *there*,
-// not whatever the server's (UTC) clock says.
+// The wall-clock date and hour in the business's time zone.
 function localNow(timeZone: string, at = new Date()) {
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' })
@@ -23,16 +21,7 @@ function localNow(timeZone: string, at = new Date()) {
   return { day: `${parts.year}-${parts.month}-${parts.day}`, hour: Number(parts.hour) };
 }
 
-/**
- * Sends each person one summary a day of the leads they own that are due for a
- * follow-up (today) or past due. Runs in-process on a 5-minute tick:
- *
- *  - The summary goes out on the first tick at or after REMINDER_HOUR local
- *    time, so a server that was asleep or redeploying at 8:00 still delivers
- *    later the same day rather than skipping it.
- *  - A (user, day) row in FollowUpDigest is claimed *before* sending, so
- *    restarts and overlapping instances can't double-send.
- */
+/** Sends each person one summary a day of the leads they own that are due for a follow-up (today) or past due. */
 @Injectable()
 export class FollowUpReminderService implements OnModuleInit, OnModuleDestroy {
   private readonly log = new Logger(FollowUpReminderService.name);
@@ -74,8 +63,6 @@ export class FollowUpReminderService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async sendDigests(day: string) {
-    // Follow-up dates are stored as UTC midnight of the calendar date picked,
-    // so "due today or earlier" is everything before tomorrow's UTC midnight.
     const startOfTomorrow = new Date(`${day}T00:00:00.000Z`);
     startOfTomorrow.setUTCDate(startOfTomorrow.getUTCDate() + 1);
 
@@ -90,7 +77,6 @@ export class FollowUpReminderService implements OnModuleInit, OnModuleDestroy {
     });
     if (leads.length === 0) return;
 
-    // A lead belongs to whoever it is assigned to, else whoever created it.
     const byOwner = new Map<string, typeof leads>();
     for (const lead of leads) {
       const owner = lead.assignedToId ?? lead.createdById;
@@ -109,7 +95,6 @@ export class FollowUpReminderService implements OnModuleInit, OnModuleDestroy {
 
     for (const user of users) {
       if (already.has(user.id)) continue;
-      // The same rule the Leads page itself enforces.
       if (user.role !== Role.ADMIN && !user.permissions.includes('LEADS')) continue;
 
       const mine = byOwner.get(user.id) ?? [];
@@ -119,7 +104,7 @@ export class FollowUpReminderService implements OnModuleInit, OnModuleDestroy {
       try {
         await this.prisma.followUpDigest.create({ data: { userId: user.id, day } });
       } catch (err: any) {
-        if (err?.code === 'P2002') continue; // another instance got there first
+        if (err?.code === 'P2002') continue;
         throw err;
       }
 
@@ -134,8 +119,7 @@ export class FollowUpReminderService implements OnModuleInit, OnModuleDestroy {
         tag: 'lead-followups',
       });
 
-      // Nothing got through for a temporary reason: give the claim back so the
-      // next tick tries again. (If every device was gone, the claim stays.)
+      // Nothing got through for a temporary reason: give the claim back so the next tick tries again.
       if (result.delivered === 0 && result.failed > 0) {
         await this.prisma.followUpDigest.delete({ where: { userId_day: { userId: user.id, day } } }).catch(() => undefined);
       }

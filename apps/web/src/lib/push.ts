@@ -1,15 +1,6 @@
 import { api } from './api';
 
-/**
- * Browser side of push notifications. The server owns *what* gets sent and
- * when; this file only handles permission, the service worker, and telling the
- * server which device to deliver to.
- *
- * "On" for a person means three things at once: they switched it on (a
- * per-user flag in localStorage), the browser has granted permission, and a
- * push subscription exists. The flag is per user because a till tablet can be
- * shared — switching it on as one person must not switch it on for the next.
- */
+/** Browser side of push notifications. */
 
 export type PushStatus = 'loading' | 'unsupported' | 'ios-needs-install' | 'denied' | 'off' | 'on';
 
@@ -75,8 +66,8 @@ export const getPushConfig = () => api.get<PushConfig>('/notifications/config');
 async function ensureSubscription(reg: ServiceWorkerRegistration, publicKey: string): Promise<PushSubscription> {
   const key = keyToBytes(publicKey);
   let sub = await reg.pushManager.getSubscription();
-  // A subscription made under a different server key (keys were regenerated)
-  // can never be delivered to — replace it.
+  // A subscription made under a different server key (keys were regenerated) can never be delivered
+  // to — replace it.
   if (sub && !sameKey(sub.options.applicationServerKey, key)) {
     await sub.unsubscribe();
     sub = null;
@@ -113,7 +104,6 @@ export async function enablePush(userId: string): Promise<PushStatus> {
   return 'on';
 }
 
-/** Stops this person's notifications on this device. */
 export async function disablePush(userId: string): Promise<PushStatus> {
   setOptedIn(userId, false);
   try {
@@ -121,17 +111,11 @@ export async function disablePush(userId: string): Promise<PushStatus> {
     const sub = await reg?.pushManager.getSubscription();
     if (sub) await api.post('/notifications/unsubscribe', { endpoint: sub.endpoint });
   } catch {
-    // best-effort — the flag is already off
   }
   return 'off';
 }
 
-/**
- * Run once per signed-in user. If they previously switched notifications on
- * for this device, quietly re-register it under their account (a device can
- * have been used by someone else since), and repair a subscription the browser
- * has rotated or dropped. Never prompts.
- */
+/** Run once per signed-in user. */
 export async function syncPush(userId: string): Promise<void> {
   if (!pushSupported() || Notification.permission !== 'granted' || !hasOptedIn(userId)) return;
   try {
@@ -141,7 +125,6 @@ export async function syncPush(userId: string): Promise<void> {
     const sub = await ensureSubscription(reg, config.publicKey);
     await api.post('/notifications/subscribe', sub.toJSON());
   } catch {
-    // offline or a transient error — try again next time the app opens
   }
 }
 
@@ -159,10 +142,8 @@ export async function releaseDeviceOnLogout(): Promise<void> {
 
 export const sendTestPush = () => api.post<{ delivered: number }>('/notifications/test');
 
-
-// ------------------------------------------------------------------- Inbox
-// What the notifications page and the topbar bell read. Push (above) is only
-// the nudge to look; this is the record of what is waiting.
+// ------------------------------------------------------------------- Inbox What the notifications
+// page and the topbar bell read.
 
 export interface AppNotification {
   id: string;

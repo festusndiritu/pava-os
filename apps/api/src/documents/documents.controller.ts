@@ -24,14 +24,8 @@ export class DocumentsController {
     private edits: DocumentEditsService,
   ) {}
 
-  // Listing/detail were previously ungated — any authenticated user, even
-  // one with none of these modules, could read every quote/invoice/receipt/
-  // delivery note in the business. Gated to the same OR-set already used on
-  // create/convert/cancel below, since that's what actually consumes it
-  // (Quotes, Invoices and POS pages/returns all read through here).
-  // REPORTS is in the set because the Reports page is a read-only register
-  // of exactly this data — granting it without one of the selling modules
-  // would otherwise show an empty page behind a nav link the person can see.
+  // Listing/detail were previously ungated — any authenticated user, even one with none of these
+  // modules, could read every quote/invoice/receipt/ delivery note in the business.
   @UseGuards(PermissionsGuard)
   @Permissions(Module.QUOTES, Module.INVOICES, Module.POS, Module.REPORTS)
   @Get()
@@ -46,8 +40,6 @@ export class DocumentsController {
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
-    // `status=INVOICED,PAID` — a list screen that shows several statuses
-    // together can page through them in one ordered sequence.
     const valid = new Set<string>(Object.values(DocumentStatus));
     const statuses = status ? status.split(',').map((s) => s.trim()).filter(Boolean) : [];
     const bad = statuses.find((s) => !valid.has(s));
@@ -57,8 +49,6 @@ export class DocumentsController {
     return rows;
   }
 
-  // Same reasoning as findAll above — a sales aggregate shouldn't be
-  // readable by someone with none of the selling modules.
   @UseGuards(PermissionsGuard)
   @Permissions(Module.QUOTES, Module.INVOICES, Module.POS, Module.REPORTS)
   @Get('reports/sales-summary')
@@ -66,7 +56,6 @@ export class DocumentsController {
     return this.documents.salesSummary(days ? parseInt(days) : 30);
   }
 
-  // Registered before :id so "suspended" isn't swallowed as a document id.
   @UseGuards(PermissionsGuard)
   @Permissions(Module.POS)
   @Get('suspended')
@@ -82,8 +71,6 @@ export class DocumentsController {
     return this.returns.list(limit ? parseInt(limit) : 50);
   }
 
-  // The approval queue. Registered before :id so "edit-requests" isn't read
-  // as a document id.
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN)
   @Get('edit-requests')
@@ -114,7 +101,6 @@ export class DocumentsController {
     return this.edits.list({ documentId: id });
   }
 
-  // Staff ask; an admin decides. The document itself is untouched until then.
   @UseGuards(PermissionsGuard)
   @Permissions(Module.QUOTES, Module.INVOICES, Module.POS)
   @Post(':id/edit-requests')
@@ -164,9 +150,7 @@ export class DocumentsController {
     return this.documents.create(req.user.sub, req.user.role, body);
   }
 
-  // Edits a quote in place (same id, same quote number). Only a quote that is
-  // still QUOTED can change — once it is invoiced, stock and the customer's
-  // ledger have moved, so that is cancel-and-reissue territory, not an edit.
+  // Edits a quote in place (same id, same quote number).
   @UseGuards(PermissionsGuard)
   @Permissions(Module.QUOTES, Module.INVOICES)
   @Patch(':id')
@@ -211,8 +195,8 @@ export class DocumentsController {
   }
 
   @UseGuards(PermissionsGuard)
-  // POS is included: a cash sale at the till often needs a delivery note,
-  // and the till operator may not hold QUOTES/INVOICES access.
+  // POS is included: a cash sale at the till often needs a delivery note, and the till operator may
+  // not hold QUOTES/INVOICES access.
   @Permissions(Module.QUOTES, Module.INVOICES, Module.POS)
   @Post(':id/delivery-note')
   createDeliveryNote(@Param('id') id: string, @Req() req: any, @Body() body: CreateDeliveryNoteDto) {

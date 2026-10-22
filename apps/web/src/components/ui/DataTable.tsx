@@ -9,17 +9,13 @@ import { Select } from './inputs';
 import { ActionMenu, actionList, type RowActionInput } from './ActionMenu';
 
 export interface Column<T> {
-  /** Also the sort key sent to the server (or read by a client-side sort). */
   id: string;
   header: ReactNode;
-  /** Plain-text name, for screen readers and tooltips. Defaults to `header` when that is text. */
   label?: string;
   cell: (row: T) => ReactNode;
   align?: 'left' | 'right';
   sortable?: boolean;
-  /** Which way the first click sorts. Dates and amounts usually want 'desc'. */
   defaultDir?: SortDir;
-  /** Drop this column on narrower desktop widths. Phones always get cards. */
   hideBelow?: 'lg' | 'xl';
   className?: string;
 }
@@ -29,22 +25,13 @@ const border = { borderColor: 'var(--color-border)' };
 
 export interface DataTableProps<T> {
   columns: Column<T>[];
-  /** null while the first load is in flight. */
   rows: T[] | null;
   rowKey: (row: T) => string;
-  /** Names the table for screen readers, e.g. "Products". */
   caption: string;
-  /** Names a row for its checkbox, e.g. the product name. */
   rowLabel?: (row: T) => string;
   onRowClick?: (row: T) => void;
-  /**
-   * What can be done to this row, collected behind one "⋮" button at its end
-   * (a popover on desktop, a bottom sheet on phones). Conditions can be
-   * written inline: `isAdmin && { label: 'Edit', … }`. A row with nothing to
-   * offer shows no button.
-   */
+  /** What can be done to this row, collected behind one "⋮" button at its end (a popover on desktop, a bottom sheet on phones). */
   actions?: (row: T) => RowActionInput[];
-  /** The body of a row's card on phones. Everything the table shows, in the layout a phone wants. */
   renderCard: (row: T) => ReactNode;
   /** Extra content under a row, opened by a chevron (or by the row itself when it has no onRowClick). */
   detail?: (row: T) => ReactNode;
@@ -53,9 +40,7 @@ export interface DataTableProps<T> {
   onSortChange?: (next: SortState) => void;
 
   selection?: RowSelection<T>;
-  /** Buttons shown in the bar that appears while rows are ticked. */
   bulkActions?: ReactNode;
-  /** Offer "select all N matching" once a whole page is ticked. Resolves to every matching row. */
   selectAllMatching?: () => Promise<T[]>;
 
   pagination?: PaginationState;
@@ -100,13 +85,6 @@ function Checkbox({ checked, indeterminate, label, onClick }: { checked: boolean
   );
 }
 
-/**
- * The one table every list screen uses. It owns the markup and the behaviour
- * (sortable headers, row selection with shift-click ranges and a bulk-action
- * bar, paging with a real total, loading / empty / error states, expandable
- * rows, and a card layout on phones); a screen supplies columns and rows, and
- * a hook from lib/use-data-table says where the rows come from.
- */
 export function DataTable<T>({
   columns,
   rows,
@@ -136,12 +114,11 @@ export function DataTable<T>({
   const rootRef = useRef<HTMLDivElement>(null);
   const firstPage = useRef(true);
 
-  // A new page or filter is a different set of rows; an old range anchor or open row means nothing there.
   useEffect(() => {
     lastIndex.current = null;
     setExpanded(null);
-    // Moving to another page of a long table: bring its top back into view
-    // (not on first render, and not if the top is already visible).
+    // Moving to another page of a long table: bring its top back into view (not on first render,
+    // and not if the top is already visible).
     if (firstPage.current) firstPage.current = false;
     else if (rootRef.current && rootRef.current.getBoundingClientRect().top < 0) rootRef.current.scrollIntoView({ block: 'start' });
   }, [pagination?.page, pagination?.pageSize]);
@@ -166,7 +143,6 @@ export function DataTable<T>({
     if (!selection || !rows) return;
     if (e.shiftKey && lastIndex.current !== null && lastIndex.current !== index) {
       const [a, b] = [Math.min(lastIndex.current, index), Math.max(lastIndex.current, index)];
-      // Follow whatever the clicked row is about to become, so shift-click ticks or unticks the whole stretch.
       selection.setMany(rows.slice(a, b + 1), !selection.has(rowKey(row)));
     } else {
       selection.toggle(row);
@@ -273,7 +249,6 @@ export function DataTable<T>({
         </div>
       )}
 
-      {/* Desktop and tablet: the table */}
       <div className="hidden overflow-x-auto md:block">
         <table className="w-full text-sm">
           <caption className="sr-only">{caption}</caption>
@@ -388,7 +363,6 @@ export function DataTable<T>({
         </table>
       </div>
 
-      {/* Phones: cards (brief §63). Same rows, same selection, laid out for a thumb. */}
       <div className="md:hidden">
         {(sortOptions.length > 0 || (selectable && hasRows)) && (
           <div className="flex items-center gap-1 border-b px-2" style={border}>

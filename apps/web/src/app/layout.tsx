@@ -13,7 +13,6 @@ export const metadata: Metadata = {
   description: 'Operations support system for the Pava Steel & Hardware company.',
 };
 
-// Tints the mobile browser chrome (and the PWA splash screen background)
 export const viewport: Viewport = {
   themeColor: '#0559C9',
 };

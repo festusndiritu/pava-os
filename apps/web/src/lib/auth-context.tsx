@@ -39,9 +39,7 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-// How long before the timeout to show "your session is about to expire".
 const WARNING_LEAD_MS = 60_000;
-// How often we check elapsed idle time.
 const CHECK_INTERVAL_MS = 5_000;
 const ACTIVITY_EVENTS = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'] as const;
 
@@ -63,20 +61,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.push('/login');
   }, [router]);
 
-  // `releaseDevice`: also stop this device receiving the signed-out person's
-  // push notifications. True only when they chose to sign out — an idle
-  // timeout isn't them leaving, and must not silence their reminders.
+  // `releaseDevice`: also stop this device receiving the signed-out person's push notifications.
   const endSession = useCallback(
     async (releaseDevice: boolean) => {
       if (releaseDevice) {
-        // Needs the token still valid, so it goes first; capped so a slow
-        // network can never hold up signing out.
+        // Needs the token still valid, so it goes first; capped so a slow network can never hold up
+        // signing out.
         await Promise.race([releaseDeviceOnLogout(), new Promise<void>((r) => setTimeout(r, 3000))]);
       }
       try {
         await api.post('/auth/logout');
       } catch {
-        // best-effort — even if the network call fails, clear locally
       }
       hardLogout();
     },
@@ -113,7 +108,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(me);
   }, []);
 
-  // Hydrate on load if we already have a token pair.
   useEffect(() => {
     (async () => {
       if (!getAccessToken()) {
@@ -138,9 +132,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
   }, [hardLogout]);
 
-  // Activity tracking + the idle-warning/auto-logout loop. Only runs while
-  // logged in; "activity" is throttled implicitly by only mattering once per
-  // CHECK_INTERVAL_MS tick.
+  // Activity tracking + the idle-warning/auto-logout loop.
   useEffect(() => {
     if (!user) return;
 
@@ -167,8 +159,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, endSession]);
 
-  // "Continue session" — resets the local clock AND pings the server so
-  // Session.lastActiveAt (the thing that actually governs refresh) moves too.
   const dismissIdleWarning = useCallback(() => {
     lastActivityRef.current = Date.now();
     setIdleWarning(false);
@@ -179,9 +169,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (module: ModuleKey) => {
       if (!user) return false;
       if (user.role === 'ADMIN') return true;
-      // USERS/AUDIT stay admin-only even if a permissions array somehow
-      // still carries them (e.g. granted before this rule existed) — the
-      // backend would 403 a STAFF user on every request either way.
+      // USERS/AUDIT stay admin-only even if a permissions array somehow still carries them (e.g.
       if (ADMIN_ONLY_MODULES.includes(module)) return false;
       return user.permissions.includes(module);
     },

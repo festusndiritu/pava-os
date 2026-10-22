@@ -25,7 +25,6 @@ const MODES: { value: PrintMode; label: string; hint: string }[] = [
   { value: 'serial', label: 'Direct serial / Bluetooth from the browser', hint: 'For a printer that shows up as a COM port.' },
 ];
 
-/** Per-device setting (stored in this browser) — each till picks its own printer. */
 export function PrinterSetup() {
   const [mode, setMode] = useState<PrintMode>(() => getPrintMode());
   const [columns, setCols] = useState(() => getColumns());
@@ -61,7 +60,7 @@ export function PrinterSetup() {
         Receipt printer (this device)
       </h2>
       <p className="mt-1 text-sm" style={{ color: 'var(--color-ink-600)' }}>
-        Saved in this browser only. If direct printing fails, the receipt falls back to browser print.
+        Saved in this browser only.
       </p>
 
       <div className="mt-4 flex flex-col gap-2.5">
@@ -210,9 +209,6 @@ export function PrinterSetup() {
             />
             <span>
               <span className="font-medium">Print automatically when a sale completes</span>
-              <span className="block text-xs" style={{ color: 'var(--color-ink-600)' }}>
-                The Print button on the receipt stays available for reprints.
-              </span>
             </span>
           </label>
         </>

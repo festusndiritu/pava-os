@@ -283,7 +283,7 @@ export default function AnalyticsPage() {
           </div>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <SectionCard title="Staff performance" description="Sales rung up, by who raised the document" icon={UserRound} iconTone="neutral">
+            <SectionCard title="Staff performance" description="Sales by staff" icon={UserRound} iconTone="neutral">
               <div className="flex flex-col">
                 {data.staff.length === 0 && <Empty line="No settled sales in this range." />}
                 {data.staff.map((s, i) => (
@@ -300,7 +300,7 @@ export default function AnalyticsPage() {
 
             <SectionCard
               title="Stock on hand"
-              description="Valued at last received cost — a snapshot of right now, not the range"
+              description="At last received cost, as of now"
               icon={Boxes}
               iconTone={data.inventory.uncostedUnits > 0 ? 'warn' : 'neutral'}
             >

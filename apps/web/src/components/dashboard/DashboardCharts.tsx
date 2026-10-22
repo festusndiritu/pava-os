@@ -80,10 +80,6 @@ function RangeToggle({ value, onChange, available }: { value: Range; onChange: (
   );
 }
 
-/**
- * Paid sales per day as a smooth area, with a 7 / 30 / 90 day range and a
- * dashed line for the equivalent period before it.
- */
 export function SalesTrendChart({ chart }: { chart: ChartPoint[] }) {
   const [range, setRange] = useState<Range>(30);
   const reduced = useReducedMotion();
@@ -192,7 +188,6 @@ export function SalesTrendChart({ chart }: { chart: ChartPoint[] }) {
   );
 }
 
-/** Tiny 7-day line for the "Last 7 days" stat card. */
 export function WeekSparkline({ chart }: { chart: ChartPoint[] }) {
   const reduced = useReducedMotion();
   const points = chart.slice(-7);
@@ -235,7 +230,6 @@ export function WeekSparkline({ chart }: { chart: ChartPoint[] }) {
   );
 }
 
-/** Revenue of the same top products already listed below, as a horizontal bar. */
 export function TopProductsChart({
   topProducts,
   href,
@@ -246,8 +240,6 @@ export function TopProductsChart({
 }) {
   const reduced = useReducedMotion();
 
-  // Axis labels are truncated to stay readable on a phone; the tooltip maps
-  // the shortened label back to the product's full name.
   const data = topProducts.map((p) => ({ ...p, short: truncate(p.name, 14) }));
   const fullNames = new Map(data.map((p) => [p.short, p.name]));
   const summary = `Revenue by product, last 30 days. ${data.map((p) => `${p.name} ${money(p.revenue)}`).join('; ')}.`;
@@ -279,7 +271,6 @@ export function TopProductsChart({
   );
 }
 
-/** Payment split of paid sales over the last 30 days. */
 export function PaymentMixChart({ slices }: { slices: PaymentSlice[] }) {
   const reduced = useReducedMotion();
   const counted = slices.reduce((sum, s) => sum + s.count, 0);

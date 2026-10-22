@@ -14,12 +14,9 @@ export type ChangeAction = 'GIVE' | 'CREDIT';
 
 export interface PaymentDraft {
   mode: PayMode;
-  /** Cash the customer handed over (may exceed the bill). */
   cash: string;
-  /** M-Pesa received, for a split sale. */
   mpesa: string;
   changeAction: ChangeAction;
-  /** Pay as much of the bill as possible out of credit the customer already holds. */
   useCredit: boolean;
 }
 
@@ -33,14 +30,6 @@ const MODES: { value: PayMode; label: string; hint: string }[] = [
 
 const num = (s: string) => parseInt(s, 10) || 0;
 
-/**
- * What the draft means for the bill. The total here is the till's estimate —
- * the server prices the sale and has the last word — so `over` and `short` are
- * a guide for the operator, and a refusal from the server shows the real figure.
- *
- * Held credit comes off the bill first; what is left (`due`) is what has to be
- * handed over.
- */
 export function resolvePayment(draft: PaymentDraft, total: number, hasCustomer: boolean, creditAvailable = 0) {
   const credit = draft.useCredit && hasCustomer ? Math.max(0, Math.min(creditAvailable, total)) : 0;
   const due = total - credit;
@@ -89,7 +78,6 @@ export function PaymentPanel({
   onChange: (next: PaymentDraft) => void;
   total: number;
   hasCustomer: boolean;
-  /** Credit the selected customer already holds with the shop. */
   creditAvailable?: number;
   /** Asked for when change is to be kept as credit but nobody is on the sale yet. */
   onNeedCustomer?: () => void;
@@ -215,7 +203,7 @@ export function PaymentPanel({
           </div>
           {draft.changeAction === 'CREDIT' && !hasCustomer && (
             <button type="button" onClick={onNeedCustomer} className="text-left text-xs underline" style={{ color: 'var(--color-status-warn)' }}>
-              The credit needs a customer account to sit on — add one now
+              Credit needs a customer — add one
             </button>
           )}
         </div>
@@ -232,11 +220,7 @@ export function PaymentPanel({
 
 const dialogInput = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
 
-/**
- * A walk-in leaves part of what they paid with the shop: it has to sit on a
- * customer, so make one without leaving the till. A number that is already on
- * file offers that person instead of a second account.
- */
+/** A walk-in leaves part of what they paid with the shop: it has to sit on a customer, so make one without leaving the till. */
 export function QuickCustomerDialog({
   initialName,
   amount,
@@ -244,7 +228,6 @@ export function QuickCustomerDialog({
   onCreated,
 }: {
   initialName?: string;
-  /** What is about to be kept on credit, shown so it is clear what the account is for. */
   amount?: number;
   onClose: () => void;
   onCreated: (customer: Customer) => void;

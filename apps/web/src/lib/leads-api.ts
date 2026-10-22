@@ -33,7 +33,6 @@ export interface LeadInput {
   stage?: LeadStage;
   expectedValue?: number;
   notes?: string;
-  // null clears an existing follow-up date (on update); undefined leaves it alone.
   followUpAt?: string | null;
   assignedToId?: string;
 }
@@ -46,7 +45,7 @@ export const leadsApi = {
   convertToCustomer: (id: string) => api.post<{ lead: Lead; customer: { id: string; name: string } }>(`/leads/${id}/convert-to-customer`),
   archive: (id: string) => api.delete<Lead>(`/leads/${id}`),
   restore: (id: string) => api.post<Lead>(`/leads/${id}/restore`),
-  // Only succeeds on an already-archived lead that was never converted —
-  // the backend enforces both; this just surfaces the result.
+  // Only succeeds on an already-archived lead that was never converted — the backend enforces both;
+  // this just surfaces the result.
   hardDelete: (id: string) => api.delete<{ deleted: true }>(`/leads/${id}/permanent`),
 };

@@ -14,9 +14,7 @@ import { parsePaging, sendTotal } from '../common/paging.js';
 export class ContactsController {
   constructor(private contacts: ContactsService) {}
 
-  // Was ungated — any authenticated user could read the full contacts
-  // directory regardless of module access. Only the Contacts page reads
-  // these, so this matches create/update below exactly.
+  // Was ungated — any authenticated user could read the full contacts directory regardless of module access.
   @UseGuards(PermissionsGuard)
   @Permissions(Module.CONTACTS)
   @Get()
@@ -68,8 +66,8 @@ export class ContactsController {
     return this.contacts.restore(id, req.user.sub);
   }
 
-  // Permanent deletion is admin-only, same as every other hard-delete
-  // route in the system — archiving (above) is what everyone else uses.
+  // Permanent deletion is admin-only, same as every other hard-delete route in the system —
+  // archiving (above) is what everyone else uses.
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN)
   @Delete(':id/permanent')

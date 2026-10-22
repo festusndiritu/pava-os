@@ -26,13 +26,6 @@ export const STOCK_VIEWS: { value: StockFilter | ''; label: string }[] = [
   { value: 'in', label: 'In stock' },
 ];
 
-/**
- * What is actually on the shelf right now. The receipts log records what came
- * in; this is what there is, filtered and paged on the server like the
- * catalogue (a yard with thousands of SKUs shouldn't download them all to find
- * the ten that are about to run out), with the same low-stock threshold the
- * dashboard uses. Each row can correct a count or start a restock.
- */
 export function StockLevelsTable({
   onOpenProduct,
   onReceive,
@@ -45,11 +38,9 @@ export function StockLevelsTable({
   onOpenProduct: (id: string) => void;
   /** Starts a receipt with this product on it. Omit if the person can't receive stock. */
   onReceive?: (p: Product) => void;
-  /** Starts a receipt with several products on it (the ticked rows). */
   onReceiveMany?: (products: Product[]) => void;
   stock: StockFilter | '';
   onStockChange: (next: StockFilter | '') => void;
-  /** Bump to refresh the rows on screen after stock changed elsewhere. */
   refreshKey?: number;
   /** Called after a count is corrected here, so the page's summary can refresh too. */
   onChanged?: () => void;
@@ -76,8 +67,6 @@ export function StockLevelsTable({
   } as const;
 
   const table = useServerTable<Product>({
-    // Lowest stock first is the default, so what needs ordering is at the top.
-    // While searching, the server's relevance order wins until a header is clicked.
     fetcher: (q) => productsApi.listPage({ ...filters, sort: q.sortIsDefault && debouncedSearch ? undefined : q.sort, offset: q.offset, limit: q.limit }),
     deps: [debouncedSearch, categoryId, stock],
     defaultSort: { id: 'stock', dir: 'asc' },
@@ -151,7 +140,8 @@ export function StockLevelsTable({
     { id: 'status', header: 'Status', cell: (p) => <StockBadge level={availability(p, threshold ?? 0)} /> },
   ];
 
-  // A count sheet: what the system thinks is on the shelf, with a blank column to write what is actually there.
+  // A count sheet: what the system thinks is on the shelf, with a blank column to write what is
+  // actually there.
   function exportSheet(rows: Product[]) {
     const head = ['Product', 'Category', 'Unit', 'On hand (system)', 'Counted', ...(showCost ? ['Last cost (KSh)'] : [])];
     const body = rows.map((p) => [name(p), p.category?.name, p.unit.symbol, p.stockQuantity, '', ...(showCost ? [p.lastCost ?? ''] : [])]);

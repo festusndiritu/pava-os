@@ -73,9 +73,7 @@ export default function AuditPage() {
   const { hasPermission } = useAuth();
   const [filterAction, setFilterAction] = useState('');
   const [filterEntity, setFilterEntity] = useState('');
-  // The entity filter's options come from the entries seen so far. Remembering
-  // them (instead of re-deriving from the filtered page) keeps every option
-  // available after one is chosen.
+  // The entity filter's options come from the entries seen so far.
   const [entityTypes, setEntityTypes] = useState<string[]>([]);
 
   const debouncedAction = useDebounced(filterAction);
@@ -195,7 +193,7 @@ export default function AuditPage() {
             Audit Trail
           </h1>
           <p className="mt-0.5 text-sm" style={{ color: 'var(--color-ink-600)' }}>
-            System activity log — who did what and when.
+            Activity log
           </p>
         </div>
       </div>
@@ -254,7 +252,7 @@ export default function AuditPage() {
               </pre>
             ) : (
               <p className="text-xs" style={{ color: 'var(--color-ink-600)' }}>
-                No further details were recorded for this entry.
+                No details.
               </p>
             )
           }

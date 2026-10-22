@@ -22,13 +22,7 @@ const styles = StyleSheet.create({
   price: { fontWeight: 700, color: ACCENT },
 });
 
-/**
- * Not one of the four document types — a customer-facing pricelist has no
- * document number, status, or customer; it's closer to a flyer than an
- * invoice. Kept as its own small template rather than forced through
- * DocumentViewModel, which exists specifically for records that trace back
- * to a real Document row.
- */
+/** Not one of the four document types — a customer-facing pricelist has no document number, status, or customer; it's closer to a flyer than an invoice. */
 export function PricelistPdf({ vm }: { vm: PricelistViewModel }) {
   return (
     <Document title={vm.title}>
@@ -40,9 +34,8 @@ export function PricelistPdf({ vm }: { vm: PricelistViewModel }) {
           <Text style={styles.muted}>{[vm.phone, vm.email].filter(Boolean).join('  ·  ')}</Text>
         </View>
         {vm.categories.map((cat) => (
-          // A category can run longer than a page, so it must be allowed to
-          // break across pages — only the heading is kept with its first rows
-          // and each row is kept whole.
+          // A category can run longer than a page, so it must be allowed to break across pages —
+          // only the heading is kept with its first rows and each row is kept whole.
           <View key={cat.name} style={styles.category}>
             <Text style={styles.categoryTitle} minPresenceAhead={40}>{cat.name}</Text>
             {cat.items.map((item) => (

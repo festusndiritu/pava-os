@@ -14,9 +14,7 @@ import { parsePaging, sendTotal } from '../common/paging.js';
 export class CustomersController {
   constructor(private customers: CustomersService) {}
 
-  // Was ungated — any authenticated user could list/search the full
-  // customer directory. Kept broad (not just CUSTOMERS) because POS and the
-  // quote/invoice form both need to look a customer up mid-sale.
+  // Was ungated — any authenticated user could list/search the full customer directory.
   @UseGuards(PermissionsGuard)
   @Permissions(Module.CUSTOMERS, Module.POS, Module.QUOTES, Module.INVOICES)
   @Get()
@@ -40,8 +38,8 @@ export class CustomersController {
     return this.customers.findOne(id);
   }
 
-  // Narrower than findOne above — the credit ledger is only ever opened
-  // from the Customers page itself, not from POS/quotes mid-sale.
+  // Narrower than findOne above — the credit ledger is only ever opened from the Customers page
+  // itself, not from POS/quotes mid-sale.
   @UseGuards(PermissionsGuard)
   @Permissions(Module.CUSTOMERS)
   @Get(':id/ledger')
@@ -91,8 +89,8 @@ export class CustomersController {
     return this.customers.restore(id, req.user.sub);
   }
 
-  // Permanent deletion is admin-only, same as every other hard-delete
-  // route in the system — archiving (above) is what everyone else uses.
+  // Permanent deletion is admin-only, same as every other hard-delete route in the system —
+  // archiving (above) is what everyone else uses.
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN)
   @Delete(':id/permanent')

@@ -1,7 +1,6 @@
 export type ThicknessMode = 'mm' | 'inch_fraction' | 'none';
 
 export interface ThicknessOption {
-  /** Always in mm, even for inch-fraction shapes — the schema's thicknessMm column is one consistent unit. */
   mm: number;
   label: string;
   /** Only set where the business actually names it by gauge, per Pava's own convention (1mm = 18G, 2mm = 16G). */
@@ -13,7 +12,6 @@ export interface ShapeConfig {
   label: string;
   thicknessMode: ThicknessMode;
   thicknessOptions: ThicknessOption[];
-  /** SHS/RHS/flat stock need width+height; round tube/bar/deformed bar are sized by nominalSize (diameter) alone. */
   hasWidthHeight: boolean;
 }
 
@@ -26,13 +24,11 @@ const TUBE_THICKNESSES: ThicknessOption[] = [
   { mm: 3.0, label: '3.0mm' },
 ];
 
-// 1/8" and 3/16" — the two gauges Pava actually stocks for angle/line bars.
 const ANGLE_THICKNESSES: ThicknessOption[] = [
   { mm: 3.175, label: '1/8"' },
   { mm: 4.7625, label: '3/16"' },
 ];
 
-// Flat bars additionally come in 1/4".
 const FLAT_THICKNESSES: ThicknessOption[] = [...ANGLE_THICKNESSES, { mm: 6.35, label: '1/4"' }];
 
 const MARINE_BOARD_THICKNESSES: ThicknessOption[] = [
@@ -60,7 +56,6 @@ export function shapeConfig(key?: string | null): ShapeConfig | undefined {
   return SHAPES.find((s) => s.key === key);
 }
 
-/** Finds the matching option label for a stored thicknessMm value under a given shape, e.g. (SQUARE_TUBE, 1.0) -> "1.0mm". */
 export function thicknessLabel(shapeKey: string | null | undefined, thicknessMm: number | null | undefined): string | null {
   if (thicknessMm == null) return null;
   const cfg = shapeConfig(shapeKey);

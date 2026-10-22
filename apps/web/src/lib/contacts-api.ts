@@ -37,7 +37,6 @@ function query(params: Record<string, string | undefined>) {
 export const contactsApi = {
   list: (search?: string, status?: 'active' | 'archived' | 'all', page?: { offset: number; limit: number }) =>
     api.get<Contact[]>(`/contacts${query({ search, status, limit: page ? String(page.limit) : undefined, offset: page?.offset ? String(page.offset) : undefined })}`),
-  // One page plus how many contacts match in all. `sort` is `field:dir`: name, company, role or phone.
   listPage: (search: string | undefined, page: { offset: number; limit: number }, sort?: string) =>
     api.getPage<Contact>(`/contacts${query({ search, sort, limit: String(page.limit), offset: page.offset ? String(page.offset) : undefined })}`),
   get: (id: string) => api.get<Contact>(`/contacts/${id}`),
@@ -45,7 +44,6 @@ export const contactsApi = {
   update: (id: string, data: Partial<ContactInput>) => api.patch<Contact>(`/contacts/${id}`, data),
   archive: (id: string) => api.delete<Contact>(`/contacts/${id}`),
   restore: (id: string) => api.post<Contact>(`/contacts/${id}/restore`),
-  // Only succeeds on an already-archived contact — the backend enforces
-  // this; this just surfaces the result.
+  // Only succeeds on an already-archived contact — the backend enforces this; this just surfaces the result.
   hardDelete: (id: string) => api.delete<{ deleted: true }>(`/contacts/${id}/permanent`),
 };

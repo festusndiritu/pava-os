@@ -12,7 +12,6 @@ export function PinPad({
   onErrorClear,
 }: {
   onComplete: (pin: string) => void;
-  /** A failed attempt: dots turn red and shake. The reason is shown as a toast by the caller. */
   error?: boolean;
   disabled?: boolean;
   onErrorClear?: () => void;

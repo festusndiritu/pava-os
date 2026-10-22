@@ -65,7 +65,6 @@ export default function LoginPage() {
           <ThemeToggle />
         </div>
 
-        {/* Product identity for mobile */}
         <div className="mb-8 flex flex-col items-center text-center lg:hidden">
           <img
             src="/icons/icon-192.png"

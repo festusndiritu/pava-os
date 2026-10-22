@@ -19,8 +19,8 @@ export class InventoryController {
     return this.inventory.receive(body, req.user.sub);
   }
 
-  // Was ungated — the receipts log is only read from the Inventory page
-  // itself, so it matches receive/adjust/opening-balance above.
+  // Was ungated — the receipts log is only read from the Inventory page itself, so it matches
+  // receive/adjust/opening-balance above.
   @UseGuards(PermissionsGuard)
   @Permissions(Module.INVENTORY)
   @Get('receipts')
@@ -62,8 +62,8 @@ export class InventoryController {
   @Permissions(Module.INVENTORY)
   @Post('adjustments')
   adjust(@Body() body: AdjustInventoryDto, @Req() req: any) {
-    // What stock cost is a cost-permission matter: someone who can adjust
-    // counts but not see costs can't set one either.
+    // What stock cost is a cost-permission matter: someone who can adjust counts but not see costs
+    // can't set one either.
     const canViewCost = req.user.role === 'ADMIN' || !!req.user.canViewCost;
     return this.inventory.adjust(canViewCost ? body : { ...body, unitCost: undefined }, req.user.sub);
   }
@@ -75,10 +75,9 @@ export class InventoryController {
     return this.inventory.openingBalance(body.productId, body.quantity, body.unitCost, req.user.sub);
   }
 
-  // Was ungated — this is per-product batch/movement history (cost data
-  // when canViewCost applies), only ever read from ProductDetailDrawer,
-  // which opens from both the Products and Inventory pages, so either
-  // module is accepted here.
+  // Was ungated — this is per-product batch/movement history (cost data when canViewCost applies),
+  // only ever read from ProductDetailDrawer, which opens from both the Products and Inventory
+  // pages, so either module is accepted here.
   @UseGuards(PermissionsGuard)
   @Permissions(Module.PRODUCTS, Module.INVENTORY)
   @Get('batches')

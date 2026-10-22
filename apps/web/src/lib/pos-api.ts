@@ -1,15 +1,13 @@
 import { api } from './api';
 import type { Product } from './products-api';
 
-// The till takes M-Pesa Paybill (the default) and cash. Account sales go
-// through the quote -> invoice flow, not the POS.
+// The till takes M-Pesa Paybill (the default) and cash.
 export type PosPaymentMethod = 'MPESA' | 'CASH';
 
 export const POS_PAYMENT_METHODS: { value: PosPaymentMethod; label: string; hint: string }[] = [
   { value: 'MPESA', label: 'M-Pesa', hint: 'Paybill' },
   { value: 'CASH', label: 'Cash', hint: 'At the counter' },
 ];
-/** One tender: what the customer handed over by this method (cash may exceed the bill — the rest is change). */
 export interface PaymentLine {
   method: PosPaymentMethod;
   amount: number;
@@ -21,14 +19,11 @@ export interface PosCartItemInput {
   productId: string;
   qty: number;
   unitPrice: number;
-  /** How many of `qty` leave the shop's own stock; the rest is supplied from elsewhere. Omitted = all from the shop. */
   stockQty?: number;
-  /** Where the non-shop part is collected from. */
   supplierSource?: string;
 }
 
 export interface PosSaleInput {
-  /** Goods out now, settled the same day — raised as an unpaid invoice. */
   settleLater?: boolean;
   customerId?: string;
   customerName?: string;
@@ -40,11 +35,8 @@ export interface PosSaleInput {
   foldTransportIntoPrices?: boolean;
   roundingIncrement?: number;
   paymentMethod?: PosPaymentMethod;
-  /** What was handed over per method — for change or a cash + M-Pesa split. Overrides paymentMethod. */
   payments?: PaymentLine[];
-  /** For anything paid over the bill: hand it back (default) or keep it on the customer's credit (needs customerId). */
   changeAction?: 'GIVE' | 'CREDIT';
-  /** Pay up to this much of the bill out of credit the customer already holds (needs customerId). */
   creditApplied?: number;
   allowNegativeStock?: boolean; // legacy: sell beyond shelf stock as a backorder. The till now splits fulfilment instead.
   suspendedFromId?: string;
@@ -175,13 +167,12 @@ export interface PosSaleResult {
 export const posApi = {
   checkout: (data: PosSaleInput) => api.post<PosSaleResult>('/documents/pos-sale', data),
 
-  // Suspended (parked) orders — stored as real documents, never as local state,
-  // so a held order survives a refresh, a crash, or a different till.
+  // Suspended (parked) orders — stored as real documents, never as local state, so a held order
+  // survives a refresh, a crash, or a different till.
   suspend: (data: SuspendOrderInput) => api.post<SuspendedOrder>('/documents/suspend', data),
   suspended: () => api.get<SuspendedOrder[]>('/documents/suspended'),
   discardSuspended: (id: string) => api.post<{ id: string }>(`/documents/suspended/${id}/discard`),
 
-  // Returns against a completed sale.
   returnable: (documentId: string) => api.get<ReturnableSale>(`/documents/${documentId}/returnable`),
   createReturn: (documentId: string, data: { items: { documentItemId: string; qty: number }[]; refundMethod?: 'CASH' | 'MPESA' | 'STORE_CREDIT'; reason?: string }) =>
     api.post<SaleReturn>(`/documents/${documentId}/returns`, data),

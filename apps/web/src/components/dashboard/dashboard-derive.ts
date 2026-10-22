@@ -7,11 +7,7 @@ export type ChartPoint = { date: string; total: number };
 
 export { money } from '../../lib/format';
 
-/**
- * Accepts both full timestamps and the API's date-only chart keys. A bare
- * "2026-10-03" is built as a local calendar date — `new Date('2026-10-03')`
- * is UTC midnight and shows the previous day west of Greenwich.
- */
+/** Accepts both full timestamps and the API's date-only chart keys. */
 export function fmtDate(iso: string) {
   const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
   const date = dateOnly
@@ -50,15 +46,11 @@ export function timeAgo(then: number, now: number) {
 }
 
 export interface Trend {
-  /** Absolute size of the change, already rounded to whole percent. */
   pct: number;
   direction: 'up' | 'down' | 'flat';
 }
 
-/**
- * Percentage change, or null when it cannot honestly be calculated —
- * a zero (or missing) baseline has no meaningful "% ahead".
- */
+/** Percentage change, or null when it cannot honestly be calculated — a zero (or missing) baseline has no meaningful "% ahead". */
 export function trendBetween(current: number, previous: number): Trend | null {
   if (!Number.isFinite(current) || !Number.isFinite(previous) || previous <= 0) {
     return null;
@@ -74,9 +66,9 @@ export function trendBetween(current: number, previous: number): Trend | null {
 
 const sum = (points: ChartPoint[]) => points.reduce((total, p) => total + p.total, 0);
 
-// The API returns the chart oldest-first and ending with today on the
-// business calendar, so "today" is the last point and "yesterday" the one
-// before it — no day keys to rebuild (and get wrong) on the client.
+// The API returns the chart oldest-first and ending with today on the business calendar, so "today"
+// is the last point and "yesterday" the one before it — no day keys to rebuild (and get wrong) on
+// the client.
 export function dayOverDay(chart: ChartPoint[] | undefined) {
   if (!chart || chart.length < 2) return null;
 
@@ -95,10 +87,7 @@ export function weekOverWeek(chart: ChartPoint[] | undefined) {
   return { current, previous, trend: trendBetween(current, previous) };
 }
 
-/**
- * The last `days` points, the `days` before them, and their totals. The
- * previous period only counts as comparable when it is complete and non-empty.
- */
+/** The last `days` points, the `days` before them, and their totals. */
 export function splitPeriods(chart: ChartPoint[], days: number) {
   const current = chart.slice(-days);
   const earlier = chart.slice(-days * 2, -days);
@@ -124,22 +113,15 @@ export interface AttentionItem {
   label: string;
   tone: AttentionTone;
   href: string;
-  /** Module the destination page needs — the caller drops the link if the user lacks it. */
   module: ModuleKey;
 }
 
-/**
- * Everything here is counted from data the summary endpoint already returns.
- * A section the user cannot see simply produces no item, so the strip stays
- * empty rather than filled with an invented number.
- */
+/** Everything here is counted from data the summary endpoint already returns. */
 export function attentionItems(data: DashboardSummary | null): AttentionItem[] {
   if (!data) return [];
 
   const items: AttentionItem[] = [];
 
-  // The API returns the full low-stock count separately from the
-  // ten low-stock rows displayed on the dashboard.
   const lowStockCount = data.lowStockCount ?? 0;
   const outOfStock = data.outOfStockCount ?? 0;
 

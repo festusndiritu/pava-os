@@ -2,16 +2,7 @@
 
 import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
 
-/**
- * The one overlay primitive behind every dialog, sheet and drawer in the app.
- *
- * What it guarantees, so each dialog doesn't have to (and used to forget to):
- *  - Escape closes the topmost overlay only (a confirm on top of a drawer
- *    closes first, the drawer stays)
- *  - Tab stays inside the topmost overlay
- *  - focus moves in on open and returns to whatever had it on close
- *  - the page behind stops scrolling while anything is open
- */
+/** The one overlay primitive behind every dialog, sheet and drawer in the app. */
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -44,8 +35,8 @@ export function useOverlay(panelRef: RefObject<HTMLElement | null>, onEscape: ()
     }
 
     if (panel && !panel.contains(document.activeElement)) {
-      // A phone keyboard popping up over a form the moment it opens is worse
-      // than tapping the first field, so only auto-focus fields with a mouse.
+      // A phone keyboard popping up over a form the moment it opens is worse than tapping the first
+      // field, so only auto-focus fields with a mouse.
       const coarse = window.matchMedia('(pointer: coarse)').matches;
       const target =
         panel.querySelector<HTMLElement>('[data-autofocus]') ??
@@ -106,12 +97,10 @@ export function Modal({
 }: {
   onClose: () => void;
   children: ReactNode;
-  /** Panel sizing and layout (max width, padding, flex). Border, radius and colours come from here. */
   className?: string;
   label?: string;
   labelledBy?: string;
   role?: 'dialog' | 'alertdialog';
-  /** "sheet" rises from the bottom on phones and centres from `sm` up; "center" always centres. */
   placement?: 'sheet' | 'center';
   /** Set false for anything holding typed input, so a stray tap outside can't throw it away. */
   dismissOnBackdrop?: boolean;

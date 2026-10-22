@@ -1,18 +1,7 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpStatus } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
 
-/**
- * Turns the handful of Prisma errors a user can actually cause into the
- * status codes they deserve, instead of a bare 500 "Internal server error":
- *
- *  - P2002 unique constraint  → 409 (a duplicate name, SKU, prefix, ...)
- *  - P2003 foreign key        → 409 (still referenced by other records)
- *  - P2025 record not found   → 404
- *
- * Services should still check the obvious cases themselves and raise a
- * specific message ("A brand named X already exists"); this is the safety net
- * for the ones they don't, and for races between two requests.
- */
+/** Turns the handful of Prisma errors a user can actually cause into the status codes they deserve, instead of a bare 500 "Internal server error": - P2002 unique constraint → 409 (a duplicate name, SKU, prefix, ...) - P2003 foreign key → 409 (still referenced by other records) - P2025 record not found → 404 Services should still check the obvious cases themselves and raise a specific message ("A brand named X already exists"); this is the safety net for the ones they don't, and for races between two requests. */
 @Catch(Prisma.PrismaClientKnownRequestError)
 export class PrismaExceptionFilter implements ExceptionFilter {
   catch(exception: Prisma.PrismaClientKnownRequestError, host: ArgumentsHost) {

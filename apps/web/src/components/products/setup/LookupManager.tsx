@@ -20,11 +20,7 @@ export function usageLabel(n: number | undefined, noun = 'product') {
   return `${n} ${noun}${n === 1 ? '' : 's'}`;
 }
 
-/**
- * Add / rename / remove for a flat list of names — brands and categories.
- * Removal is only offered when nothing uses the entry; the server enforces
- * the same rule, this just doesn't dangle a button that can only fail.
- */
+/** Add / rename / remove for a flat list of names — brands and categories. */
 export function LookupManager({
   noun,
   nounPlural,

@@ -18,7 +18,6 @@ export function toneColors(tone: Tone) {
   return TONE[tone];
 }
 
-/** Bordered surface panel used by every dashboard block, chart included. */
 export function SectionCard({
   title,
   description,
@@ -82,7 +81,6 @@ export function IconAction({ href, label, icon: Icon }: { href: string; label: s
   );
 }
 
-/** Text link used at the foot of a section. */
 export function SectionLink({ href, label }: { href: string; label: string }) {
   return (
     <Link href={href} className="mt-4 inline-flex items-center gap-1 text-xs font-medium" style={{ color: 'var(--color-accent)' }}>
@@ -126,7 +124,6 @@ export function StatCard({
   tone?: Tone;
   trend?: Trend | null;
   trendComparison?: string;
-  /** Extra content under the figures, e.g. a sparkline. */
   footer?: React.ReactNode;
   /** Makes the whole card a link. Omit when the user cannot open the destination. */
   href?: string;
@@ -168,7 +165,6 @@ export function StatCard({
   );
 }
 
-/** Compact list row: leading marker, flexible body, right-aligned value, optional action. */
 export function ListRow({
   marker,
   title,
@@ -184,7 +180,6 @@ export function ListRow({
   value: React.ReactNode;
   valueTone?: string;
   action?: React.ReactNode;
-  /** Makes the whole row a link. */
   href?: string;
 }) {
   const className = `flex items-center gap-3 border-b py-2.5 last:border-b-0 last:pb-0${
@@ -246,7 +241,6 @@ export function Skeleton({ className = '' }: { className?: string }) {
   );
 }
 
-/** Skeleton shaped like a SectionCard, so a loading section keeps its footprint. */
 export function SectionSkeleton({ heightClass = 'h-64' }: { heightClass?: string }) {
   return (
     <div

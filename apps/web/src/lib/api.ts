@@ -32,9 +32,7 @@ export function clearTokens() {
 
 export class ApiError extends Error {
   status: number;
-  // The parsed error body, when the server sent one. Lets a caller react to a
-  // structured refusal (e.g. an INSUFFICIENT_STOCK payload listing exactly
-  // which products are short) instead of pattern-matching the message text.
+  // The parsed error body, when the server sent one.
   details: Record<string, unknown> | null;
 
   constructor(status: number, message: string, details: Record<string, unknown> | null = null) {
@@ -44,10 +42,7 @@ export class ApiError extends Error {
   }
 }
 
-// Fired when a session can no longer be refreshed (expired, revoked, or
-// idle too long). AuthProvider listens for this to clear its user state and
-// bounce to /login — kept as an event rather than a direct import so this
-// file has no dependency on React.
+// Fired when a session can no longer be refreshed (expired, revoked, or idle too long).
 export const SESSION_EXPIRED_EVENT = 'pava:session-expired';
 
 let refreshInFlight: Promise<boolean> | null = null;
@@ -70,8 +65,8 @@ async function doRefresh(): Promise<boolean> {
   }
 }
 
-// De-dupes concurrent refresh attempts: if five requests 401 at once, only
-// one actual /auth/refresh call goes out.
+// De-dupes concurrent refresh attempts: if five requests 401 at once, only one actual /auth/refresh
+// call goes out.
 async function refreshOnce(): Promise<boolean> {
   if (!refreshInFlight) {
     refreshInFlight = doRefresh().finally(() => {
@@ -82,9 +77,7 @@ async function refreshOnce(): Promise<boolean> {
 }
 
 interface ApiOptions extends RequestInit {
-  auth?: boolean; // default true
-  // Called with the response headers of a successful request. Lets a caller
-  // read metadata (the total of a paged list) without changing the body shape.
+  auth?: boolean; // default true Called with the response headers of a successful request.
   onHeaders?: (headers: Headers) => void;
 }
 
@@ -124,7 +117,6 @@ export async function apiFetch<T = unknown>(path: string, options: ApiOptions = 
       message = body?.message || message;
       if (body && typeof body === 'object') details = body as Record<string, unknown>;
     } catch {
-      // non-JSON error body — keep the generic message
     }
     throw new ApiError(res.status, Array.isArray(message) ? message.join(', ') : message, details);
   }
@@ -145,8 +137,7 @@ export const api = {
   patch: <T = unknown>(path: string, body?: unknown, options?: ApiOptions) =>
     apiFetch<T>(path, { ...options, method: 'PATCH', body: body !== undefined ? JSON.stringify(body) : undefined }),
   delete: <T = unknown>(path: string, options?: ApiOptions) => apiFetch<T>(path, { ...options, method: 'DELETE' }),
-  // One page of a list plus how many rows match in all (the X-Total-Count
-  // header). Without the header, the page itself is all there is.
+  // One page of a list plus how many rows match in all (the X-Total-Count header).
   getPage: async <T = unknown>(path: string, options?: ApiOptions) => {
     const meta: { total: number | null } = { total: null };
     const items = await apiFetch<T[]>(path, {

@@ -12,24 +12,18 @@ export class PosItemDto {
   @Min(1)
   qty!: number;
 
-  // The final, negotiated per-unit price the operator agreed with the
-  // customer — not a "list price" with a separate discount subtracted from
-  // it. If it's below the product's current base price, the backend derives
-  // the implied discount itself (against the authoritative product price)
-  // for permission-limit enforcement and reporting; the client cannot spoof
-  // a fake "before" price to dodge the discount-limit check.
+  // The final, negotiated per-unit price the operator agreed with the customer — not a "list price"
+  // with a separate discount subtracted from it.
   @IsMoney()
   unitPrice!: number;
 
-  // How many of `qty` come out of the shop's own stock; the rest is supplied
-  // from elsewhere and never touches shop inventory. Omitted means all of it
-  // from the shop (the original behaviour, including its stock check).
+  // How many of `qty` come out of the shop's own stock; the rest is supplied from elsewhere and
+  // never touches shop inventory.
   @IsOptional()
   @IsInt()
   @Min(0)
   stockQty?: number;
 
-  // Where the non-shop part comes from or is collected, e.g. "Bamburi depot".
   @IsOptional()
   @IsString()
   @MaxLength(120)
@@ -45,9 +39,7 @@ export class ManualAllocationDto {
 }
 
 const TRANSPORT_ALLOCATIONS = ['QUANTITY', 'VALUE', 'MANUAL'] as const;
-// The till takes M-Pesa Paybill (the norm) and cash. Account sales are
-// raised through the quote -> invoice flow, which posts to the customer's
-// credit ledger; they are not a POS payment method.
+// The till takes M-Pesa Paybill (the norm) and cash.
 const PAYMENT_METHODS = ['CASH', 'MPESA'] as const;
 
 export class CreatePosSaleDto {
@@ -76,7 +68,7 @@ export class CreatePosSaleDto {
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  transportApplyTo?: string[]; // productIds; defaults to all lines
+  transportApplyTo?: string[];
 
   @IsOptional()
   @IsArray()
@@ -84,8 +76,6 @@ export class CreatePosSaleDto {
   @Type(() => ManualAllocationDto)
   manualAllocations?: ManualAllocationDto[];
 
-  // true (default): transport folded into item prices, "Delivery included" on the receipt.
-  // false: transport shown as its own line, item prices untouched.
   @IsOptional()
   @IsBoolean()
   foldTransportIntoPrices?: boolean;
@@ -100,24 +90,17 @@ export class CreatePosSaleDto {
   @IsIn(PAYMENT_METHODS)
   paymentMethod?: (typeof PAYMENT_METHODS)[number];
 
-  // What the customer actually handed over, per method — use this for cash
-  // that needs change or for a cash + M-Pesa split. When omitted,
-  // paymentMethod above means "paid the whole bill by that one method".
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => PaymentLineDto)
   payments?: PaymentLineDto[];
 
-  // What to do with any amount paid over the bill: hand it back (default) or
-  // keep it on the customer's credit. Leaving it needs a customerId.
   @IsOptional()
   @IsIn(CHANGE_ACTIONS)
   changeAction?: (typeof CHANGE_ACTIONS)[number];
 
-  // How much of the bill to pay out of credit the customer already holds with
-  // the shop. Asked for as "up to": it is capped at the bill and at what they
-  // actually have. Needs a customerId; not available on a settle-later sale.
+  // How much of the bill to pay out of credit the customer already holds with the shop.
   @IsOptional()
   @IsInt()
   @Min(1)
@@ -127,15 +110,11 @@ export class CreatePosSaleDto {
   @IsBoolean()
   allowNegativeStock?: boolean;
 
-  // Goods handed over now, settled later the same day (PAVA's only form of
-  // credit). The sale is raised as an unpaid invoice: stock leaves, no
-  // payment method is recorded yet, and it is closed off with Mark paid.
+  // Goods handed over now, settled later the same day (PAVA's only form of credit).
   @IsOptional()
   @IsBoolean()
   settleLater?: boolean;
 
-  // Set when the cart was resumed from a suspended order — that held order
-  // is deleted in the same transaction that commits this sale.
   @IsOptional()
   @IsString()
   suspendedFromId?: string;
@@ -154,8 +133,6 @@ export class SuspendOrderDto {
   @IsString()
   customerName?: string;
 
-  // Short operator-supplied handle ("blue pickup", "Mwangi site") so a held
-  // order can be picked out of the list at a glance.
   @IsOptional()
   @IsString()
   label?: string;

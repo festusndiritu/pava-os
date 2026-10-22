@@ -18,12 +18,10 @@ async function bootstrap() {
     }),
   );
 
-  // Lightweight health endpoint
   app.getHttpAdapter().get('/health', (_req, res) => {
     res.status(200).json({ status: 'ok' });
   });
 
-  // Swagger / OpenAPI
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Pava Hardware API')
     .setDescription('API documentation for Pava Hardware')

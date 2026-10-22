@@ -6,8 +6,8 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 
-// Manual JWT guard (no passport dependency) — reads Authorization: Bearer <token>,
-// verifies it, and attaches the decoded payload as request.user.
+// Manual JWT guard (no passport dependency) — reads Authorization: Bearer <token>, verifies it, and
+// attaches the decoded payload as request.user.
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   constructor(private jwtService: JwtService) {}
@@ -21,7 +21,7 @@ export class JwtAuthGuard implements CanActivate {
     const token = authHeader.slice('Bearer '.length);
     try {
       const payload = await this.jwtService.verifyAsync(token);
-      request.user = payload; // { sub, name, role }
+      request.user = payload;
       return true;
     } catch {
       throw new UnauthorizedException('Invalid or expired token');

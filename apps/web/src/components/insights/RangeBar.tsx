@@ -14,12 +14,7 @@ const PRESETS: { key: PresetKey; label: string }[] = [
   { key: 'custom', label: 'Custom' },
 ];
 
-/**
- * Local calendar day as YYYY-MM-DD. Deliberately not toISOString(), which
- * shifts to UTC and hands the backend yesterday's date for anyone east of
- * Greenwich — Nairobi is UTC+3, so every "Today" before 3am would have been
- * wrong.
- */
+/** Local calendar day as YYYY-MM-DD. */
 export function isoDay(date: Date) {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
@@ -49,9 +44,9 @@ export function useDateRange(initial: Exclude<PresetKey, 'custom'> = '30d') {
     setPresetState('custom');
     setRange((current) => {
       const next = { ...current, [which]: value };
-      // Keep the range the right way round rather than letting the server
-      // reject it — picking a "from" past the current "to" almost always
-      // means the person is starting a new range, not asking for an error.
+      // Keep the range the right way round rather than letting the server reject it — picking a
+      // "from" past the current "to" almost always means the person is starting a new range, not
+      // asking for an error.
       if (next.from > next.to) return which === 'from' ? { from: value, to: value } : { from: value, to: value };
       return next;
     });

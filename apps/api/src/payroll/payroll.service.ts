@@ -14,8 +14,6 @@ export class PayrollService {
     private notifications: NotificationsService,
   ) {}
 
-  // ---------------------------------------------------------------- Advances
-
   listAdvances(params: { employeeId?: string; status?: AdvanceStatus }) {
     return this.prisma.employeeAdvance.findMany({
       where: { employeeId: params.employeeId, status: params.status },
@@ -69,8 +67,6 @@ export class PayrollService {
     return updated;
   }
 
-  // ------------------------------------------------------------------- Runs
-
   listRuns() {
     return this.prisma.payrollRun.findMany({
       include: { items: true, createdBy: { select: { name: true } } },
@@ -93,9 +89,9 @@ export class PayrollService {
     return run;
   }
 
-  // Draft only selects employees and snapshots their current base salary —
-  // advances are swept in and totals locked at finalize() (brief §37/§38),
-  // so approving an advance after a draft is created still gets caught.
+  // Draft only selects employees and snapshots their current base salary — advances are swept in
+  // and totals locked at finalize() (brief §37/§38), so approving an advance after a draft is
+  // created still gets caught.
   async createRun(createdById: string, dto: CreatePayrollRunDto) {
     const employees = await this.prisma.employee.findMany({ where: { id: { in: dto.employeeIds } } });
     if (employees.length !== dto.employeeIds.length) throw new BadRequestException('One or more employees not found');
@@ -138,11 +134,8 @@ export class PayrollService {
     });
   }
 
-  // Locks the run: sweeps every APPROVED, unsettled advance for each
-  // employee into that employee's item, marks those advances SETTLED, and
-  // recomputes gross/net one final time. Nothing here is reversible —
-  // correcting a finalized run means a new run/adjustment, never editing
-  // this one (brief §76 applied to payroll).
+  // Locks the run: sweeps every APPROVED, unsettled advance for each employee into that employee's
+  // item, marks those advances SETTLED, and recomputes gross/net one final time.
   async finalizeRun(runId: string, actorId: string) {
     const run = await this.getRun(runId);
     if (run.status !== PayrollStatus.DRAFT) throw new BadRequestException('Only a draft run can be finalized');

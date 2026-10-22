@@ -25,7 +25,6 @@ function PageButton({ children, label, onClick, disabled, current }: { children:
   );
 }
 
-/** "51–100 of 1,240", a rows-per-page choice, and page buttons. */
 export function TablePagination({ page, pageSize, total, onPageChange, onPageSizeChange, pageSizeOptions }: PaginationState) {
   if (total === 0) return null;
   const pageCount = Math.max(1, Math.ceil(total / pageSize));

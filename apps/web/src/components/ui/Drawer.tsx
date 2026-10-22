@@ -22,11 +22,7 @@ export function Drawer({
   children: React.ReactNode;
   footer?: React.ReactNode;
   wide?: boolean;
-  /**
-   * For form drawers: once the person has typed or clicked inside, closing
-   * with Escape, the X or a tap on the backdrop asks before discarding. A
-   * successful save calls onClose directly and is never interrupted.
-   */
+  /** For form drawers: once the person has typed or clicked inside, closing with Escape, the X or a tap on the backdrop asks before discarding. */
   guardUnsaved?: boolean;
 }) {
   if (!open) return null;

@@ -35,16 +35,13 @@ export function ReceiveInventoryDrawer({
   open: boolean;
   onClose: () => void;
   onDone: () => void;
-  /** Start with this product already on the receipt (a restock launched from a product). */
   initialProduct?: Product | null;
-  /** Start with these products on the receipt (a restock launched from a selection). */
   initialProducts?: Product[] | null;
-  /** Suppliers used before, offered as suggestions while typing. */
   suppliers?: string[];
 }) {
   const { user } = useAuth();
-  // Changing a selling price is an admin action on the API; offering it to
-  // anyone else would only end in a refusal.
+  // Changing a selling price is an admin action on the API; offering it to anyone else would only
+  // end in a refusal.
   const canReprice = user?.role === 'ADMIN';
   const [supplier, setSupplier] = useState('');
   const [reference, setReference] = useState('');
@@ -54,7 +51,6 @@ export function ReceiveInventoryDrawer({
   const [suggestions, setSuggestions] = useState<ReceiveLineResult[] | null>(null);
   const [lastAddedId, setLastAddedId] = useState<string | null>(null);
 
-  // Opening from a product (or a selection) starts the receipt with those products on it.
   const starters = initialProducts ?? (initialProduct ? [initialProduct] : []);
   const starterKey = starters.map((p) => p.id).join(',');
   useEffect(() => {
@@ -86,8 +82,6 @@ export function ReceiveInventoryDrawer({
         toast.error(`Enter quantity for ${name}`);
         return;
       }
-      // A zero-cost lot makes the stock look free: valuation, margins and
-      // price suggestions all read it as "cost nothing".
       if (!(toNumber(l.unitCost) && toNumber(l.unitCost)! >= 1)) {
         toast.error(`Enter cost per unit for ${name}`);
         return;
@@ -127,7 +121,7 @@ export function ReceiveInventoryDrawer({
           onClose();
         }}
         title="Receive inventory"
-        subtitle="Records a delivery, creates cost lots, and increases stock"
+        subtitle="Adds stock and cost lots"
         wide
         footer={
           <div className="flex flex-col gap-2">
@@ -318,13 +312,12 @@ function PriceSuggestionDialog({ suggestions, onClose }: { suggestions: ReceiveL
   const allDecided = suggestions.every((s) => decided[s.productId]);
 
   return (
-    // The stock is already received at this point, so leaving (Escape, Skip) just keeps current prices.
     <Modal onClose={onClose} dismissOnBackdrop={false} label="Update selling prices?" className="max-h-[92vh] overflow-y-auto p-5 sm:max-w-md">
       <h3 className="text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>
         Update selling prices?
       </h3>
       <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>
-        Stock is saved. Based on the new cost, here is what each price would need to be to keep the same margin.
+        Stock saved. Prices to keep the same margin:
       </p>
 
       <div className="mt-4 flex flex-col gap-3">

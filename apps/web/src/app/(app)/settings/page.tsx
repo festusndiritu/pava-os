@@ -115,7 +115,7 @@ export default function SettingsPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-        <Section title="Business identity" description="Shown on printed quotes, invoices, and receipts.">
+        <Section title="Business identity" description="Shown on documents">
           <div>
             <label htmlFor="settings-business-name" className={labelClass} style={labelStyle}>Business name</label>
             <input id="settings-business-name" value={form.businessName ?? ''} onChange={(e) => setForm((f) => ({ ...f, businessName: e.target.value }))} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
@@ -136,7 +136,7 @@ export default function SettingsPage() {
           </div>
         </Section>
 
-        <Section title="Document numbering" description="Prefixes for new quotes/invoices/receipts. The next number is shown for reference and increments automatically — it isn't editable here to avoid ever issuing a duplicate.">
+        <Section title="Document numbering" description="Prefixes for new documents">
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label htmlFor="settings-quote-prefix" className={labelClass} style={labelStyle}>Quote prefix</label>
@@ -161,17 +161,17 @@ export default function SettingsPage() {
             <div>
               <label htmlFor="settings-rounding-increment-ksh" className={labelClass} style={labelStyle}>Rounding increment (KSh)</label>
               <NumericInput id="settings-rounding-increment-ksh" min={1} required value={rounding} onChange={setRounding} className="w-full rounded-md border px-3 py-2 text-sm data-num outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
-              <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>POS rounds customer-facing unit prices up to the nearest multiple of this.</p>
+              <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>Round POS prices up to a multiple of this.</p>
             </div>
             <div>
               <label htmlFor="settings-low-stock-threshold" className={labelClass} style={labelStyle}>Low-stock threshold</label>
               <NumericInput id="settings-low-stock-threshold" required value={lowStock} onChange={setLowStock} className="w-full rounded-md border px-3 py-2 text-sm data-num outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
-              <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>Products at or below this quantity show on the dashboard's low-stock list.</p>
+              <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>Low-stock threshold</p>
             </div>
           </div>
         </Section>
 
-        <Section title="Payment details" description="Bank / M-Pesa / till info — shown on quotes and invoices so a customer knows how to pay.">
+        <Section title="Payment details" description="Shown on quotes and invoices">
           <textarea
             value={form.paymentDetails ?? ''}
             onChange={(e) => setForm((f) => ({ ...f, paymentDetails: e.target.value }))}
@@ -182,7 +182,7 @@ export default function SettingsPage() {
           />
         </Section>
 
-        <Section title="Document footer" description="Printed at the bottom of quotes, invoices, and receipts.">
+        <Section title="Document footer" description="Printed on documents">
           <textarea value={form.documentFooter ?? ''} onChange={(e) => setForm((f) => ({ ...f, documentFooter: e.target.value }))} rows={2} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
         </Section>
 

@@ -112,7 +112,6 @@ export class AuthService {
     };
   }
 
-  // Admin login: email + password
   async loginWithPassword(email: string, password: string, meta?: RequestMeta) {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user || !user.active || !user.passwordHash || user.role !== Role.ADMIN) {
@@ -133,7 +132,6 @@ export class AuthService {
     return this.issuePair(this.toAuthedUser(user), meta);
   }
 
-  // Staff login: userId + PIN.
   async loginWithPin(userId: string, pin: string, meta?: RequestMeta) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || !user.active || !user.pinHash) {
@@ -153,8 +151,6 @@ export class AuthService {
     return this.issuePair(this.toAuthedUser(user), meta);
   }
 
-  // Sliding-inactivity refresh. Rejects if the session was revoked, has hit
-  // its absolute cap, or has been idle longer than the user's role allows
   async refresh(refreshToken: string, meta?: RequestMeta) {
     const tokenHash = this.hashToken(refreshToken);
     const session = await this.prisma.session.findUnique({
@@ -173,7 +169,6 @@ export class AuthService {
       throw new UnauthorizedException('Session expired');
     }
 
-    // Rotate the refresh token on every use (limits replay window if leaked).
     const newRefreshToken = randomBytes(32).toString('hex');
     await this.prisma.session.update({
       where: { id: session.id },
@@ -269,7 +264,6 @@ export class AuthService {
     return user;
   }
 
-  // Public, unauthenticated: powers the staff login tile grid
   async listLoginableStaff() {
     return this.prisma.user.findMany({
       where: { active: true, role: Role.STAFF },

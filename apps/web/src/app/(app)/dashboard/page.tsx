@@ -35,9 +35,7 @@ const SALE_STATUS: Record<string, { label: string; tone: 'ok' | 'warn' | 'bad' |
   DRAFT: { label: 'Draft', tone: 'neutral' },
 };
 
-// Written out in full so Tailwind can see every class. The grid follows the
-// number of cards the user can actually see, so a restricted account never
-// gets an empty column.
+// Written out in full so Tailwind can see every class.
 const STAT_GRID: Record<number, string> = {
   1: 'grid-cols-1',
   2: 'grid-cols-1 min-[420px]:grid-cols-2',
@@ -195,12 +193,11 @@ export default function DashboardPage() {
           }}
         >
           <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
-            Nothing to show here yet — ask an administrator if you think you should have access to more.
+            Nothing to show yet.
           </p>
         </div>
       )}
 
-      {/* Quick statistics */}
       {data && statCount > 0 && (
         <div className={`grid gap-4 ${STAT_GRID[statCount]}`}>
           {data.sales && (
@@ -256,7 +253,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Analytics */}
       {data?.chart && <SalesTrendChart chart={data.chart} />}
 
       {(data?.topProducts || data?.paymentMix) && (
@@ -281,7 +277,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Operational overview */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {data?.lowStock && (
           <SectionCard

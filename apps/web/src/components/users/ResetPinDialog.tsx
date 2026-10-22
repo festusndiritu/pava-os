@@ -33,7 +33,7 @@ export function ResetPinDialog({ user, onClose, onDone }: { user: StaffUser; onC
           Reset PIN — {user.name}
         </h3>
         <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>
-          This immediately signs them out everywhere. They'll need the new PIN next time.
+          Signs them out everywhere.
         </p>
 
         <div className="mt-4 flex flex-col gap-3">

@@ -10,6 +10,7 @@ import { getAutoPrint, getPrintMode, printReceipt } from '../../lib/print-receip
 import { shareViewModelAsPdf } from '../../lib/pdf/document-pdf';
 import { ThermalDocument } from '../documents/ThermalDocument';
 import { Modal } from '../ui/Modal';
+import { useMediaQuery } from '../../lib/use-media-query';
 import { toast } from '../ui/Toast';
 
 export function ReceiptDialog({
@@ -17,16 +18,19 @@ export function ReceiptDialog({
   onClose,
   onCreateDeliveryNote,
   deliveryNoteBusy,
+  suspended,
 }: {
   sale: PosSaleResult;
   onClose: () => void;
   onCreateDeliveryNote?: () => void;
   deliveryNoteBusy?: boolean;
+  suspended?: boolean;
 }) {
   const [sharing, setSharing] = useState(false);
   const [settings, setSettings] = useState<BusinessSettings | null>(null);
   const [settingsReady, setSettingsReady] = useState(false);
   const autoPrinted = useRef(false);
+  const mobile = useMediaQuery('(max-width: 767px)');
 
   useEffect(() => {
     settingsApi
@@ -39,8 +43,6 @@ export function ReceiptDialog({
   const vm = buildPosReceiptViewModel(sale, settings);
 
   // Direct-print tills: the receipt prints the moment the sale completes.
-  // Waits for the business settings so the letterhead (name, address, footer)
-  // is on the paper rather than the placeholder defaults. Once per sale.
   useEffect(() => {
     if (!settingsReady || autoPrinted.current) return;
     autoPrinted.current = true;
@@ -56,7 +58,7 @@ export function ReceiptDialog({
       const result = await shareViewModelAsPdf(vm);
       toast.success(shareNotice(result, vm.number));
     } catch {
-      toast.error("Couldn't generate PDF");
+      toast.error("Couldn't share");
     } finally {
       setSharing(false);
     }
@@ -64,15 +66,10 @@ export function ReceiptDialog({
 
   return (
     <>
-      {/* The print source lives outside the dialog on purpose: printing from
-          inside a fixed, scrolling modal is what produced blank pages. This
-          node is laid out off-screen and revealed in place by the print
-          stylesheet. PDF sharing no longer captures this DOM node at all —
-          it renders straight from `vm` via @react-pdf/renderer — but the
-          browser Print button still uses it. */}
-      <ThermalDocument vm={vm} variant="print" />
+      {/* The print source lives outside the dialog on purpose: printing from inside a fixed, scrolling modal is what produced blank pages. */}
+      {!suspended && <ThermalDocument vm={vm} variant="print" />}
 
-      <div className="print:hidden">
+      <div className="print:hidden" hidden={suspended}>
         <Modal onClose={onClose} label="Sale receipt" className="flex max-h-[92vh] flex-col overflow-hidden sm:max-w-sm">
           <div className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: 'var(--color-border)' }}>
             <div className="min-w-0">
@@ -88,8 +85,6 @@ export function ReceiptDialog({
             </button>
           </div>
 
-          {/* Paper-styled preview: white with dark ink in either theme, so what
-              the operator sees is what the printer produces. */}
           <div className="flex-1 overflow-y-auto p-4">
             <div className="mx-auto max-w-[320px] rounded-md border" style={{ borderColor: 'var(--color-border)' }}>
               <ThermalDocument vm={vm} variant="preview" />
@@ -98,17 +93,19 @@ export function ReceiptDialog({
 
           <div
             className="grid gap-2 border-t px-4 py-3"
-            style={{ borderColor: 'var(--color-border)', gridTemplateColumns: onCreateDeliveryNote ? '1fr 1fr 1fr' : '1fr 1fr', paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+            style={{ borderColor: 'var(--color-border)', gridTemplateColumns: `repeat(${(mobile ? 0 : 1) + 1 + (onCreateDeliveryNote ? 1 : 0)}, 1fr)`, paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
           >
-            <button
-              type="button"
-              onClick={() => printReceipt(vm)}
-              className="flex min-h-11 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold text-white"
-              style={{ backgroundColor: 'var(--color-accent)' }}
-            >
-              <Printer size={15} strokeWidth={2} />
-              Print
-            </button>
+            {!mobile && (
+              <button
+                type="button"
+                onClick={() => printReceipt(vm)}
+                className="flex min-h-11 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold text-white"
+                style={{ backgroundColor: 'var(--color-accent)' }}
+              >
+                <Printer size={15} strokeWidth={2} />
+                Print
+              </button>
+            )}
             <button
               type="button"
               disabled={sharing}

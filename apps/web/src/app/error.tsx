@@ -49,7 +49,7 @@ export default function Error({
           className="mx-auto mt-2 max-w-sm text-sm leading-6"
           style={{ color: 'var(--color-ink-600)' }}
         >
-          An unexpected error occurred. You can try again or return to the dashboard.
+          Something went wrong.
         </p>
 
         <div className="mt-6 flex items-center justify-center gap-3">

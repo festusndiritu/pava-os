@@ -53,8 +53,8 @@ export default function ReportsPage() {
       .then(([documents, returnRows]) => {
         if (cancelled) return;
         setDocs(documents);
-        // The returns endpoint takes a limit, not a range, so the range is
-        // applied here rather than asking for a filter the API doesn't have.
+        // The returns endpoint takes a limit, not a range, so the range is applied here rather than
+        // asking for a filter the API doesn't have.
         setReturns(returnRows.filter((r) => r.createdAt.slice(0, 10) >= range.from && r.createdAt.slice(0, 10) <= range.to));
       })
       .catch((err) => {
@@ -238,7 +238,7 @@ export default function ReportsPage() {
           Reports
         </h1>
         <p className="mt-0.5 text-sm" style={{ color: 'var(--color-ink-600)' }}>
-          Every document raised in a period, line by line — the register to reconcile the till against.
+          All documents in a period
         </p>
       </div>
 

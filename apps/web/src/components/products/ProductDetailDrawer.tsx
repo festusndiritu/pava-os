@@ -24,7 +24,6 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'ledger', label: 'Ledger' },
 ];
 
-// The raw movement enum is database vocabulary; this is what the counter says.
 const MOVEMENT_LABEL: Record<string, string> = {
   RECEIPT: 'Received',
   SALE: 'Sold',
@@ -109,7 +108,6 @@ export function ProductDetailDrawer({
   /** Omit for people without inventory access. Opens the receive-stock drawer for this product. */
   onReceive?: (p: Product) => void;
   onChanged: () => void;
-  /** Bump to reload what the drawer shows after something outside it changed stock. */
   refreshKey?: number;
 }) {
   const [product, setProduct] = useState<Product | null>(null);
@@ -144,9 +142,8 @@ export function ProductDetailDrawer({
     let stale = false;
     setLoading(true);
     (async () => {
-      // Each part loads on its own: batches, history and the ledger sit behind
-      // module permissions the product itself doesn't, and one refusal should
-      // not blank the whole drawer.
+      // Each part loads on its own: batches, history and the ledger sit behind module permissions
+      // the product itself doesn't, and one refusal should not blank the whole drawer.
       const [p, b, h, m] = await Promise.allSettled([
         productsApi.get(productId),
         inventoryApi.batches(productId),
@@ -230,10 +227,7 @@ export function ProductDetailDrawer({
   const gauge = product ? thicknessLabel(product.shape, product.thicknessMm) : null;
   const totalRemaining = batches.reduce((sum, b) => sum + b.remainingQuantity, 0);
 
-  // Value of what's on the shelf now. Stock added by an adjustment on a product
-  // that never had a cost sits in a zero-cost batch, and stock can exist with no
-  // batch at all, so both fall back to the product's last known cost. Whatever
-  // still has no cost is called out instead of reading as KSh 0.
+  // Value of what's on the shelf now.
   const lastCost = product?.lastCost ?? 0;
   const liveBatches = batches.filter((b) => b.remainingQuantity > 0);
   const costOf = (b: InventoryBatch) => (b.unitCost > 0 ? b.unitCost : lastCost);
@@ -399,7 +393,7 @@ export function ProductDetailDrawer({
               {tab === 'batches' && (
                 <>
                   {problems.batches && <SectionNote tone="warn">{problems.batches}</SectionNote>}
-                  {!problems.batches && batches.length === 0 && <SectionNote>No inventory receipts yet for this product.</SectionNote>}
+                  {!problems.batches && batches.length === 0 && <SectionNote>No receipts yet.</SectionNote>}
                   {batches.map((b) => {
                     const usedUp = b.remainingQuantity === 0;
                     return (
@@ -436,7 +430,7 @@ export function ProductDetailDrawer({
               {tab === 'history' && (
                 <>
                   {problems.history && <SectionNote tone="warn">{problems.history}</SectionNote>}
-                  {!problems.history && history.length === 0 && <SectionNote>Price hasn’t changed since this product was created.</SectionNote>}
+                  {!problems.history && history.length === 0 && <SectionNote>No price changes.</SectionNote>}
                   {history.map((h) => {
                     const pct = h.oldPrice > 0 ? Math.round(((h.newPrice - h.oldPrice) / h.oldPrice) * 100) : null;
                     return (
@@ -505,7 +499,6 @@ export function ProductDetailDrawer({
           onClose={() => setAdjustOpen(false)}
           onDone={() => {
             setAdjustOpen(false);
-            // The drawer shows stock, value, batches and the ledger, all of which just changed.
             setReloadTick((t) => t + 1);
             onChanged();
           }}

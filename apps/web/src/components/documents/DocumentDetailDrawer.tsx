@@ -16,7 +16,8 @@ import { printReceipt } from '../../lib/print-receipt';
 import { ApiError } from '../../lib/api';
 import { shareDocumentAsPdf } from '../../lib/pdf/document-pdf';
 import { FulfilmentDialog, defaultStockQty, type FulfilmentLine } from './FulfilmentDialog';
-import { DeliveryLocationDialog } from './DeliveryLocationDialog';
+import { DeliveryNoteDialog } from './DeliveryNoteDialog';
+import { useMediaQuery } from '../../lib/use-media-query';
 import { readStockShortfalls } from '../../lib/pos-api';
 import { money } from '../../lib/format';
 import { toast } from '../ui/Toast';
@@ -42,21 +43,17 @@ export function DocumentDetailDrawer({
   documentId,
   onClose,
   onChanged,
-  onNavigate,
   onEdit,
 }: {
   documentId: string | null;
   onClose: () => void;
   onChanged: () => void;
-  onNavigate?: (id: string) => void;
   // Only the Quotes screen passes this; without it no Edit button is shown.
   onEdit?: (id: string) => void;
 }) {
   const [doc, setDoc] = useState<SaleDocument | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
-  // Where the goods come from is settled when a quote becomes an invoice. The
-  // key remounts the dialog with fresh numbers if the shelf moved meanwhile.
   const [fulfilmentOpen, setFulfilmentOpen] = useState(false);
   const [fulfilmentKey, setFulfilmentKey] = useState(0);
   const [sharing, setSharing] = useState(false);
@@ -66,21 +63,19 @@ export function DocumentDetailDrawer({
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [editRequests, setEditRequests] = useState<EditRequest[]>([]);
-  const [askingDeliveryLocation, setAskingDeliveryLocation] = useState(false);
+  const [deliveryNoteOpen, setDeliveryNoteOpen] = useState(false);
+  const mobile = useMediaQuery('(max-width: 767px)');
   const [settings, setSettings] = useState<BusinessSettings | null>(null);
-  // Thermal is the only print format here now — the A4 off-screen sheet and
-  // its Print button were dropped. printTick is what actually fires the
-  // print, so clicking the button twice in a row still re-prints even
-  // though there's only one format to switch to.
+  // Thermal is the only print format here now — the A4 off-screen sheet and its Print button were dropped.
   const [printTick, setPrintTick] = useState(0);
 
   useEffect(() => {
     settingsApi.get().then(setSettings).catch(() => {});
   }, []);
 
-  // Waits for the print-source node to actually be in the DOM before
-  // printing — this only matters on the very first click, since after that
-  // it's already mounted, but requestAnimationFrame costs nothing either way.
+  // Waits for the print-source node to actually be in the DOM before printing — this only matters
+  // on the very first click, since after that it's already mounted, but requestAnimationFrame costs
+  // nothing either way.
   useEffect(() => {
     if (printTick === 0 || !doc) return;
     const id = requestAnimationFrame(() => printReceipt(buildDocumentViewModel(doc, settings)));
@@ -93,8 +88,8 @@ export function DocumentDetailDrawer({
     const loaded = await documentsApi.get(documentId);
     setDoc(loaded);
     setLoading(false);
-    // Edits only apply to issued invoices and receipts; a failure to read the
-    // list must never stop the document itself from opening.
+    // Edits only apply to issued invoices and receipts; a failure to read the list must never stop
+    // the document itself from opening.
     if (loaded.status === 'INVOICED' || loaded.status === 'PAID') {
       documentsApi.editRequestsFor(documentId).then(setEditRequests).catch(() => setEditRequests([]));
     } else setEditRequests([]);
@@ -103,6 +98,9 @@ export function DocumentDetailDrawer({
   useEffect(() => {
     load();
     setFulfilmentOpen(false);
+    setEditOpen(false);
+    setDeleteOpen(false);
+    setDeliveryNoteOpen(false);
     setPayment(emptyPayment);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documentId]);
@@ -123,8 +121,7 @@ export function DocumentDetailDrawer({
     }
   }
 
-  // Splits each line between the shop's stock and goods supplied from
-  // elsewhere, then raises the invoice. Only the shop's part leaves inventory.
+  // Splits each line between the shop's stock and goods supplied from elsewhere, then raises the invoice.
   async function convertToInvoice(rows: FulfilmentLine[]) {
     if (!doc) return;
     setBusy(true);
@@ -149,8 +146,7 @@ export function DocumentDetailDrawer({
     }
   }
 
-  // Lines of a quote as the fulfilment dialog sees them. Two lines of the same
-  // product share one shelf, so each is offered only what the earlier ones left.
+  // Lines of a quote as the fulfilment dialog sees them.
   function fulfilmentLines(d: SaleDocument): FulfilmentLine[] {
     const shelf = new Map<string, number>();
     return d.items
@@ -170,25 +166,9 @@ export function DocumentDetailDrawer({
       const result = await shareDocumentAsPdf(doc, settings);
       toast.success(shareNotice(result, docNumber ?? docTypeLabel(doc.type)));
     } catch {
-      toast.error("Couldn't generate PDF");
+      toast.error("Couldn't share");
     } finally {
       setSharing(false);
-    }
-  }
-
-  async function handleCreateDeliveryNote(deliveryLocation: string, deliveryPhone: string) {
-    if (!doc) return;
-    setBusy(true);
-    try {
-      const note = await documentsApi.createDeliveryNote(doc.id, deliveryLocation || undefined, deliveryPhone || undefined);
-      setAskingDeliveryLocation(false);
-      onChanged();
-      toast.success(note.deliveryNoteNumber ? `Delivery note ${note.deliveryNoteNumber} created` : 'Delivery note created');
-      onNavigate?.(note.id);
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Couldn't create delivery note");
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -198,11 +178,8 @@ export function DocumentDetailDrawer({
 
   return (
     <>
-      {/* Rendered as a sibling of the Drawer, not inside it — the Drawer's
-          panel sits inside a fixed, absolutely-positioned overlay, and
-          printing from inside that positioned ancestor is what offsets the
-          thermal output (see ReceiptDialog.tsx for the same fix). */}
-      {doc && <ThermalDocument vm={buildDocumentViewModel(doc, settings)} variant="print" />}
+      {/* Rendered as a sibling of the Drawer, not inside it — the Drawer's panel sits inside a fixed, absolutely-positioned overlay, and printing from inside that positioned ancestor is what offsets the thermal output (see ReceiptDialog.tsx for the same fix). */}
+      {doc && !deliveryNoteOpen && <ThermalDocument vm={buildDocumentViewModel(doc, settings)} variant="print" />}
       <Drawer
         open
         onClose={onClose}
@@ -211,8 +188,6 @@ export function DocumentDetailDrawer({
         footer={
           doc && (
             <div className="flex flex-col gap-2">
-              {/* An unpaid invoice is settled here, and how it was settled is
-                  recorded on the receipt rather than guessed at later. */}
               {doc.status === 'INVOICED' && (
                 <div className="rounded-md border p-3" style={{ borderColor: 'var(--color-border)' }}>
                   <p className="text-xs font-medium" style={{ color: 'var(--color-ink-600)' }}>
@@ -270,18 +245,20 @@ export function DocumentDetailDrawer({
                   </button>
                 )}
                 {doc.type !== 'DELIVERY_NOTE' && (doc.status === 'QUOTED' || doc.status === 'INVOICED' || doc.status === 'PAID') && (
-                  <button type="button" disabled={busy} onClick={() => setAskingDeliveryLocation(true)} className="flex flex-1 items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
+                  <button type="button" disabled={busy} onClick={() => setDeliveryNoteOpen(true)} className="flex flex-1 items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
                     <Truck size={14} strokeWidth={2} />
                     Delivery note
                   </button>
                 )}
-                <button type="button" onClick={() => setPrintTick((t) => t + 1)} className="flex flex-1 items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
-                  <Receipt size={14} strokeWidth={2} />
-                  Print thermal
-                </button>
+                {!mobile && (
+                  <button type="button" onClick={() => setPrintTick((t) => t + 1)} className="flex flex-1 items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
+                    <Receipt size={14} strokeWidth={2} />
+                    Print
+                  </button>
+                )}
                 <button type="button" disabled={sharing} onClick={handleShare} className="flex flex-1 items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
                   <Share2 size={14} strokeWidth={2} />
-                  {sharing ? 'Preparing…' : 'Share PDF'}
+                  {sharing ? 'Preparing…' : 'Share'}
                 </button>
               </div>
             </div>
@@ -306,7 +283,7 @@ export function DocumentDetailDrawer({
       {doc && deleteOpen && (
         <ConfirmDialog
           title="Delete this quote?"
-          description="It was cancelled and never invoiced. Deleting removes it for good; a record of the deletion is kept in the audit log."
+          description="Cancelled and never invoiced. Deleting is permanent."
           confirmLabel="Delete quote"
           busy={busy}
           onCancel={() => setDeleteOpen(false)}
@@ -315,6 +292,7 @@ export function DocumentDetailDrawer({
             try {
               await documentsApi.deleteQuote(doc.id);
               toast.success('Quote deleted');
+              setDeleteOpen(false);
               onChanged();
               onClose();
             } catch (err) {
@@ -327,15 +305,7 @@ export function DocumentDetailDrawer({
         />
       )}
 
-      {doc && askingDeliveryLocation && (
-        <DeliveryLocationDialog
-          customerAddress={doc.customer?.address || doc.customer?.location}
-          customerPhone={doc.customer?.phone}
-          busy={busy}
-          onCancel={() => setAskingDeliveryLocation(false)}
-          onConfirm={handleCreateDeliveryNote}
-        />
-      )}
+      {doc && deliveryNoteOpen && <DeliveryNoteDialog doc={doc} onClose={() => setDeliveryNoteOpen(false)} />}
 
       {loading && (
         <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
@@ -369,8 +339,7 @@ export function DocumentDetailDrawer({
             </div>
           )}
 
-          {/* A delivery note is a dispatch document — quantities only, never
-              prices, in the drawer as well as on the printed sheet. */}
+          {/* A delivery note is a dispatch document — quantities only, never prices, in the drawer as well as on the printed sheet. */}
           <div className="overflow-hidden rounded-md border" style={{ borderColor: 'var(--color-border)' }}>
             <table className="w-full text-sm">
               <thead>

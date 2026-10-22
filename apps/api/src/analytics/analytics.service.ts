@@ -7,24 +7,7 @@ export interface Range {
   to: Date;
 }
 
-/**
- * Every revenue figure here counts a document once it is settled — status
- * PAID, or the INVOICED sales that are PAVA's same-day credit (goods out,
- * paid before close) — filtered by paidAt for PAID and by createdAt for
- * still-open INVOICED ones, since an unpaid invoice has no paidAt yet.
- * CANCELLED and DRAFT never count; a QUOTE never counts until it becomes one
- * of those.
- *
- * Cost of goods sold is not an estimate: every sale consumes stock through
- * FIFO batches (see InventoryService.consumeFifo), and each unit consumed
- * records its real batch cost as an InventoryMovement of type SALE at the
- * moment it left the shelf. Summing those movements over a period gives the
- * actual cost of what was sold in it — the one number here anyone could
- * dispute is fair game to trust. The one gap: a return restocks the item
- * without reconstructing which lot it re-joins (see restock()), so its
- * original sale's cost stays booked — margin looks very slightly lean after
- * heavy returns, never inflated.
- */
+/** Every revenue figure here counts a document once it is settled — status PAID, or the INVOICED sales that are PAVA's same-day credit (goods out, paid before close) — filtered by paidAt for PAID and by createdAt for still-open INVOICED ones, since an unpaid invoice has no paidAt yet. */
 @Injectable()
 export class AnalyticsService {
   constructor(private prisma: PrismaService) {}
@@ -39,9 +22,9 @@ export class AnalyticsService {
   }
 
   private async cogsFor(range: Range) {
-    // SALE movements store negative quantity; unit cost isn't summable
-    // directly without weighting per row, so pull the rows and weight in JS
-    // — the row count per period is small enough that this is cheap.
+    // SALE movements store negative quantity; unit cost isn't summable directly without weighting
+    // per row, so pull the rows and weight in JS — the row count per period is small enough that
+    // this is cheap.
     const rows = await this.prisma.inventoryMovement.findMany({
       where: { type: MovementType.SALE, createdAt: { gte: range.from, lt: range.to } },
       select: { quantity: true, unitCost: true },
@@ -192,10 +175,9 @@ export class AnalyticsService {
       .sort((a, b) => b.revenue - a.revenue);
   }
 
-  // A snapshot, not a period figure — what the yard is worth right now,
-  // valued at each product's last received cost (the same figure the
-  // catalogue itself shows, so it never disagrees with what a person sees
-  // on the product page).
+  // A snapshot, not a period figure — what the yard is worth right now, valued at each product's
+  // last received cost (the same figure the catalogue itself shows, so it never disagrees with what
+  // a person sees on the product page).
   async inventorySnapshot() {
     const products = await this.prisma.product.findMany({
       where: { active: true },

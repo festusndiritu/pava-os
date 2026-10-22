@@ -16,7 +16,6 @@ interface ContactInput {
 }
 
 // What a table header can sort contacts by (`field:dir`, see parseSort).
-// `id` is the final tiebreaker so paging by offset never skips or repeats a row.
 const SORT_FIELDS: Record<string, (dir: SortDir) => object> = {
   name: (d) => ({ name: d }),
   company: (d) => ({ company: nullsLast(d) }),
@@ -41,7 +40,6 @@ export class ContactsService {
     return (await this.findPage(search, status, paging)).rows;
   }
 
-  // One page of contacts plus how many match in all.
   async findPage(search?: string, status: 'active' | 'archived' | 'all' = 'active', paging: { sort?: string; limit?: number; offset?: number } = {}) {
     const where = {
       ...(status === 'all' ? {} : { active: status === 'archived' ? false : true }),
@@ -88,7 +86,6 @@ export class ContactsService {
     });
   }
 
-  // Soft delete — same convention as Customer/Product/Lead.
   async archive(id: string, actorId: string) {
     const contact = await this.findOne(id);
     const updated = await this.prisma.contact.update({ where: { id }, data: { active: false } });
@@ -102,9 +99,9 @@ export class ContactsService {
     return updated;
   }
 
-  // Permanent — a Contact is a phone-book entry with nothing keyed off it
-  // (no document, ledger or FK anywhere references one), so once archived
-  // there's no dependent data to check before removing it for good.
+  // Permanent — a Contact is a phone-book entry with nothing keyed off it (no document, ledger or
+  // FK anywhere references one), so once archived there's no dependent data to check before
+  // removing it for good.
   async hardDelete(id: string, actorId: string) {
     const contact = await this.findOne(id);
     if (contact.active) throw new BadRequestException('Archive this contact before deleting it permanently');

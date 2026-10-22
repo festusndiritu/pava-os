@@ -17,31 +17,17 @@ export interface RowAction {
   disabled?: boolean;
   /** A second, smaller line: why an item is disabled, or what it will do. */
   hint?: string;
-  /** Draws a divider above this item. Used to set destructive actions apart. */
   separatorBefore?: boolean;
 }
 
-/** What a screen may list: conditions can be written inline as `isAdmin && { … }`. */
 export type RowActionInput = RowAction | false | null | undefined;
 
 export const actionList = (items: RowActionInput[]): RowAction[] => items.filter((i): i is RowAction => !!i);
 
 const TONES = { default: 'var(--color-ink-900)', danger: 'var(--color-status-bad)', accent: 'var(--color-accent)' } as const;
 
-/**
- * The "⋮" button at the end of a row, and the menu it opens.
- *
- * On a desktop it is a small popover next to the button; on a phone it is a
- * sheet from the bottom with thumb-sized rows. Either way it is a real menu:
- * arrow keys move between items (Home/End jump, a letter jumps to the next
- * item starting with it), Escape and Tab close it and give focus back to the
- * button, and picking an item closes it first so a dialog the item opens
- * returns focus to the button afterwards.
- *
- * It is drawn in a portal at the end of the page because the table around it
- * scrolls and clips; a menu drawn inside would be cut off by the last rows.
- */
-export function ActionMenu({ actions, label, heading }: { actions: RowAction[]; /** Names the button for screen readers. */ label: string; /** Title of the phone sheet. */ heading?: string }) {
+/** The "⋮" button at the end of a row, and the menu it opens. */
+export function ActionMenu({ actions, label, heading }: { actions: RowAction[];  label: string;  heading?: string }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -58,8 +44,6 @@ export function ActionMenu({ actions, label, heading }: { actions: RowAction[]; 
 
   const items = () => Array.from(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])') ?? []);
 
-  // Place the popover under the button, right-aligned with it; flip above when
-  // there isn't room below, and keep it inside the window either way.
   useLayoutEffect(() => {
     if (!open || sheet || !triggerRef.current || !menuRef.current) return;
     const t = triggerRef.current.getBoundingClientRect();
@@ -73,14 +57,12 @@ export function ActionMenu({ actions, label, heading }: { actions: RowAction[]; 
     setPos({ top, left });
   }, [open, sheet, actions.length]);
 
-  // Move focus into the menu once it is on screen.
   useEffect(() => {
     if (!open) return;
     const list = items();
     (focusOnOpen.current === 'last' ? list[list.length - 1] : list[0])?.focus();
   }, [open, pos === null]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Anything that moves the button out from under an open popover closes it.
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (e: PointerEvent) => {
@@ -89,7 +71,7 @@ export function ActionMenu({ actions, label, heading }: { actions: RowAction[]; 
       close(false);
     };
     const onScroll = (e: Event) => {
-      if (menuRef.current?.contains(e.target as Node)) return; // the menu's own scrolling
+      if (menuRef.current?.contains(e.target as Node)) return;
       if (!sheet) close(false);
     };
     const onResize = () => close(false);
@@ -140,7 +122,6 @@ export function ActionMenu({ actions, label, heading }: { actions: RowAction[]; 
       e.preventDefault();
       close(true);
     } else if (e.key.length === 1 && /\S/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
-      // Typeahead: the next item whose label starts with the typed letter.
       const ch = e.key.toLowerCase();
       const ordered = [...list.slice(i + 1), ...list.slice(0, i + 1)];
       const hit = ordered.find((el) => el.textContent?.trim().toLowerCase().startsWith(ch));
@@ -152,7 +133,6 @@ export function ActionMenu({ actions, label, heading }: { actions: RowAction[]; 
   }
 
   function choose(action: RowAction) {
-    // Close first and put focus back on the button, so a dialog this opens remembers the button as where to return to.
     close(true);
     action.onClick?.();
   }

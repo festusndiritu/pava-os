@@ -13,8 +13,6 @@ import { CreateLeadDto, UpdateLeadDto } from './dto/lead.dto.js';
 export class LeadsController {
   constructor(private leads: LeadsService) {}
 
-  // Was ungated — matches contacts/customers findings: read access should
-  // require the same module as create/update below.
   @UseGuards(PermissionsGuard)
   @Permissions(Module.LEADS)
   @Get()
@@ -68,8 +66,8 @@ export class LeadsController {
     return this.leads.restore(id, req.user.sub);
   }
 
-  // Permanent deletion is admin-only, same as every other hard-delete
-  // route in the system — archiving (above) is what everyone else uses.
+  // Permanent deletion is admin-only, same as every other hard-delete route in the system —
+  // archiving (above) is what everyone else uses.
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN)
   @Delete(':id/permanent')

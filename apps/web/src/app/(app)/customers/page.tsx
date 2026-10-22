@@ -49,8 +49,6 @@ export default function CustomersPage() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
 
-  // Lets global search (Ctrl/Cmd+K) land straight on a customer's detail
-  // drawer via `/customers?open=<id>`, the same drawer a row click opens.
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get('open');
     if (id) setDetailId(id);
@@ -102,7 +100,7 @@ export default function CustomersPage() {
       const text = bulkSummary(action === 'archive' ? 'Archived' : 'Restored', 'customer', result);
       if (result.failed.length === 0) toast.success(text);
       else toast.error(text);
-      selection.replace(result.failed.map((f) => f.item)); // what failed stays ticked, to retry
+      selection.replace(result.failed.map((f) => f.item));
       setBulkConfirm(null);
       load();
     } finally {

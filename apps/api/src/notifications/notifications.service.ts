@@ -6,7 +6,6 @@ import { PrismaService } from '../prisma/prisma.service.js';
 export interface PushPayload {
   title: string;
   body: string;
-  /** Where tapping the notification should land, relative to the web app. */
   url?: string;
   /** Notifications with the same tag replace each other instead of stacking. */
   tag?: string;
@@ -19,30 +18,22 @@ interface StoredSubscription {
   auth: string;
 }
 
-/** What lands on the notifications page (and is pushed to the person's devices). */
 export interface InboxItem {
-  /** Short machine name, e.g. 'edit_requested'. Also the push tag, with the entity id. */
   kind: string;
   title: string;
   body: string;
-  /** Where tapping it goes, relative to the web app. */
   url?: string;
-  /** What it is about, so every copy can be cleared once that thing is dealt with. */
   entityType?: string;
   entityId?: string;
 }
 
 export interface SendResult {
   delivered: number;
-  /** Subscriptions the push service said are gone for good (and we deleted). */
   removed: number;
-  /** Temporary failures — worth trying again later. */
   failed: number;
 }
 
-// The only hosts a browser's push endpoint can legitimately be on. The server
-// POSTs to whatever endpoint a client registers, so without this check a
-// logged-in user could point it at any https URL they like.
+// The only hosts a browser's push endpoint can legitimately be on.
 const PUSH_HOSTS = ['fcm.googleapis.com', '.push.services.mozilla.com', '.push.apple.com', '.notify.windows.com'];
 
 export function isKnownPushService(endpoint: string): boolean {
@@ -64,8 +55,6 @@ export class NotificationsService {
   constructor(private prisma: PrismaService) {
     const publicKey = process.env.VAPID_PUBLIC_KEY?.trim();
     const privateKey = process.env.VAPID_PRIVATE_KEY?.trim();
-    // VAPID needs a contact URL (mailto: or https:) the push services can reach
-    // if we ever misbehave. Set VAPID_SUBJECT to a real address.
     const subject = process.env.VAPID_SUBJECT?.trim() || 'mailto:admin@pava.example';
 
     this.enabled = !!(publicKey && privateKey);
@@ -86,8 +75,6 @@ export class NotificationsService {
     if (!this.enabled) throw new BadRequestException('Push notifications are not set up on the server');
     if (!isKnownPushService(sub.endpoint)) throw new BadRequestException('This browser’s push service is not supported');
 
-    // Keyed on endpoint: if someone else logs in on the same device, the
-    // device now belongs to them.
     await this.prisma.pushSubscription.upsert({
       where: { endpoint: sub.endpoint },
       create: { userId, endpoint: sub.endpoint, p256dh: sub.keys.p256dh, auth: sub.keys.auth, userAgent: userAgent?.slice(0, 300) },
@@ -97,18 +84,13 @@ export class NotificationsService {
   }
 
   async unsubscribe(userId: string, endpoint: string) {
-    // Scoped to the caller — logging out must never drop a device that has
-    // since been taken over by someone else.
+    // Scoped to the caller — logging out must never drop a device that has since been taken over by
+    // someone else.
     const { count } = await this.prisma.pushSubscription.deleteMany({ where: { endpoint, userId } });
     return { removed: count };
   }
 
-  // ------------------------------------------------------------------ Inbox
-
-  /**
-   * Records the notification for each person and pushes it to their devices.
-   * Never throws: telling someone about a request must not fail the request.
-   */
+  /** Records the notification for each person and pushes it to their devices. */
   async notifyUsers(userIds: string[], item: InboxItem): Promise<void> {
     const ids = [...new Set(userIds)];
     if (ids.length === 0) return;
@@ -139,7 +121,6 @@ export class NotificationsService {
     }
   }
 
-  /** Once something has been decided, its notification stops being news for anyone. */
   async resolveEntity(entityType: string, entityId: string): Promise<void> {
     try {
       await this.prisma.notification.updateMany({ where: { entityType, entityId, readAt: null }, data: { readAt: new Date() } });
@@ -160,7 +141,6 @@ export class NotificationsService {
     return { count: await this.prisma.notification.count({ where: { userId, readAt: null } }) };
   }
 
-  // Scoped to the caller: nobody can clear somebody else's.
   async markRead(userId: string, id: string) {
     const { count } = await this.prisma.notification.updateMany({ where: { id, userId, readAt: null }, data: { readAt: new Date() } });
     return { updated: count };
@@ -194,8 +174,7 @@ export class NotificationsService {
           result.delivered++;
           sentIds.push(s.id);
         } catch (err: any) {
-          // 404/410: the browser dropped this subscription (app uninstalled,
-          // permission revoked). It will never work again.
+          // 404/410: the browser dropped this subscription (app uninstalled, permission revoked).
           if (err?.statusCode === 404 || err?.statusCode === 410) {
             gone.push(s.id);
             result.removed++;

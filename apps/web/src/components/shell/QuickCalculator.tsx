@@ -115,15 +115,12 @@ export function QuickCalculator() {
   }
 
   // Live running equation shown above the main display while mid-entry, e.g.
-  // typing "12 × 4" shows exactly that before "=" is pressed. Once equals
-  // fires, `history` takes over instead (see equals() above).
   const liveExpression =
     operator && stored !== null ? `${formatDisplay(String(stored))} ${operator}${overwrite ? '' : ' ' + display}` : '';
   const topLine = history ?? liveExpression;
 
-  // Keyboard support, active only while the popover is open — mirrors the
-  // PIN pad's approach of letting real typing drive the same handlers the
-  // on-screen buttons use.
+  // Keyboard support, active only while the popover is open — mirrors the PIN pad's approach of
+  // letting real typing drive the same handlers the on-screen buttons use.
   useEffect(() => {
     if (!open) return;
     function onKeyDown(e: KeyboardEvent) {
@@ -178,9 +175,6 @@ export function QuickCalculator() {
 
       {open && (
         <>
-          {/* Phone-sized screens get a dismissible bottom sheet; the popover is
-              anchored to the topbar button from sm upwards. Neither is fixed to
-              a corner of the viewport where it could sit over page content. */}
           <div
             className="fixed inset-0 z-30 sm:hidden"
             style={{ backgroundColor: 'rgba(16, 24, 40, 0.45)' }}

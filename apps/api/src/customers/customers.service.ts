@@ -18,7 +18,6 @@ interface CustomerInput {
 }
 
 // What a table header can sort customers by (`field:dir`, see parseSort).
-// `id` is the final tiebreaker so paging by offset never skips or repeats a row.
 const SORT_FIELDS: Record<string, (dir: SortDir) => object> = {
   name: (d) => ({ name: d }),
   phone: (d) => ({ phone: nullsLast(d) }),
@@ -43,7 +42,6 @@ export class CustomersService {
     return (await this.findPage(params)).rows;
   }
 
-  // One page of customers plus how many match in all.
   async findPage(params: { search?: string; status?: 'active' | 'archived' | 'all'; sort?: string; limit?: number; offset?: number } = {}) {
     const { search, status = 'active', sort, limit, offset } = params;
     const where = {
@@ -79,17 +77,14 @@ export class CustomersService {
     return this.prisma.customer.create({ data });
   }
 
-  // Deliberately excludes creditBalance — that field only ever moves via a
-  // ledger entry (see recordPayment/adjustBalance), never a direct PATCH,
-  // so it's always explainable (brief §26).
+  // Deliberately excludes creditBalance — that field only ever moves via a ledger entry (see
+  // recordPayment/adjustBalance), never a direct PATCH, so it's always explainable (brief §26).
   update(id: string, data: Partial<CustomerInput>) {
     return this.prisma.customer.update({ where: { id }, data });
   }
 
-  // Soft delete — a customer's documents and ledger entries reference them
-  // by id, so removing the row would either cascade-destroy real sales
-  // history or fail the foreign key. Archiving hides them from the active
-  // list without touching anything they're linked to.
+  // Soft delete — a customer's documents and ledger entries reference them by id, so removing the
+  // row would either cascade-destroy real sales history or fail the foreign key.
   async archive(id: string, actorId: string) {
     const customer = await this.findOne(id);
     const updated = await this.prisma.customer.update({ where: { id }, data: { active: false } });
@@ -109,12 +104,9 @@ export class CustomersService {
     return updated;
   }
 
-  // Permanent — only once archived, and only once nothing real would be
-  // lost: any document raised for this customer, any ledger entry (a
-  // payment, an opening balance, a write-off), or any lead that converted
-  // into it. Any of those is real business history; a customer that has
-  // none of them was created by mistake and archived right away, which is
-  // exactly the case this exists for.
+  // Permanent — only once archived, and only once nothing real would be lost: any document raised
+  // for this customer, any ledger entry (a payment, an opening balance, a write-off), or any lead
+  // that converted into it.
   async hardDelete(id: string, actorId: string) {
     const customer = await this.findOne(id);
     if (customer.active) throw new BadRequestException('Archive this customer before deleting it permanently');
@@ -161,7 +153,7 @@ export class CustomersService {
 
   async adjustBalance(
     customerId: string,
-    amount: number, // signed
+    amount: number,
     type: 'ADJUSTMENT' | 'OPENING' | 'REFUND' | 'WRITE_OFF',
     note: string | undefined,
     createdById: string,

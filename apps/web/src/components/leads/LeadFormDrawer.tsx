@@ -55,7 +55,6 @@ export function LeadFormDrawer({ open, onClose, onSaved, lead }: { open: boolean
         stage,
         expectedValue: toNumber(expectedValue) ?? undefined,
         notes: notes || undefined,
-        // Editing: an emptied date field means "remove the follow-up".
         followUpAt: followUpAt || (isEdit ? null : undefined),
       };
       if (isEdit && lead) await leadsApi.update(lead.id, payload);
@@ -108,8 +107,7 @@ export function LeadFormDrawer({ open, onClose, onSaved, lead }: { open: boolean
           <input id="leadformdrawer-follow-up-date" type="date" value={followUpAt} onChange={(e) => setFollowUpAt(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
         </div>
 
-        {/* Everything below here is optional detail for whoever wants it —
-            not required to just save a contact and a follow-up date. */}
+        {/* Everything below here is optional detail for whoever wants it — not required to just save a contact and a follow-up date. */}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label htmlFor="leadformdrawer-company" className={labelClass} style={labelStyle}>Company</label>

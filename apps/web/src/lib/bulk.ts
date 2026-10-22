@@ -1,9 +1,4 @@
-/**
- * Runs one request per selected row, a few at a time, and reports which ones
- * went through. Used for bulk actions on top of the existing single-record
- * endpoints: a failure on one row never stops the others, and the caller can
- * say exactly what happened ("Archived 18, 2 failed") instead of all-or-nothing.
- */
+/** Runs one request per selected row, a few at a time, and reports which ones went through. */
 export async function runBulk<T>(items: T[], task: (item: T) => Promise<unknown>, concurrency = 4): Promise<{ done: T[]; failed: { item: T; message: string }[] }> {
   const done: T[] = [];
   const failed: { item: T; message: string }[] = [];
@@ -23,7 +18,6 @@ export async function runBulk<T>(items: T[], task: (item: T) => Promise<unknown>
   return { done, failed };
 }
 
-/** "Archived 18 products" / "Archived 16, 2 failed" / "2 products failed: reason" — one short line for a toast. */
 export function bulkSummary(verb: string, noun: string, result: { done: unknown[]; failed: { message: string }[] }) {
   const ok = result.done.length;
   const bad = result.failed.length;

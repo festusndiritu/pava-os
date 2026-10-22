@@ -8,9 +8,7 @@ import { toast } from '../ui/Toast';
 import { NumericInput, toNumber } from '../ui/inputs';
 import { money } from '../../lib/format';
 
-// One editable amount on a draft payslip. Edits stay local until the field
-// loses focus, and a request only goes out if the number actually changed —
-// tabbing through the fields no longer saves and reloads the run each time.
+// One editable amount on a draft payslip.
 function PayrollField({ value, allowNegative, disabled, onSave, style }: { value: number; allowNegative?: boolean; disabled?: boolean; onSave: (n: number) => void; style: React.CSSProperties }) {
   const [text, setText] = useState(String(value));
   useEffect(() => setText(String(value)), [value]);
@@ -123,7 +121,7 @@ export function PayrollRunDetailDrawer({ runId, onClose, onChanged }: { runId: s
               {busyId === '__finalize' ? 'Finalizing…' : 'Finalize run'}
             </button>
             <span className="text-xs" style={{ color: 'var(--color-ink-600)' }}>
-              Sweeps in approved advances and locks the numbers.
+              Adds approved advances and locks the run.
             </span>
           </div>
         ) : null)

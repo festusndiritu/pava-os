@@ -20,13 +20,7 @@ export const LEVEL_TONE: Record<StockLevel | 'supplier', { label: string; bg: st
   supplier: { label: 'Supplier only', bg: 'var(--color-status-warnSoft)', fg: 'var(--color-status-warn)' },
 };
 
-/**
- * What to tell the person about a product's availability. `stockStatus` is a
- * note someone typed into the product form; nothing updates it when stock
- * moves, so on its own it happily says "In stock" at zero units. The quantity
- * on the shelf is the truth: only the two manual flags that say something the
- * count can't (supplier-only, explicitly out) override it.
- */
+/** What to tell the person about a product's availability. */
 export function availability(p: Pick<Product, 'stockStatus' | 'stockQuantity'>, threshold: number): StockLevel | 'supplier' {
   if (p.stockStatus === 'SUPPLIER_ONLY') return 'supplier';
   if (p.stockStatus === 'OUT_OF_STOCK') return 'out';

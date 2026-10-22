@@ -5,8 +5,8 @@ import { Permissions } from '../auth/permissions.decorator.js';
 import { Module as ModuleEnum } from '../../generated/prisma/client.js';
 import { AnalyticsService, type Range } from './analytics.service.js';
 
-// Shared by Reports too — a bare date "to" means "through the end of that
-// day", not midnight at its start, or the day itself would show nothing.
+// Shared by Reports too — a bare date "to" means "through the end of that day", not midnight at its
+// start, or the day itself would show nothing.
 export function parseRange(from?: string, to?: string): Range {
   if (!from || !to) throw new BadRequestException('from and to are required (YYYY-MM-DD)');
   const start = new Date(from);

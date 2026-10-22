@@ -12,11 +12,6 @@ import { documentsApi, type SaleDocument } from '../../lib/documents-api';
 import { leadsApi, type Lead } from '../../lib/leads-api';
 import { money } from '../../lib/format';
 
-/**
- * The one place to jump straight to a record instead of drilling into its
- * module first
- */
-
 interface Row {
   id: string;
   icon: typeof Package;
@@ -31,7 +26,7 @@ function docHref(doc: SaleDocument) {
 }
 
 function docNumber(doc: SaleDocument) {
-  return doc.receiptNumber ?? doc.invoiceNumber ?? doc.quoteNumber ?? doc.deliveryNoteNumber ?? doc.id.slice(0, 8);
+  return doc.receiptNumber ?? doc.invoiceNumber ?? doc.quoteNumber ?? doc.id.slice(0, 8);
 }
 
 export function GlobalSearch({ onClose }: { onClose: () => void }) {
@@ -41,7 +36,8 @@ export function GlobalSearch({ onClose }: { onClose: () => void }) {
   const [highlighted, setHighlighted] = useState(0);
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [docs, setDocs] = useState<SaleDocument[]>([]);
+  const [invoices, setInvoices] = useState<SaleDocument[]>([]);
+  const [quotes, setQuotes] = useState<SaleDocument[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const debounced = useDebounced(query);
 
@@ -61,13 +57,15 @@ export function GlobalSearch({ onClose }: { onClose: () => void }) {
     if (q.length < 1) {
       setProducts([]);
       setCustomers([]);
-      setDocs([]);
+      setInvoices([]);
+      setQuotes([]);
       return;
     }
     let stale = false;
     if (canProducts) productsApi.list({ search: q }).then((r) => !stale && setProducts(r.slice(0, 5)));
     if (canCustomers) customersApi.list(q).then((r) => !stale && setCustomers(r.slice(0, 5)));
-    if (canInvoices || canQuotes) documentsApi.list({ search: q, limit: 6 }).then((r) => !stale && setDocs(r));
+    if (canInvoices) documentsApi.list({ search: q, status: ['INVOICED', 'PAID'], limit: 5 }).then((r) => !stale && setInvoices(r));
+    if (canQuotes) documentsApi.list({ search: q, type: 'QUOTE', status: ['QUOTED', 'CANCELLED'], limit: 5 }).then((r) => !stale && setQuotes(r));
     return () => {
       stale = true;
     };
@@ -81,7 +79,15 @@ export function GlobalSearch({ onClose }: { onClose: () => void }) {
       .slice(0, 5);
   }, [leads, q, canLeads]);
 
-  const docMatches = docs.filter((d) => (d.type === 'QUOTE' ? canQuotes : canInvoices));
+  const docRows = (list: SaleDocument[], icon: typeof Package): Row[] =>
+    list.map((d) => ({
+      id: d.id,
+      icon,
+      title: docNumber(d),
+      subtitle: d.customer?.businessName || d.customer?.name || d.customerName || 'Walk-in',
+      meta: money(d.total),
+      href: docHref(d),
+    }));
 
   const groups: { label: string; rows: Row[] }[] = [
     {
@@ -105,17 +111,8 @@ export function GlobalSearch({ onClose }: { onClose: () => void }) {
         href: `/customers?open=${c.id}`,
       })),
     },
-    {
-      label: 'Invoices & quotes',
-      rows: docMatches.map((d) => ({
-        id: d.id,
-        icon: d.type === 'QUOTE' ? FileText : Receipt,
-        title: docNumber(d),
-        subtitle: d.customer?.businessName || d.customer?.name || d.customerName || 'Walk-in',
-        meta: money(d.total),
-        href: docHref(d),
-      })),
-    },
+    { label: 'Invoices', rows: docRows(invoices, Receipt) },
+    { label: 'Quotes', rows: docRows(quotes, FileText) },
     {
       label: 'Leads',
       rows: leadMatches.map((l) => ({
@@ -163,7 +160,7 @@ export function GlobalSearch({ onClose }: { onClose: () => void }) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Search products, customers, invoices, quotes, leads…"
+            placeholder="Search products, customers, invoices, quotes, leads"
             className="min-h-11 w-full rounded-md border py-2 pl-8 pr-3 text-sm outline-none focus:border-[var(--color-accent)]"
             style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}
           />
@@ -173,7 +170,7 @@ export function GlobalSearch({ onClose }: { onClose: () => void }) {
       <div className="flex-1 overflow-y-auto p-2">
         {!hasQuery && (
           <p className="px-2 py-6 text-center text-sm" style={{ color: 'var(--color-ink-600)' }}>
-            Start typing to jump straight to a record.
+            Start typing to search.
           </p>
         )}
 

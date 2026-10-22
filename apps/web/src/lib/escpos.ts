@@ -2,24 +2,15 @@ import type { DocumentViewModel } from './document-view-model';
 import { fmtNumber, money } from './format';
 import { ESCPOS_DEFAULT_COLUMNS } from './thermal-config';
 
-/**
- * ESC/POS receipt encoder. Produces the raw bytes a thermal printer
- * understands — no page size, no driver, no rasterising. The printer prints
- * exactly as many lines as there are and then cuts, whatever the length.
- *
- * Text only (plus bold / double-size for the total). Everything is forced to
- * plain ASCII so it prints correctly on any code page.
- */
+/** ESC/POS receipt encoder: raw bytes, plain ASCII only so any code page prints correctly. */
 const ESC = 0x1b;
 const GS = 0x1d;
 const LF = 0x0a;
 
 export interface EscPosOptions {
-  /** Characters per line: 48 for 80mm paper (Font A), 32 for 58mm. */
   columns?: number;
   cut?: boolean;
   openDrawer?: boolean;
-  /** A ready-made ESC/POS raster image (see escpos-logo.ts), printed first. */
   logo?: Uint8Array;
 }
 
@@ -37,7 +28,6 @@ export function asciiSafe(s: string): string {
     .replace(/[^\x20-\x7e\n]/g, '?');
 }
 
-/** Word-wrap to `width`, honouring explicit newlines and hard-splitting long words. */
 export function wrap(text: string, width: number): string[] {
   const out: string[] = [];
   for (const para of asciiSafe(text).split('\n')) {
@@ -89,14 +79,12 @@ class Builder {
   bold(on: boolean) {
     return this.raw(ESC, 0x45, on ? 1 : 0);
   }
-  /** GS ! n — character magnification (1 or 2 each way). */
   size(w: 1 | 2, h: 1 | 2) {
     return this.raw(GS, 0x21, ((w - 1) << 4) | (h - 1));
   }
   feed(n: number) {
     return this.raw(ESC, 0x64, n);
   }
-  /** GS V 66 0 — feed to the cutter position, then partial cut. */
   cut() {
     return this.raw(GS, 0x56, 0x42, 0x00);
   }
@@ -125,16 +113,15 @@ export function buildReceiptBytes(vm: DocumentViewModel, opts: EscPosOptions = {
   const rule = '-'.repeat(cols);
   const b = new Builder().init();
   b.raw(0x1b, 0x42, 0x01, 0x02); // ESC B n t — printer beeps once (200ms) as the receipt starts; ignored by printers without a buzzer
-  if (opts.logo) b.align('center').bytesRaw(opts.logo);
+  if (opts.logo && !vm.isDeliveryNote) b.align('center').bytesRaw(opts.logo);
 
   const center = (s: string) => wrap(s, cols).forEach((l) => b.line(l));
 
-  // Header
   b.align('center').bold(true).size(2, 2);
   wrap(vm.letterhead.businessName.toUpperCase(), Math.floor(cols / 2)).forEach((l) => b.line(l)); // double width halves the columns
   b.size(1, 1).bold(false);
-  if (vm.letterhead.address) center(vm.letterhead.address);
-  if (vm.letterhead.phone) center(vm.letterhead.phone);
+  if (!vm.isDeliveryNote && vm.letterhead.address) center(vm.letterhead.address);
+  if (!vm.isDeliveryNote && vm.letterhead.phone) center(vm.letterhead.phone);
   b.line().bold(true);
   center(vm.title.toUpperCase());
   b.bold(false);
@@ -147,7 +134,6 @@ export function buildReceiptBytes(vm: DocumentViewModel, opts: EscPosOptions = {
     b.align('center');
     if (vm.customerAddress) center(vm.customerAddress);
     if (vm.customerPhone) center(vm.customerPhone);
-    if (vm.sourceReference) center(`Order ref ${vm.sourceReference}`);
     b.align('left');
     for (const item of vm.items) {
       pair(item.description, `${fmtNumber(item.qty)} ${item.unitSymbol}`.trim(), cols).forEach((l) => b.line(l));
@@ -179,8 +165,10 @@ export function buildReceiptBytes(vm: DocumentViewModel, opts: EscPosOptions = {
     if (vm.issuedByName) center(`Served by ${vm.issuedByName}`);
   }
 
-  b.align('left').line(rule).align('center');
-  center(vm.letterhead.footerText);
+  if (vm.letterhead.footerText) {
+    b.align('left').line(rule).align('center');
+    center(vm.letterhead.footerText);
+  }
   b.align('left');
 
   b.feed(2);

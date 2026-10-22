@@ -12,9 +12,9 @@ import { Checkbox } from '../../../components/ui/Checkbox';
 import { toast } from '../../../components/ui/Toast';
 import { NumericInput, toNumber } from '../../../components/ui/inputs';
 
-// Mirrors the row-density tiers in lib/poster.ts (16 / 22 / 30 items) so the
-// picker can tell the person when they're about to leave the roomiest tier —
-// purely an informational echo, the poster itself is still the source of truth.
+// Mirrors the row-density tiers in lib/poster.ts (16 / 22 / 30 items) so the picker can tell the
+// person when they're about to leave the roomiest tier — purely an informational echo, the poster
+// itself is still the source of truth.
 function posterDensityHint(count: number): { label: string; tone: 'ok' | 'warn' } | null {
   if (count === 0) return null;
   if (count <= 16) return { label: 'Comfortable spacing', tone: 'ok' };
@@ -27,14 +27,11 @@ export default function MarketingPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  // Prices typed for THIS poster / pricelist only (productId -> what's in the
-  // box). The catalogue price is never touched; anything not here, or equal to
-  // the list price, is just the list price.
+  // Prices typed for THIS poster / pricelist only (productId -> what's in the box).
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [pickerSearch, setPickerSearch] = useState('');
   const [settings, setSettings] = useState<BusinessSettings | null>(null);
 
-  // Poster state
   const [headline, setHeadline] = useState("This week's prices");
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [posterBusy, setPosterBusy] = useState(false);
@@ -96,8 +93,8 @@ export default function MarketingPage() {
   );
   const isCustom = (p: Product) => priceOf(p) !== p.basePrice;
 
-  // On leaving the box: an empty, zero or unchanged entry goes back to the
-  // list price instead of lingering as a blank field.
+  // On leaving the box: an empty, zero or unchanged entry goes back to the list price instead of
+  // lingering as a blank field.
   function settlePrice(p: Product) {
     const n = toNumber(overrides[p.id] ?? '');
     if (n === null || n <= 0 || n === p.basePrice) {
@@ -122,9 +119,8 @@ export default function MarketingPage() {
     return Array.from(byCategory.entries());
   }, [selectedProducts]);
 
-  // Redraws whenever the selection, headline or business details change —
-  // the canvas is the source of truth for what gets shared, not a preview
-  // of something built separately.
+  // Redraws whenever the selection, headline or business details change — the canvas is the source
+  // of truth for what gets shared, not a preview of something built separately.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -181,7 +177,7 @@ export default function MarketingPage() {
             Marketing
           </h1>
           <p className="mt-0.5 text-sm" style={{ color: 'var(--color-ink-600)' }}>
-            Pick products, set any special prices, then export a poster or a PDF pricelist.
+            Pick products, set prices, export.
           </p>
         </div>
       </div>
@@ -288,7 +284,7 @@ export default function MarketingPage() {
                                 value={overrides[p.id] ?? String(p.basePrice)}
                                 onChange={(v) => setOverrides((prev) => ({ ...prev, [p.id]: v }))}
                                 onBlur={() => settlePrice(p)}
-                                title="Type the price to show on the poster / pricelist. The catalogue price is not changed."
+                                title="Price shown on the poster. Catalogue price is unchanged."
                                 className="w-24 rounded border px-2 py-1 text-right text-sm outline-none data-num focus:border-[var(--color-accent)]"
                                 style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}
                               />
@@ -366,7 +362,7 @@ export default function MarketingPage() {
             {selectedProducts.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <ImageIcon size={28} strokeWidth={1.5} className="mb-2" style={{ color: 'var(--color-ink-600)' }} />
-                <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>Select products on the left to build a poster.</p>
+                <p className="text-sm" style={{ color: 'var(--color-ink-600)' }}>Select products to start.</p>
               </div>
             ) : (
               <div className="mx-auto max-w-sm overflow-hidden rounded-lg border" style={{ borderColor: 'var(--color-border)', boxShadow: 'var(--shadow-card)' }}>

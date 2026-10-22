@@ -3,15 +3,6 @@
 import { useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle2, X } from 'lucide-react';
 
-/**
- * Transient confirmations: "Product saved", "Payment recorded". Most saves
- * used to close their drawer and say nothing, which reads as "did that work?".
- *
- * Call `toast.success(...)` / `toast.error(...)` from anywhere — components,
- * handlers, plain modules. <ToastViewport /> is mounted once in the app
- * layout and renders whatever has been pushed.
- */
-
 type Kind = 'success' | 'error';
 interface ToastItem {
   id: number;
@@ -37,7 +28,6 @@ function push(kind: Kind, message: string) {
   // Same message twice in a row replaces rather than stacks.
   items = [...items.filter((t) => t.message !== message), { id, kind, message }].slice(-3);
   emit();
-  // Errors stay longer — there's something to read and possibly act on.
   setTimeout(() => dismiss(id), kind === 'error' ? 7000 : 3500);
 }
 

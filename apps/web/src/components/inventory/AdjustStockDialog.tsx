@@ -32,8 +32,8 @@ const MODES: { value: Mode; label: string }[] = [
   { value: 'count', label: 'Set count' },
 ];
 
-// Direction decides which reasons make sense: damage and loss only ever take
-// stock off, a customer return only ever puts it back.
+// Direction decides which reasons make sense: damage and loss only ever take stock off, a customer
+// return only ever puts it back.
 const REASONS: Record<'add' | 'remove', { value: AdjustType; label: string }[]> = {
   add: [
     { value: 'ADJUSTMENT', label: 'Stocktake — found more than recorded' },
@@ -52,18 +52,7 @@ const fieldStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(-
 const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase';
 const labelStyle = { color: 'var(--color-ink-600)', letterSpacing: '0.06em' };
 
-/**
- * The one place a manual stock change gets made, shared by the Products
- * detail drawer, the Products table and the Inventory stock-levels tab.
- *
- * Three ways in, because they are three different jobs at the counter: add
- * what turned up, remove what is gone (with a reason that says why), or just
- * type the number you counted and let the difference work itself out. Stock
- * that is being added can carry what it cost, so it is valued properly
- * instead of entering the books as free. A change that would take stock below
- * zero still gets the same structured confirmation as an insufficient-stock
- * sale elsewhere.
- */
+/** The one place a manual stock change gets made, shared by the Products detail drawer, the Products table and the Inventory stock-levels tab. */
 export function AdjustStockDialog({ product, onClose, onDone }: { product: Product; onClose: () => void; onDone: () => void }) {
   const { canViewCost } = useAuth();
   const showCost = canViewCost();
@@ -81,7 +70,6 @@ export function AdjustStockDialog({ product, onClose, onDone }: { product: Produ
   const symbol = product.unit.symbol;
   const entered = toNumber(quantity);
 
-  // The signed change this form describes, or null until it describes one.
   const change = entered === null ? null : mode === 'add' ? entered : mode === 'remove' ? -entered : entered - product.stockQuantity;
   const resulting = change === null ? null : product.stockQuantity + change;
   const adding = change !== null && change > 0;
@@ -90,7 +78,6 @@ export function AdjustStockDialog({ product, onClose, onDone }: { product: Produ
   function switchMode(next: Mode) {
     setMode(next);
     setQuantity('');
-    // The reasons on offer depend on direction; fall back to stocktake.
     setReason('ADJUSTMENT');
   }
 
@@ -171,7 +158,7 @@ export function AdjustStockDialog({ product, onClose, onDone }: { product: Produ
               </div>
             </dl>
             <p className="mt-2 text-xs" style={{ color: 'var(--color-ink-600)' }}>
-              Recorded stock never goes below zero. Proceeding removes only what is actually on record.
+              Stock can't go below zero.
             </p>
           </div>
           <div className="flex flex-col-reverse gap-2 sm:flex-row">

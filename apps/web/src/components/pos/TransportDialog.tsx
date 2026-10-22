@@ -15,7 +15,7 @@ export interface CartLine {
 export interface TransportSettings {
   amount: number;
   allocation: 'QUANTITY';
-  applyTo: string[]; // productIds
+  applyTo: string[];
   manualAllocations: Record<string, number>;
   fold: boolean;
 }
@@ -40,8 +40,8 @@ export function TransportDialog({
     onApply({
       amount: amt,
       allocation: 'QUANTITY',
-      // A flat delivery line doesn't touch any item's price, so which items
-      // it's "for" has no effect — send them all rather than ask.
+      // A flat delivery line doesn't touch any item's price, so which items it's "for" has no
+      // effect — send them all rather than ask.
       applyTo: fold ? [...applyTo] : lines.map((l) => l.product.id),
       manualAllocations: {},
       fold,
@@ -80,7 +80,7 @@ export function TransportDialog({
           <div className="flex flex-col gap-1.5">
             <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-ink-900)' }}>
               <input type="radio" name="transport-fold" checked={!fold} onChange={() => setFold(false)} />
-              Add a delivery line with the amount
+              Add as a separate line
             </label>
             <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-ink-900)' }}>
               <input type="radio" name="transport-fold" checked={fold} onChange={() => setFold(true)} />
@@ -113,7 +113,7 @@ export function TransportDialog({
               ))}
             </div>
             <p className="mt-2 text-xs" style={{ color: 'var(--color-ink-600)' }}>
-              The customer sees "Delivery included" — not a separate line — and each selected item's price on the quote already reflects its share.
+              Shown as "Delivery included", shared across the selected items.
             </p>
           </div>
         )}

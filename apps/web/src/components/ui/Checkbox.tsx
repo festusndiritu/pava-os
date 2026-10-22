@@ -2,13 +2,7 @@
 
 import { Check } from 'lucide-react';
 
-/**
- * A checkbox styled to match the rest of the app instead of the browser's
- * native chrome. The real <input> stays in the DOM — driving keyboard
- * access, checked state, and the focus-visible ring via
- * `.pava-checkbox-input` in globals.css — while the visible square is built
- * from our own design tokens.
- */
+/** A checkbox styled to match the rest of the app instead of the browser's native chrome. */
 export function Checkbox({
   checked,
   onChange,

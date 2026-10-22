@@ -1,4 +1,3 @@
-// Mirrors apps/api/prisma/schema.prisma's `Module` enum.
 export const MODULES = [
   'DASHBOARD',
   'POS',
@@ -119,7 +118,6 @@ export function moduleForPath(pathname: string): ModuleKey | null {
   return match ? match.module : null;
 }
 
-/** The avatar choices. A user's `avatar` is one of these keys. */
 export const AVATAR_COLORS = [
   { key: 'slate', bg: '#475467', fg: '#FFFFFF' },
   { key: 'blue', bg: '#0559C9', fg: '#FFFFFF' },

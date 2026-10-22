@@ -44,7 +44,6 @@ function Shell({ title, subtitle, onClose, children, footer }: { title: string; 
   );
 }
 
-/** Names the order being parked so it can be picked out of the list later. */
 export function SuspendOrderDialog({
   defaultLabel,
   itemCount,
@@ -77,7 +76,7 @@ export function SuspendOrderDialog({
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}
       />
       <p className="mt-2 text-xs" style={{ color: 'var(--color-ink-600)' }}>
-        The cart is parked and the counter clears. No stock moves until the order is resumed and completed.
+        Parks the cart. No stock moves until completed.
       </p>
       <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <button type="button" onClick={onCancel} className="min-h-11 rounded-md border px-4 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
@@ -97,7 +96,6 @@ export function SuspendOrderDialog({
   );
 }
 
-/** The held-orders list: resume one, or discard it. */
 export function SuspendedOrdersDialog({
   onClose,
   onResume,
@@ -108,7 +106,6 @@ export function SuspendedOrdersDialog({
   onChanged: () => void;
 }) {
   const [orders, setOrders] = useState<SuspendedOrder[] | null>(null);
-  // A failed load replaces the list, so it stays on screen as a state.
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
@@ -142,7 +139,7 @@ export function SuspendedOrdersDialog({
   }
 
   return (
-    <Shell title="Suspended orders" subtitle="Parked carts waiting to be finished" onClose={onClose}>
+    <Shell title="Suspended orders" subtitle="Parked carts" onClose={onClose}>
       {loadError && (
         <p className="mb-3 rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
           {loadError}
@@ -164,7 +161,7 @@ export function SuspendedOrdersDialog({
             Nothing on hold
           </p>
           <p className="mt-1 text-sm" style={{ color: 'var(--color-ink-600)' }}>
-            Suspend the current cart to serve someone else without losing it.
+            Suspend a cart to serve someone else.
           </p>
         </div>
       )}

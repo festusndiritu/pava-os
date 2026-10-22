@@ -15,14 +15,7 @@ import { waHref } from '../../../lib/phone';
 import { toast } from '../../../components/ui/Toast';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 
-/**
- * This used to be an 8-stage Kanban board. What people here actually do with
- * a lead is simpler: save a contact, jot what they said, and get reminded
- * when to follow up — "bring stuff", "he's sending a list for a quote",
- * "check back next week". So the page is organised around that: a plain
- * list sorted by whoever's follow-up is soonest, with the pipeline stage
- * folded down into a lightweight filter instead of the main structure.
- */
+/** This used to be an 8-stage Kanban board. */
 
 type Tab = 'open' | 'won' | 'lost' | 'archived';
 
@@ -74,9 +67,9 @@ export default function LeadsPage() {
     }
   }, [tab, archived]);
 
-  // Lets global search (Ctrl/Cmd+K) land straight on a lead's edit drawer
-  // via `/leads?open=<id>`, regardless of which tab it'd otherwise fall
-  // under — a lead fetched by id doesn't depend on the lists above.
+  // Lets global search (Ctrl/Cmd+K) land straight on a lead's edit drawer via `/leads?open=<id>`,
+  // regardless of which tab it'd otherwise fall under — a lead fetched by id doesn't depend on the
+  // lists above.
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get('open');
     if (id) leadsApi.get(id).then((l) => { setEditing(l); setFormOpen(true); }).catch(() => {});
@@ -125,7 +118,8 @@ export default function LeadsPage() {
 
   const overdueCount = leads?.filter((l) => l.stage !== 'WON' && l.stage !== 'LOST' && l.followUpAt && new Date(l.followUpAt) < new Date()).length ?? 0;
 
-  // Follow-up soonest first on the open tab (leads with no follow-up last), most recently touched first elsewhere.
+  // Follow-up soonest first on the open tab (leads with no follow-up last), most recently touched
+  // first elsewhere.
   const table = useClientTable<Lead>({
     rows,
     sortValues: {
@@ -146,7 +140,7 @@ export default function LeadsPage() {
       const text = bulkSummary(action === 'archive' ? 'Archived' : 'Restored', 'lead', result);
       if (result.failed.length === 0) toast.success(text);
       else toast.error(text);
-      selection.replace(result.failed.map((f) => f.item)); // what failed stays ticked, to retry
+      selection.replace(result.failed.map((f) => f.item));
       setBulkConfirm(null);
       setArchived(null);
       await load();
@@ -228,7 +222,6 @@ export default function LeadsPage() {
   ];
 
   const actions = (lead: Lead): (RowAction | false)[] => [
-    // Calling someone is what a lead is for, so contact comes first.
     !!lead.phone && { label: 'Call', icon: Phone, href: `tel:${lead.phone}`, hint: lead.phone },
     !!lead.phone && { label: 'WhatsApp', icon: MessageCircle, href: waHref(lead.phone), external: true },
     lead.stage === 'WON' && !lead.convertedCustomerId && { label: 'Convert to customer', icon: UserPlus, tone: 'accent', onClick: () => convert(lead) },
@@ -285,7 +278,7 @@ export default function LeadsPage() {
       </p>
       {!q && tab === 'open' && (
         <p className="mt-1 text-sm" style={{ color: 'var(--color-ink-600)' }}>
-          Add a lead to start tracking who to call back.
+          Add a lead to start.
         </p>
       )}
     </>

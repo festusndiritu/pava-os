@@ -92,13 +92,9 @@ export class HrService {
     return employee;
   }
 
-  // Employee doesn't get a separate active flag like Customer/Product/Lead
-  // /Contact — TERMINATED already is the "this person is gone" state
-  // (set via the ordinary update above), so it doubles as the archived
-  // state a hard delete requires. Permanent only once nothing real would
-  // be lost: any advance ever given, or any payroll item ever run for
-  // them. Both are pay history; an employee with neither was added and
-  // terminated before a single payroll touched them.
+  // Employee doesn't get a separate active flag like Customer/Product/Lead /Contact — TERMINATED
+  // already is the "this person is gone" state (set via the ordinary update above), so it doubles
+  // as the archived state a hard delete requires.
   async hardDelete(id: string, actorId: string) {
     const employee = await this.findOne(id);
     if (employee.employmentStatus !== 'TERMINATED') {

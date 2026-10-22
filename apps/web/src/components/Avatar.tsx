@@ -28,7 +28,6 @@ export function Avatar({
   );
 }
 
-/** The colour choices, each previewing the person's initials as they will appear. */
 export function AvatarPicker({ name, value, onChange, size = 40 }: { name: string; value: string; onChange: (key: string) => void; size?: number }) {
   const initials = initialsFor(name) || 'AB';
   return (

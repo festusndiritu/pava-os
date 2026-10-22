@@ -6,9 +6,6 @@ import { Modal } from '../ui/Modal';
 import { iconFor } from './nav-icons';
 import { useNav } from './use-nav';
 
-/**
- * Every destination the user can reach, as a bottom sheet.
- */
 export function NavSheet({ onClose }: { onClose: () => void }) {
   const { sections, isActive } = useNav();
 

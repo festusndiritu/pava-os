@@ -7,13 +7,9 @@ function has(role: Role, permissions: string[], allowed: Module[]) {
   return role === Role.ADMIN || allowed.some((m) => permissions.includes(m));
 }
 
-/**
- * Every "day" on the dashboard is a business day, not a server day or a UTC
- * day. Set BUSINESS_TIMEZONE (an IANA name) to change it; defaults to Nairobi.
- */
+/** Every "day" on the dashboard is a business day, not a server day or a UTC day. */
 const BUSINESS_TZ = process.env.BUSINESS_TIMEZONE || 'Africa/Nairobi';
 
-/** Daily points returned for the trend chart (the web app slices 7 / 30 / 90 plus the period before). */
 const CHART_DAYS = 180;
 
 const dayParts = new Intl.DateTimeFormat('en-US', {
@@ -35,7 +31,6 @@ function partsOf(at: Date) {
   return out;
 }
 
-/** YYYY-MM-DD of `at` on the business calendar. */
 function dayKey(at: Date) {
   const p = partsOf(at);
   const mm = String(p.month).padStart(2, '0');
@@ -55,12 +50,11 @@ function offsetMs(at: Date) {
   return asUtc - Math.floor(at.getTime() / 1000) * 1000;
 }
 
-/** The instant a business day begins (00:00 in BUSINESS_TZ). */
 function startOfDay(key: string) {
   const [y, m, d] = key.split('-').map(Number);
   const guess = Date.UTC(y, m - 1, d);
   let t = guess - offsetMs(new Date(guess));
-  t = guess - offsetMs(new Date(t)); // settle across a DST change
+  t = guess - offsetMs(new Date(t));
   return new Date(t);
 }
 
@@ -145,15 +139,14 @@ export class DashboardService {
           },
         }),
 
-        // Open (invoiced, unpaid) documents — the real count, not a count of
-        // whichever ten rows happen to be in "recent sales".
+        // Open (invoiced, unpaid) documents — the real count, not a count of whichever ten rows
+        // happen to be in "recent sales".
         this.prisma.document.aggregate({
           where: { status: DocumentStatus.INVOICED },
           _sum: { total: true },
           _count: true,
         }),
 
-        // Payment split over the same 30 days as the stat cards.
         this.prisma.document.groupBy({
           by: ['paymentMethod'],
           where: {
@@ -210,8 +203,7 @@ export class DashboardService {
         }))
         .sort((a, b) => b.total - a.total);
 
-      // Oldest first, ending with today (business calendar). The web app
-      // relies on that order instead of re-deriving day keys.
+      // Oldest first, ending with today (business calendar).
       result.chart = Array.from(byDay.entries())
         .sort(([a], [b]) => (a < b ? -1 : 1))
         .map(([date, total]) => ({

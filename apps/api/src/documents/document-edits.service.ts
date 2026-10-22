@@ -9,14 +9,6 @@ import type { CreateEditRequestDto, DecideEditRequestDto } from './dto/edit-requ
 
 type Settlement = 'CASH' | 'MPESA' | 'CREDIT';
 
-/**
- * Correcting a completed invoice or receipt.
- *
- * Nobody edits a sale in place. Staff propose the corrected lines and
- * transport with a reason; the document is untouched until an admin approves,
- * and then the change, the stock it moves and any money difference are applied
- * in one transaction. Every request — approved or not — is kept.
- */
 @Injectable()
 export class DocumentEditsService {
   constructor(
@@ -32,8 +24,7 @@ export class DocumentEditsService {
     return d?.receiptNumber ?? d?.invoiceNumber ?? 'a sale';
   }
 
-  // Why a document can't be corrected at all. Shared by request and approval
-  // so a sale that became ineligible while a request sat waiting is caught.
+  // Why a document can't be corrected at all.
   private async assertEditable(id: string) {
     const doc = await this.documents.findOne(id);
     if (doc.type === DocumentType.DELIVERY_NOTE) throw new BadRequestException('A delivery note cannot be edited');
@@ -61,8 +52,8 @@ export class DocumentEditsService {
       if (item.itemId && !known.has(item.itemId)) throw new BadRequestException('One of the lines is not part of this document');
     }
 
-    // Priced by the same rules as a new sale — including the requester's own
-    // discount limit — so the proposed total is exactly what approval applies.
+    // Priced by the same rules as a new sale — including the requester's own discount limit — so
+    // the proposed total is exactly what approval applies.
     const priced = await this.documents.priceQuoteInput(actorId, actorRole, input);
     if (priced.total === doc.total && !this.linesDiffer(doc, priced.lines)) {
       throw new BadRequestException('Nothing would change — adjust a quantity, price or the transport first');
@@ -72,8 +63,8 @@ export class DocumentEditsService {
       data: {
         documentId,
         reason: input.reason.trim(),
-        // The proposal itself, plus a readable before/after so whoever
-        // approves it can see what is changing without re-deriving it.
+        // The proposal itself, plus a readable before/after so whoever approves it can see what is
+        // changing without re-deriving it.
         changes: {
           ...input,
           before: doc.items.map((i) => ({ description: i.description, qty: i.qty, unitPrice: i.unitPrice, lineTotal: i.lineTotal })),
@@ -127,8 +118,6 @@ export class DocumentEditsService {
     });
   }
 
-  // Clears the "waiting for approval" notice for every admin, and tells whoever
-  // asked what became of it.
   private async afterDecision(req: { id: string; documentId: string; requestedById: string }, actorId: string, approved: boolean, note?: string) {
     await this.notifications.resolveEntity('DocumentEditRequest', req.id);
     if (req.requestedById === actorId) return;
@@ -170,8 +159,7 @@ export class DocumentEditsService {
     }
 
     const changes = req.changes as unknown as CreateEditRequestDto;
-    // Re-priced as the approving admin (no discount cap): the admin's sign-off
-    // is the override. The total must still match what was reviewed.
+    // Re-priced as the approving admin (no discount cap): the admin's sign-off is the override.
     const priced = await this.documents.priceQuoteInput(actorId, actorRole, changes);
     if (priced.total !== req.proposedTotal) {
       throw new BadRequestException('Prices or rounding settings changed since this was requested — reject it and ask for a fresh request');
@@ -188,7 +176,6 @@ export class DocumentEditsService {
       }
     }
 
-    // --- Stock: net change in what leaves the shop, per product ---
     const oldById = new Map(doc.items.map((i) => [i.id, i]));
     const nextLines = priced.lines.map((line, idx) => {
       const old = changes.items[idx].itemId ? oldById.get(changes.items[idx].itemId!) : undefined;
@@ -196,8 +183,8 @@ export class DocumentEditsService {
       if (!old) return { ...line, stockQty: line.qty, supplierSource: null };
       const oldStock = old.stockQty ?? old.qty;
       const delta = line.qty - old.qty;
-      // More units come from the shop; fewer units drop the externally
-      // supplied part first, so the shop's own stock isn't over-returned.
+      // More units come from the shop; fewer units drop the externally supplied part first, so the
+      // shop's own stock isn't over-returned.
       const stockQty = delta >= 0 ? oldStock + delta : line.qty - Math.max(0, old.qty - oldStock + delta);
       return { ...line, stockQty, supplierSource: stockQty < line.qty ? old.supplierSource : null };
     });
@@ -223,8 +210,6 @@ export class DocumentEditsService {
     const before = { total: doc.total, transportAmount: doc.transportAmount, items: doc.items.map((i) => ({ description: i.description, qty: i.qty, unitPrice: i.unitPrice })) };
 
     await this.prisma.$transaction(async (tx) => {
-      // The status and total in the condition make a double-approve, or an
-      // approval racing a return or another edit, write nothing.
       const claimed = await tx.documentEditRequest.updateMany({
         where: { id: requestId, status: EditRequestStatus.PENDING },
         data: { status: EditRequestStatus.APPROVED, decidedById: actorId, decidedAt: new Date(), decisionNote: input.note?.trim() || null },

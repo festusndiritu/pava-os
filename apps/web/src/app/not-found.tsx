@@ -43,7 +43,7 @@ export default function NotFound() {
           className="mx-auto mt-2 max-w-sm text-sm leading-6"
           style={{ color: 'var(--color-ink-600)' }}
         >
-          The page you're looking for doesn't exist or may have moved.
+          Page not found.
         </p>
 
         <Link

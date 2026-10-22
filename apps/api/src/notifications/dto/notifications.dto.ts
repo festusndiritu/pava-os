@@ -11,7 +11,6 @@ class PushKeysDto {
   auth!: string;
 }
 
-// The shape of `PushSubscription.toJSON()` in the browser.
 export class SubscribeDto {
   @IsString()
   @MaxLength(2048)

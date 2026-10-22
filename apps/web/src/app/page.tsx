@@ -7,10 +7,8 @@ import { useAuth } from '../lib/auth-context';
 import { Avatar } from '../components/Avatar';
 import { ThemeToggle } from '../components/ThemeToggle';
 
-// PLACEHOLDER: this becomes the real dashboard once the protected app shell
-// (sidebar, topbar, permission-aware nav) lands in the next chunk. For now
-// it only exists to prove the login → redirect → authenticated fetch loop
-// actually works end to end.
+// PLACEHOLDER: this becomes the real dashboard once the protected app shell (sidebar, topbar,
+// permission-aware nav) lands in the next chunk.
 export default function DashboardPlaceholder() {
   const router = useRouter();
   const { user, loading, logout } = useAuth();

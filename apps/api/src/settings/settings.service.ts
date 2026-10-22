@@ -8,7 +8,6 @@ type DocNumberType = 'QUOTE' | 'INVOICE' | 'RECEIPT' | 'DELIVERY_NOTE' | 'RETURN
 export class SettingsService {
   constructor(private prisma: PrismaService) {}
 
-  // Lazy-init: the first read (or write) ever made creates the singleton row with defaults
   async get() {
     const existing = await this.prisma.businessSetting.findUnique({ where: { id: SINGLETON_ID } });
     if (existing) return existing;
@@ -30,13 +29,13 @@ export class SettingsService {
     documentFooter: string;
     paymentDetails: string;
   }>) {
-    await this.get(); // ensure the row exists before updating it
+    await this.get();
     return this.prisma.businessSetting.update({ where: { id: SINGLETON_ID }, data });
   }
 
   async nextNumber(type: DocNumberType, client?: any): Promise<string> {
     const db = client ?? this.prisma;
-    await this.get(); // ensure the row exists
+    await this.get();
     const SEQ_FIELDS: Record<DocNumberType, string> = {
       QUOTE: 'nextQuoteSeq',
       INVOICE: 'nextInvoiceSeq',

@@ -51,7 +51,6 @@ function RunsTab() {
     load();
   }, []);
 
-  // Latest period first.
   const table = useClientTable<PayrollRun>({
     rows: runs,
     sortValues: {
@@ -130,7 +129,7 @@ function RunsTab() {
                 No payroll runs yet
               </p>
               <p className="mt-1 text-sm" style={{ color: 'var(--color-ink-600)' }}>
-                Create a run for the current period to start paying staff.
+                Create a run to start.
               </p>
             </>
           }
@@ -146,7 +145,6 @@ function RunsTab() {
 export default function PayrollPage() {
   const [tab, setTab] = useState<'runs' | 'advances'>('runs');
 
-  // A notification about an advance waiting for approval lands on its tab.
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('tab') === 'advances') setTab('advances');
   }, []);

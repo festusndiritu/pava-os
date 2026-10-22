@@ -1,18 +1,6 @@
 import { registerDecorator, ValidationOptions } from 'class-validator';
 
-/**
- * A monetary amount in whole Kenyan shillings — no cents. PAVA never sells
- * a fraction of a shilling, so a decimal here is always either a typo or a
- * per-unit price meant for a fractional quantity the yard doesn't sell
- * either (see IsWholeQuantity). Rejects a decimal rather than silently
- * rounding it away, so the person sees their own number reflected back,
- * not one Claude rounded for them.
- *
- * `allowNegative` is for signed fields — a balance adjustment or a payroll
- * "adjustments" line can be a deduction. Everything else defaults to
- * non-negative. `max` guards against a stray extra digit turning a normal
- * sale into an eight-figure invoice.
- */
+/** A monetary amount in whole Kenyan shillings — no cents. */
 export function IsMoney(
   options: { allowNegative?: boolean; max?: number } = {},
   validationOptions?: ValidationOptions,

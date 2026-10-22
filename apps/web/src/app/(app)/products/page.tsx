@@ -34,8 +34,8 @@ const STOCK_CHIPS: { value: StockFilter | ''; label: string }[] = [
 
 export default function ProductsPage() {
   const { user, hasPermission, canViewCost } = useAuth();
-  // The API lets only admins create, edit, archive and restore products, so
-  // anyone else would just get a refusal. Hide what they can't do.
+  // The API lets only admins create, edit, archive and restore products, so anyone else would just
+  // get a refusal.
   const isAdmin = user?.role === 'ADMIN';
   const canAdjust = hasPermission('INVENTORY');
   const showCost = canViewCost();
@@ -77,12 +77,10 @@ export default function ProductsPage() {
     setFormOpen(true);
   }
 
-  // Deep links: global search lands on a product's detail drawer via
-  // `/products?open=<id>`, and "Edit" from the Inventory page via
-  // `/products?edit=<id>`. Both are consumed once and removed from the URL so a
-  // refresh doesn't reopen them.
+  // Deep links: global search lands on a product's detail drawer via `/products?open=<id>`, and
+  // "Edit" from the Inventory page via `/products?edit=<id>`.
   useEffect(() => {
-    if (!user) return; // wait: whether ?edit= applies depends on who is signed in
+    if (!user) return;
     const params = new URLSearchParams(window.location.search);
     const openId = params.get('open');
     const editId = params.get('edit');
@@ -127,7 +125,8 @@ export default function ProductsPage() {
   });
   const { rows: products, reload: loadProducts } = table;
 
-  // Ticked rows are forgotten when the filters change: a selection should never quietly include rows that are no longer on screen.
+  // Ticked rows are forgotten when the filters change: a selection should never quietly include
+  // rows that are no longer on screen.
   const selection = useRowSelection<Product>((p) => p.id, [debouncedSearch, brandId, categoryId, stock, status]);
 
   const filtersActive = !!(search || brandId || categoryId || stock);
@@ -163,8 +162,8 @@ export default function ProductsPage() {
     }
   }
 
-  // Everything the current filters match, not just the pages loaded so far:
-  // the point is a stocktake sheet or a price list that is actually complete.
+  // Everything the current filters match, not just the pages loaded so far: the point is a
+  // stocktake sheet or a price list that is actually complete.
   function exportRows(rows: Product[], name: string) {
     const head = ['Product', 'Display name', 'Category', 'Brand', 'Size', 'Unit', 'Selling price (KSh)', 'In stock', 'Status', ...(showCost ? ['Last cost (KSh)', 'Value at last cost (KSh)'] : [])];
     const body = rows.map((p) => [
@@ -320,7 +319,6 @@ export default function ProductsPage() {
       const text = bulkSummary(action === 'archive' ? 'Archived' : 'Restored', 'product', result);
       if (result.failed.length === 0) toast.success(text);
       else toast.error(text);
-      // Whatever failed stays ticked, so it can be tried again.
       selection.replace(result.failed.map((f) => f.item));
       setBulkConfirm(null);
       loadProducts();
@@ -363,7 +361,7 @@ export default function ProductsPage() {
             Products
           </h1>
           <p className="mt-0.5 text-sm" style={{ color: 'var(--color-ink-600)' }}>
-            Search by trade terms, dimensions, or technical name.
+            Search products
           </p>
         </div>
         <div className="flex items-center gap-2">

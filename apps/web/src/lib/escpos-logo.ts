@@ -1,13 +1,4 @@
-/**
- * The real PAVA logo (steel I-beam inside a swoosh ring — public/pava-logo.png)
- * converted to a 1-bit 128x128 bitmap: ring solid black, beam outlined with
- * dithered shading. Embedded as packed bits so printing needs no image file,
- * no canvas and no network, and is identical on every machine.
- *
- * The image sent to the printer is full paper width with the mark centred, so
- * it does not depend on the printer honouring ESC a for raster images. A blank
- * strip under the mark keeps the business name from touching it.
- */
+/** The real PAVA logo (steel I-beam inside a swoosh ring — public/pava-logo.png) converted to a 1-bit 128x128 bitmap: ring solid black, beam outlined with dithered shading. */
 const MARK_SIZE = 128;
 const GAP_DOTS = 16;
 const TOP_TRIM = 6; // blank rows at the top of the bitmap, skipped so the receipt starts closer to the paper edge
@@ -45,11 +36,10 @@ const MARK_BITS = Uint8Array.from(
   (c) => c.charCodeAt(0),
 );
 
-/** GS v 0 raster-image command. `widthDots` is the printable width: 576 for 80mm paper, 384 for 58mm. */
 export function brandMarkRaster(widthDots = 576): Uint8Array {
   const widthBytes = Math.ceil(widthDots / 8);
   const markBytes = MARK_SIZE / 8;
-  const x0 = Math.floor((widthBytes - markBytes) / 2); // byte offset that centres the mark
+  const x0 = Math.floor((widthBytes - markBytes) / 2);
   const height = MARK_SIZE - TOP_TRIM + GAP_DOTS;
 
   const out = new Uint8Array(8 + widthBytes * height);

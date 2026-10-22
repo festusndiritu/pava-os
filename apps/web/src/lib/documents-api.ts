@@ -51,11 +51,9 @@ export interface SaleDocument {
   items: DocumentItem[];
   sourceDocumentId: string | null;
   sourceDocument: { id: string; receiptNumber: string | null; invoiceNumber: string | null; quoteNumber: string | null } | null;
-  // DELIVERY_NOTE only — dispatch/site address, distinct from the
-  // customer's stored address. Null when the note was created without one.
+  // DELIVERY_NOTE only — dispatch/site address, distinct from the customer's stored address.
   deliveryLocation: string | null;
   // DELIVERY_NOTE only — contact number for whoever's at the drop-off site.
-  // Null when the note was created without one.
   deliveryPhone: string | null;
   invoicedAt: string | null;
   paidAt: string | null;
@@ -75,13 +73,7 @@ export interface CreateDocumentInput {
   notes?: string;
 }
 
-/**
- * Whether a quote can be edited in the quote form. Only a live quote can
- * change (once invoiced, stock and the credit ledger have moved), and the form
- * edits catalogue products one line each — so a quote with a one-off manual
- * line, or the same product twice (only possible via the API), is left alone
- * rather than silently dropping or merging lines.
- */
+/** Whether a quote can be edited in the quote form. */
 export function canEditQuote(doc: Pick<SaleDocument, 'type' | 'status' | 'items'>): boolean {
   if (doc.type !== 'QUOTE' || doc.status !== 'QUOTED') return false;
   const ids = doc.items.map((i) => i.productId);
@@ -94,7 +86,6 @@ export interface DocumentListParams {
   search?: string;
   from?: string;
   to?: string;
-  /** `field:dir`: quoteNumber, invoiceNumber, deliveryNoteNumber, customer, created, invoiced, status or total. */
   sort?: string;
   limit?: number;
   offset?: number;
@@ -152,32 +143,19 @@ export interface EditRequest {
 }
 
 export const documentsApi = {
-  // `from`/`to` are YYYY-MM-DD calendar days, inclusive at both ends — the
-  // backend widens `to` to the end of that day. The API has always accepted
-  // them; Reports is the first caller to need them.
-  // `status` may be several (`['INVOICED', 'PAID']`) so a screen that shows
-  // them together can page through one ordered list. No limit = everything,
-  // which is what Reports needs.
+  // `from`/`to` are YYYY-MM-DD calendar days, inclusive at both ends — the backend widens `to` to
+  // the end of that day.
   list: (params: DocumentListParams = {}) => api.get<SaleDocument[]>(`/documents${documentQuery(params)}`),
-  // One page plus how many documents match in all.
   listPage: (params: DocumentListParams = {}) => api.getPage<SaleDocument>(`/documents${documentQuery(params)}`),
   get: (id: string) => api.get<SaleDocument>(`/documents/${id}`),
   create: (data: CreateDocumentInput) => api.post<SaleDocument>('/documents', data),
-  // Replaces a QUOTED quote's customer, lines, transport and notes in place — same id and quote number.
   update: (id: string, data: CreateDocumentInput) => api.patch<SaleDocument>(`/documents/${id}`, data),
-  // `fulfilment` splits each line between the shop's stock and goods supplied
-  // from elsewhere; a line left out comes wholly from the shop.
   convertToInvoice: (id: string, opts: { allowNegativeStock?: boolean; fulfilment?: { itemId: string; stockQty: number; supplierSource?: string }[] } = {}) =>
     api.post<SaleDocument>(`/documents/${id}/convert-to-invoice`, opts),
-  // paymentMethod records how the customer actually settled — PAVA's credit
-  // is same-day, so an invoice raised at the till is closed off here.
-  // Pass `payments` when cash needed change or the bill was split across
-  // cash and M-Pesa; `changeAction` says what to do with anything over.
   markPaid: (id: string, opts: { paymentMethod?: 'CASH' | 'MPESA'; payments?: PaymentLine[]; changeAction?: 'GIVE' | 'CREDIT' } = {}) =>
     api.post<SaleDocument>(`/documents/${id}/mark-paid`, opts),
   // Only a cancelled quote that was never invoiced can be deleted.
   deleteQuote: (id: string) => api.delete<{ id: string }>(`/documents/${id}`),
-  // Corrections to an issued invoice/receipt: staff ask, an admin approves.
   requestEdit: (id: string, data: EditRequestInput) => api.post<EditRequest>(`/documents/${id}/edit-requests`, data),
   editRequestsFor: (id: string) => api.get<EditRequest[]>(`/documents/${id}/edit-requests`),
   listEditRequests: (status?: EditRequestStatus) => api.get<EditRequest[]>(`/documents/edit-requests${status ? `?status=${status}` : ''}`),
@@ -185,6 +163,4 @@ export const documentsApi = {
     api.post<SaleDocument>(`/documents/edit-requests/${requestId}/approve`, opts),
   rejectEdit: (requestId: string, opts: { note?: string } = {}) => api.post<EditRequest>(`/documents/edit-requests/${requestId}/reject`, opts),
   cancel: (id: string) => api.post<SaleDocument>(`/documents/${id}/cancel`),
-  createDeliveryNote: (id: string, deliveryLocation?: string, deliveryPhone?: string) =>
-    api.post<SaleDocument>(`/documents/${id}/delivery-note`, { deliveryLocation, deliveryPhone }),
 };

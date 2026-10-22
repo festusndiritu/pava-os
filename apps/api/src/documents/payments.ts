@@ -4,33 +4,14 @@ import { PaymentMethod } from '../../generated/prisma/client.js';
 export type TenderInput = { method: 'CASH' | 'MPESA'; amount: number };
 
 export type SettledPayments = {
-  /** Rows to store; they always add up to exactly the bill. */
   rows: { method: PaymentMethod; amount: number }[];
-  /** CASH, MPESA, or MIXED when more than one method was used. */
   paymentMethod: PaymentMethod;
-  /** Surplus handed back to the customer. */
   changeGiven: number;
-  /** Surplus the customer left with the shop, to be booked as their credit. */
   changeToCredit: number;
-  /** Part of the bill paid out of credit the customer already held. */
   creditApplied: number;
 };
 
-/**
- * Turns what the customer handed over into what is stored against the bill.
- *
- * `creditApplied` is money the customer already left with the shop, spent on
- * this bill. It is asked for as "up to", so it is capped at the bill; whatever
- * it doesn't cover has to be tendered. It is stored as its own STORE_CREDIT row
- * (the cash was counted when it was deposited), so the rows still add up to the
- * bill.
- *
- * Tenders can add up to more than the bill. The surplus is either handed back
- * as change (it can only come out of cash) or, when the customer leaves it
- * with the shop, booked as credit in their favour — which needs a customer
- * record to hold it. Stored rows are reduced by the surplus (cash first) so
- * they always sum to the bill, and so revenue by method is never overstated.
- */
+/** Turns what the customer handed over into what is stored against the bill. */
 export function settlePayments(
   total: number,
   tenders: TenderInput[] | undefined,
@@ -68,8 +49,7 @@ export function settlePayments(
     }
   }
 
-  // Take the surplus off cash first, then (only when it is being left as
-  // credit) off whatever else was paid.
+  // Take the surplus off cash first, then (only when it is being left as credit) off whatever else was paid.
   let remaining = surplus;
   const rows: { method: PaymentMethod; amount: number }[] = [];
   for (const method of ['CASH', 'MPESA'] as const) {

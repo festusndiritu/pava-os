@@ -1,9 +1,4 @@
-/**
- * Optional `limit` / `offset` query params for list endpoints. No limit means
- * "everything", which is what reports and exports need; the list screens ask
- * for a page at a time. Capped so nobody can request the whole table at once
- * by accident, and junk values (negative, NaN) are ignored, not errors.
- */
+/** Optional `limit` / `offset` query params for list endpoints. */
 export const MAX_PAGE_SIZE = 200;
 
 export function parsePaging(limit?: string, offset?: string): { limit?: number; offset?: number } {
@@ -15,15 +10,9 @@ export function parsePaging(limit?: string, offset?: string): { limit?: number; 
   };
 }
 
-/**
- * `sort=field:dir` from a table header. Only the shape is checked here; each
- * service maps `field` through its own whitelist, so an unknown field (or a
- * hand-edited URL) falls back to that list's default order instead of
- * reaching the database.
- */
+/** `sort=field:dir` from a table header. */
 export type SortDir = 'asc' | 'desc';
 
-/** Prisma ordering for a nullable column: empty values go last whichever way it sorts. */
 export const nullsLast = (dir: SortDir) => ({ sort: dir, nulls: 'last' as const });
 
 export function parseSort(raw?: string): { field: string; dir: SortDir } | undefined {
@@ -33,11 +22,7 @@ export function parseSort(raw?: string): { field: string; dir: SortDir } | undef
   return { field, dir: dir === 'desc' ? 'desc' : 'asc' };
 }
 
-/**
- * The size of the whole result set, for list endpoints that are paged. Sent
- * as a header so the response body stays the plain array every other caller
- * of these endpoints already reads.
- */
+/** The size of the whole result set, for list endpoints that are paged. */
 export const TOTAL_COUNT_HEADER = 'X-Total-Count';
 
 export function sendTotal(res: { setHeader(name: string, value: string | number): unknown }, total: number) {

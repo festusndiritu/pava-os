@@ -13,7 +13,6 @@ const INCLUDE = {
   aliases: { select: { id: true, term: true } },
 } as const;
 
-// restock = at or below the low-stock threshold (low + out), what "needs ordering" means.
 export type StockFilter = 'in' | 'low' | 'out' | 'restock';
 const SORT_FIELDS: Record<string, (dir: SortDir) => object> = {
   name: (d) => ({ name: d }),
@@ -170,7 +169,6 @@ export class ProductsService {
       return 4;
     }
 
-    // Relevance stays the default while searching; a column the person chose wins.
     const chosen = resolveSort(sort, canViewCost);
     type Candidate = (typeof candidates)[number];
     const value = (p: Candidate): string | number | null => {
@@ -189,7 +187,7 @@ export class ProductsService {
       const x = value(a);
       const y = value(b);
       if (x === y) return 0;
-      if (x === null) return 1; // blanks last either way
+      if (x === null) return 1;
       if (y === null) return -1;
       const order = x < y ? -1 : 1;
       return chosen.dir === 'desc' ? -order : order;
@@ -271,7 +269,6 @@ export class ProductsService {
     return this.prisma.productFamily.update({ where: { id }, data });
   }
 
-  // Soft delete — keeps history on any past document_items (and price history) intact.
   async remove(id: string, actorId: string) {
     const product = await this.prisma.product.update({ where: { id }, data: { active: false } });
     await this.audit.log({

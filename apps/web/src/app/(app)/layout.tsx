@@ -18,13 +18,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, loading, hasPermission } = useAuth();
   const [navOpen, setNavOpen] = useState(false);
 
-  // POS wants every pixel it can get on a counter screen — the sidebar, rail
-  // and tab bar all stay gone there; the topbar (menu, sign out, theme,
-  // calculator) is worth keeping.
   const isPos = pathname?.startsWith('/pos');
 
-  // A navigation sheet left open across a route change (back button, a link
-  // inside it) would sit over the new page.
+  // A navigation sheet left open across a route change (back button, a link inside it) would sit
+  // over the new page.
   useEffect(() => {
     setNavOpen(false);
   }, [pathname]);
@@ -33,30 +30,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (!loading && !user) router.replace('/login');
   }, [loading, user, router]);
 
-  // Nothing renders for a logged-out/loading visitor — the effect above is
-  // already sending them to /login. This is a UX-only guard; every real
-  // protected request is still enforced server-side regardless.
+  // Nothing renders for a logged-out/loading visitor — the effect above is already sending them to /login.
   if (loading || !user) return null;
 
-  // The sidebar only ever links to what hasPermission() allows, but a typed
-  // URL, a stale bookmark, or the browser's back/forward can still land the
-  // user on a page their nav never showed them. Block the page itself here,
-  // once, for every module-gated route — rather than relying on each page
-  // to duplicate this check (most don't) or on every backend read endpoint
-  // happening to be permission-gated (some legitimately aren't, e.g. ones
-  // shared across modules). Routes with no module (e.g. /profile) pass through.
+  // The sidebar only ever links to what hasPermission() allows, but a typed URL, a stale bookmark,
+  // or the browser's back/forward can still land the user on a page their nav never showed them.
   const requiredModule = moduleForPath(pathname ?? '');
   const allowed = !requiredModule || hasPermission(requiredModule);
 
   return (
     <div className="flex min-h-screen" style={{ backgroundColor: 'var(--color-bg)' }}>
-      {/* Desktop and tablet: full sidebar from `md` up. Phone: bottom tab bar
-          (below). Tablet used to get a narrow icon-only rail here — but an
-          icon with no label is a worse trade for the width it saves than it
-          looks like on paper, and a tablet has the width to spare anyway. */}
+      {/* Desktop and tablet: full sidebar from `md` up. */}
       {!isPos && (
-        // Pinned to the viewport with its own scroll: the navigation stays put
-        // while the page body scrolls, and a long nav scrolls independently.
         <aside
           className="sticky top-0 hidden h-screen w-60 shrink-0 overflow-y-auto border-r md:block"
           style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
@@ -101,7 +86,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   className="mx-auto mt-2 max-w-sm text-sm leading-6"
                   style={{ color: 'var(--color-ink-600)' }}
                 >
-                  You don't have permission to view this module.
+                  No access.
                 </p>
 
                 <button

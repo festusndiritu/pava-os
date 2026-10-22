@@ -29,7 +29,6 @@ const KINDS: { value: ReceiptKind | ''; label: string }[] = [
   { value: 'other', label: 'Adjustments & returns' },
 ];
 
-// Receipts the system writes itself so a stock change has a cost lot behind it.
 const SYSTEM_SUPPLIERS = new Set(['Stock adjustment', 'Customer return', 'Opening Balance']);
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)', color: 'var(--color-ink-900)' };
@@ -80,7 +79,6 @@ export default function InventoryPage() {
   const isAdmin = user?.role === 'ADMIN';
   const router = useRouter();
 
-  // The dashboard links here with ?filter=low.
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('filter') === 'low') setStock('restock');
   }, []);
@@ -214,7 +212,7 @@ export default function InventoryPage() {
             Inventory
           </h1>
           <p className="mt-0.5 text-sm" style={{ color: 'var(--color-ink-600)' }}>
-            Stock receipts and acquisition cost — feeds FIFO costing automatically.
+            Stock receipts and costs
           </p>
         </div>
         <button

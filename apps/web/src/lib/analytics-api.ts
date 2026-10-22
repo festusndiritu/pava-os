@@ -1,8 +1,5 @@
 import { api } from './api';
 
-// A calendar range, inclusive at both ends, in the YYYY-MM-DD form the
-// analytics controller parses. "to" is widened to end-of-day server-side
-// (see parseRange), so a single-day range is from === to.
 export interface DateRange {
   from: string;
   to: string;
@@ -14,8 +11,8 @@ export interface AnalyticsOverview {
   avgOrderValue: number;
   cogs: number;
   grossProfit: number;
-  // Null when nothing sold in the range — a margin on zero revenue is not
-  // 0%, it's undefined, and the service is careful to say so.
+  // Null when nothing sold in the range — a margin on zero revenue is not 0%, it's undefined, and
+  // the service is careful to say so.
   marginPct: number | null;
   returnsTotal: number;
   returnsCount: number;
@@ -65,9 +62,8 @@ export interface StaffPerformanceRow {
 
 export interface InventorySnapshot {
   totalValue: number;
-  // Units sitting in the yard with no recorded cost — they contribute
-  // nothing to totalValue, so a large number here means the valuation is
-  // understated and someone needs to back-fill costs.
+  // Units sitting in the yard with no recorded cost — they contribute nothing to totalValue, so a
+  // large number here means the valuation is understated and someone needs to back-fill costs.
   uncostedUnits: number;
   categories: { id: string; name: string; qty: number; value: number }[];
 }

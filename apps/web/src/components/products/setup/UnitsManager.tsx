@@ -14,8 +14,8 @@ const inputClass = 'min-h-10 w-full rounded-md border px-3 text-sm outline-none 
 const labelClass = 'mb-1 block text-[11px] font-semibold uppercase';
 const labelStyle = { color: 'var(--color-ink-600)', letterSpacing: '0.06em' };
 
-// One tap to get a sensible starting set on a fresh install — a product can't
-// be created without a unit, so an empty list is a dead end otherwise.
+// One tap to get a sensible starting set on a fresh install — a product can't be created without a
+// unit, so an empty list is a dead end otherwise.
 const COMMON_UNITS = [
   { name: 'Piece', symbol: 'pcs' },
   { name: 'Bag', symbol: 'bag' },
@@ -27,10 +27,9 @@ const COMMON_UNITS = [
   { name: 'Litre', symbol: 'ltr' },
 ];
 
-// A curated set of the symbols this trade actually uses — picking one is
-// faster and less error-prone than typing it, and still just sets the same
-// plain-text `symbol` the API has always stored. "Custom…" covers anything
-// not on the list, so nothing is lost versus free text.
+// A curated set of the symbols this trade actually uses — picking one is faster and less
+// error-prone than typing it, and still just sets the same plain-text `symbol` the API has always
+// stored.
 const SYMBOL_OPTIONS: { symbol: string; icon: typeof Package }[] = [
   { symbol: 'pcs', icon: Package },
   { symbol: 'kg', icon: Weight },
@@ -398,7 +397,6 @@ export function UnitsManager({ canEdit }: { canEdit: boolean }) {
         try {
           await productsApi.createUnit(u);
         } catch (err) {
-          // Already there (409) is fine; anything else is worth surfacing.
           if (!(err instanceof ApiError && err.status === 409)) throw err;
         }
       }
@@ -448,7 +446,7 @@ export function UnitsManager({ canEdit }: { canEdit: boolean }) {
               No units yet
             </p>
             <p className="mx-auto mt-1 max-w-sm text-sm" style={{ color: 'var(--color-ink-600)' }}>
-              Every product is sold in a unit — pieces, bags, kilograms. Add the ones you use, or start from the common set.
+              Add the units you sell in, or start from the common set.
             </p>
             {canEdit && (
               <button type="button" onClick={addCommon} disabled={seeding} className="mt-3 rounded-md border px-3.5 py-2 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>

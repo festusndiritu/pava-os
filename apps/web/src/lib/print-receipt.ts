@@ -50,7 +50,6 @@ export function setAutoPrint(on: boolean) {
   write(KEY_AUTO, on ? '1' : '0');
 }
 
-/** 80mm paper prints 576 dots across, 58mm prints 384. */
 function escposOptions() {
   const columns = getColumns();
   return { columns, logo: brandMarkRaster(columns <= 32 ? 384 : 576) };
@@ -76,11 +75,7 @@ function beep() {
   }
 }
 
-/**
- * The one entry point every Print button uses. Direct ESC/POS when a printer
- * has been set up on this device; otherwise (or if direct printing fails) the
- * browser path, so a receipt is never lost to a printer-setup problem.
- */
+/** The one entry point every Print button uses. */
 export async function printReceipt(vm: DocumentViewModel): Promise<void> {
   beep();
   const mode = getPrintMode();

@@ -6,23 +6,17 @@ import { Modal } from '../ui/Modal';
 import { CommittedNumberInput } from '../ui/inputs';
 import { fmtNumber } from '../../lib/format';
 
-/**
- * One line of an order as the fulfilment decision sees it. `stockQty` is how
- * much leaves the shop's own stock; whatever is left of `qty` is supplied from
- * elsewhere and never touches shop inventory.
- */
+/** One line of an order as the fulfilment decision sees it. */
 export interface FulfilmentLine {
   key: string;
   name: string;
   unit: string;
   qty: number;
-  /** What the shop has on the shelf right now — the ceiling for `stockQty`. */
   available: number;
   stockQty: number;
   supplierSource: string;
 }
 
-/** The starting split: take what the shop has, and let the rest come from elsewhere. */
 export function defaultStockQty(qty: number, available: number): number {
   return Math.max(0, Math.min(qty, available));
 }
@@ -30,13 +24,7 @@ export function defaultStockQty(qty: number, available: number): number {
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
 const mutedLabel = { color: 'var(--color-ink-600)', letterSpacing: '0.05em' };
 
-/**
- * Where does this order come from? Hardware rarely fulfils in one tidy way —
- * cement may go straight from the supplier even with some on the shelf, a
- * driver may split a line between here and there — so the operator says, per
- * line, how much leaves the shop. Only that part comes off inventory; the sale
- * is recorded in full either way.
- */
+/** Where does this order come from? */
 export function FulfilmentDialog({
   title = 'Where does this order come from?',
   lines,
@@ -47,7 +35,6 @@ export function FulfilmentDialog({
 }: {
   title?: string;
   lines: FulfilmentLine[];
-  /** What confirming does, e.g. "Complete sale" or "Create invoice". */
   confirmLabel: string;
   busy?: boolean;
   onCancel: () => void;
@@ -72,7 +59,7 @@ export function FulfilmentDialog({
             {title}
           </h2>
           <p className="mt-0.5 text-sm" style={{ color: 'var(--color-ink-600)' }}>
-            Set how much of each item leaves the shop. Only that part comes off your stock; the sale is recorded in full.
+            Set how much of each item leaves the shop.
           </p>
         </div>
       </div>
@@ -128,7 +115,7 @@ export function FulfilmentDialog({
                 {outside > 0 ? (
                   <div className="mt-2">
                     <p className="data-num text-xs font-medium" style={{ color: 'var(--color-status-warn)' }}>
-                      {fmtNumber(outside)} {r.unit} from elsewhere — not taken off your stock
+                      {fmtNumber(outside)} {r.unit} from elsewhere
                     </p>
                     <input
                       aria-label={`Where ${r.name} is collected from`}

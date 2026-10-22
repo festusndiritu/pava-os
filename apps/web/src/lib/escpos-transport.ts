@@ -1,17 +1,4 @@
-/**
- * Ways to get raw ESC/POS bytes to a printer from the browser.
- *
- *  - WebUSB:  Chrome/Edge on Android, ChromeOS, Linux, macOS. On WINDOWS the
- *             OS printer driver owns the USB interface and the browser is
- *             refused ("Access denied") unless the printer is switched to the
- *             WinUSB driver (e.g. with Zadig) — which removes it from normal
- *             Windows printing. Use Web Serial or a print helper there.
- *  - Serial:  Web Serial — a USB-serial / Bluetooth-SPP virtual COM port.
- *  - Helper:  a tiny local program (tools/print-helper) that receives the
- *             bytes over http://127.0.0.1 and hands them to the Windows print
- *             spooler as a RAW job. The normal driver stays installed, so
- *             this is the practical route on a Windows PC with a USB printer.
- */
+/** Ways to get raw ESC/POS bytes to a printer from the browser. */
 export type TransportMode = 'usb' | 'serial' | 'helper';
 
 export class PrinterError extends Error {}
@@ -34,7 +21,6 @@ function write(key: string, value: string) {
   try {
     localStorage.setItem(key, value);
   } catch {
-    /* private mode — pairing still works for this session */
   }
 }
 
@@ -55,7 +41,6 @@ export function getHelperUrl(): string {
 export function setHelperUrl(v: string) {
   write(KEY_HELPER_URL, v.trim().replace(/\/+$/, ''));
 }
-/** Windows printer name; empty means "the PC's default printer". */
 export function getHelperPrinter(): string {
   return read(KEY_HELPER_PRINTER) ?? '';
 }
@@ -135,7 +120,6 @@ async function sendUsb(data: Uint8Array, pair: boolean) {
       if (claimed !== null) await device.releaseInterface(claimed);
       await device.close();
     } catch {
-      /* already gone */
     }
   }
 }
@@ -165,7 +149,6 @@ export function sendBytes(mode: TransportMode, data: Uint8Array, pair = true): P
   return mode === 'usb' ? sendUsb(data, pair) : sendSerial(data, pair);
 }
 
-/** Always shows the chooser, replacing any earlier pairing. */
 export async function pairPrinter(mode: 'usb' | 'serial'): Promise<void> {
   if (mode === 'usb') {
     const usb = nav().usb;

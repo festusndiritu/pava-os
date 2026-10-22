@@ -6,8 +6,8 @@ import { AdvanceStatus, Module } from '../../generated/prisma/client.js';
 import { PayrollService } from './payroll.service.js';
 import { CreateAdvanceDto, CreatePayrollRunDto, DecideAdvanceDto, UpdatePayrollItemDto } from './dto/payroll.dto.js';
 
-// No dedicated ADVANCES module in the permission enum — advances are
-// integrated into payroll (brief §38), so both share the PAYROLL gate.
+// No dedicated ADVANCES module in the permission enum — advances are integrated into payroll (brief
+// §38), so both share the PAYROLL gate.
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Permissions(Module.PAYROLL)
 @Controller('payroll')

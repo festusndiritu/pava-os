@@ -9,7 +9,6 @@ import { nullsLast, parseSort, type SortDir } from '../common/paging.js';
 import type { CreatePosSaleDto } from './dto/pos-sale.dto.js';
 import { settlePayments, type TenderInput } from './payments.js';
 
-/** Exclusive upper bound covering the whole of the given calendar day. */
 function endOfDay(date: string) {
   const end = new Date(date);
   end.setHours(23, 59, 59, 999);
@@ -37,8 +36,6 @@ type CreateDocumentInput = {
 };
 
 // What a table header can sort documents by (`field:dir`, see parseSort).
-// Newest first stays the default; `id` is the final tiebreaker so paging by
-// offset never skips or repeats a row.
 const SORT_FIELDS: Record<string, (dir: SortDir) => object> = {
   quoteNumber: (d) => ({ quoteNumber: nullsLast(d) }),
   invoiceNumber: (d) => ({ invoiceNumber: nullsLast(d) }),
@@ -65,12 +62,9 @@ export class DocumentsService {
     private settings: SettingsService,
   ) {}
 
-  // Shared by posSale() and create() (quotes) so both price a line the same
-  // way (brief step 5): qty × unit price = line total, always — where "unit
-  // price" is whatever the operator negotiated directly, not a list price
-  // with a discount subtracted from it (brief step 4, rule #1). Transport,
-  // when folded, is added into that price and rounded there (rule #2); the
-  // rounding remainder is tracked separately and never mixed into margin.
+  // Shared by posSale() and create() (quotes) so both price a line the same way (brief step 5): qty
+  // × unit price = line total, always — where "unit price" is whatever the operator negotiated
+  // directly, not a list price with a discount subtracted from it (brief step 4, rule #1).
   private priceDocumentLines(
     items: { productId?: string | null; description?: string; qty: number; unitPrice: number }[],
     productMap: Map<string, { name: string; displayName: string | null; basePrice: number }>,
@@ -109,9 +103,6 @@ export class DocumentsService {
         const basis = targetIdxs.reduce((s, idx) => s + (byValue ? negotiatedValues[idx] : items[idx].qty), 0) || 1;
         for (const idx of targetIdxs) {
           const weight = byValue ? negotiatedValues[idx] : items[idx].qty;
-          // Each share is a fraction of transportAmount, which is exact
-          // (validated to 2dp on the way in) — the division is where float
-          // noise creeps in, so it's rounded right back out here.
           allocations[idx] = roundMoney(transportAmount * (weight / basis));
         }
       }
@@ -126,8 +117,8 @@ export class DocumentsService {
 
     const lines = items.map((line, idx) => {
       const product = line.productId ? productMap.get(line.productId) : undefined;
-      // Manual lines (no productId — a one-off labour/service charge) have no
-      // list price to compare against, so they never register as "discounted".
+      // Manual lines (no productId — a one-off labour/service charge) have no list price to compare
+      // against, so they never register as "discounted".
       const listPrice = product?.basePrice ?? line.unitPrice;
       const negotiated = roundMoney(negotiatedValues[idx]);
       subtotalAtNegotiatedPrice += negotiated;
@@ -175,9 +166,7 @@ export class DocumentsService {
     };
   }
 
-  // Brief §24 — enforced here, never trusted from the frontend. Compares
-  // against the product's actual current base price, not a client-supplied
-  // "before" price, so a line can't be dressed up to hide its real discount.
+  // Brief §24 — enforced here, never trusted from the frontend.
   private assertDiscountWithinLimit(actorRole: Role, actor: { maxDiscountPercent: number } | null, subtotalAtListPrice: number, impliedDiscountTotal: number) {
     if (actorRole === Role.ADMIN || impliedDiscountTotal <= 0.01) return;
     const allowed = subtotalAtListPrice * ((actor?.maxDiscountPercent || 0) / 100);
@@ -188,9 +177,9 @@ export class DocumentsService {
     }
   }
 
-  // One shape of error for every "not enough stock" refusal, so the POS and
-  // the quote->invoice screen can both render a proper confirmation dialog
-  // (product, requested, available, short by) instead of parsing a sentence.
+  // One shape of error for every "not enough stock" refusal, so the POS and the quote->invoice
+  // screen can both render a proper confirmation dialog (product, requested, available, short by)
+  // instead of parsing a sentence.
   private insufficientStock(shortfalls: { productId: string; name: string; requested: number; available: number; shortfall: number }[]) {
     return new BadRequestException({
       statusCode: 400,
@@ -200,13 +189,7 @@ export class DocumentsService {
     });
   }
 
-  // Turns what the operator said about where each line comes from into the
-  // figures stored on it. Hardware does not fulfil in one tidy way: a driver
-  // may collect everything from a supplier, or part from the yard and part
-  // from here, whatever the stock count says. So the sale records how much
-  // left the shop (drawn off FIFO, and the only part that moves inventory) and
-  // leaves the rest as supplied from elsewhere. A line with no instruction is
-  // taken wholly from the shop, exactly as before.
+  // Turns what the operator said about where each line comes from into the figures stored on it.
   private resolveFulfilment(
     lines: { productId: string | null; qty: number; description?: string }[],
     requested: ({ stockQty?: number; supplierSource?: string } | undefined)[],
@@ -223,13 +206,8 @@ export class DocumentsService {
     });
   }
 
-  // What can actually be sold is what sits in real inventory batches — that
-  // is what consumeFifo draws from — so this checks the same thing, not
-  // product.stockQuantity. The two numbers are meant to always agree (every
-  // path that changes stock now opens or drains a real batch), but this
-  // pre-check being batch-based itself means a shortfall is always caught
-  // here, with the full confirmation dialog, rather than surfacing as a
-  // raw error from mid-transaction if the two ever drift.
+  // What can actually be sold is what sits in real inventory batches — that is what consumeFifo
+  // draws from — so this checks the same thing, not product.stockQuantity.
   async findShortfalls(lines: { productId: string | null; qty: number; description?: string }[]) {
     const ids = [...new Set(lines.map((l) => l.productId).filter((id): id is string => !!id))];
     if (ids.length === 0) return [];
@@ -243,7 +221,6 @@ export class DocumentsService {
     ]);
     const byId = new Map(products.map((p) => [p.id, p]));
     const availableById = new Map(batchSums.map((b) => [b.productId, b._sum.remainingQuantity || 0]));
-    // Several lines can reference the same product — check the summed demand.
     const demand = new Map<string, number>();
     for (const line of lines) {
       if (!line.productId) continue;
@@ -267,9 +244,7 @@ export class DocumentsService {
     return shortfalls;
   }
 
-  // Change the customer left with the shop. Credit in the customer's favour
-  // is a negative balance (the same field invoices push up), so it nets off
-  // against anything they later owe and can never be edited directly.
+  // Change the customer left with the shop.
   private async depositChange(tx: any, customerId: string, amount: number, documentId: string, actorId: string) {
     if (amount <= 0) return;
     await tx.customerLedgerEntry.create({
@@ -278,10 +253,7 @@ export class DocumentsService {
     await tx.customer.update({ where: { id: customerId }, data: { creditBalance: { decrement: amount } } });
   }
 
-  // Spends credit the customer already left with the shop. Held credit is a
-  // negative balance, so spending it moves the balance back toward zero. The
-  // update is conditional on the balance still being there, so two tills can't
-  // both spend the same money.
+  // Spends credit the customer already left with the shop.
   private async spendCredit(tx: any, customerId: string, amount: number, documentId: string, actorId: string) {
     if (amount <= 0) return;
     const taken = await tx.customer.updateMany({
@@ -294,9 +266,6 @@ export class DocumentsService {
     });
   }
 
-  // Everything that turns a quote form into priced lines — product lookup,
-  // pricing, the discount-limit check. Shared by create() and update() so an
-  // edited quote is priced by exactly the same rules as a new one.
   async priceQuoteInput(actorId: string, actorRole: Role, input: CreateDocumentInput) {
     if (!input.items || input.items.length === 0) {
       throw new BadRequestException('A document needs at least one item');
@@ -365,17 +334,7 @@ export class DocumentsService {
     return doc;
   }
 
-  // Edit a quote in place. Same record, same id, same quote number, same
-  // author and creation date — only what the create form captures changes.
-  //
-  // Safe only while the quote is still QUOTED: a quote moves no stock and
-  // posts nothing to a customer's ledger (that happens at convertToInvoice),
-  // so re-pricing it is just rewriting its lines. After invoicing, stock and
-  // the credit ledger have moved, so that stays cancel-and-reissue.
-  //
-  // A delivery note already raised from this quote is a frozen copy by design
-  // (see createDeliveryNote) and is deliberately left alone; the count is
-  // recorded in the audit entry so it's visible that it may now differ.
+  // Edit a quote in place.
   async update(id: string, actorId: string, actorRole: Role, input: CreateDocumentInput) {
     const existing = await this.findOne(id);
     if (existing.type !== DocumentType.QUOTE) {
@@ -391,9 +350,9 @@ export class DocumentsService {
     const { lines, subtotalAtNegotiatedPrice, roundingAdjustmentTotal, total, transportMode } = await this.priceQuoteInput(actorId, actorRole, input);
 
     await this.prisma.$transaction(async (tx) => {
-      // The status condition is what makes this safe against a quote being
-      // converted or cancelled in another tab between the check above and
-      // now: if it moved on, nothing matches and nothing is written.
+      // The status condition is what makes this safe against a quote being converted or cancelled
+      // in another tab between the check above and now: if it moved on, nothing matches and nothing
+      // is written.
       const claimed = await tx.document.updateMany({
         where: { id, type: DocumentType.QUOTE, status: DocumentStatus.QUOTED },
         data: {
@@ -441,7 +400,6 @@ export class DocumentsService {
         payments: true,
         customer: true,
         createdBy: { select: { name: true } },
-        // A delivery note prints the order it was dispatched against.
         sourceDocument: { select: { id: true, receiptNumber: true, invoiceNumber: true, quoteNumber: true } },
       },
     });
@@ -449,10 +407,9 @@ export class DocumentsService {
     return doc;
   }
 
-  // A delivery note is its own frozen document (brief step 7), not a live
-  // view of the invoice/quote it came from — copies items/customer/transport
-  // at the moment it's created so it survives the source document changing
-  // status later (e.g. the invoice being paid, or even cancelled).
+  // A delivery note is its own frozen document (brief step 7), not a live view of the invoice/quote
+  // it came from — copies items/customer/transport at the moment it's created so it survives the
+  // source document changing status later (e.g.
   async createDeliveryNote(sourceId: string, actorId: string, deliveryLocation?: string, deliveryPhone?: string) {
     const source = await this.findOne(sourceId);
     if (source.type === DocumentType.DELIVERY_NOTE) {
@@ -471,9 +428,7 @@ export class DocumentsService {
           customerId: source.customerId,
           customerName: source.customerName,
           createdById: actorId,
-          // A delivery note is a dispatch document: it carries what leaves the
-          // yard, never what it cost. Pricing is zeroed at write time so no
-          // view, export or list can leak it — the source document keeps it.
+          // A delivery note is a dispatch document: it carries what leaves the yard, never what it cost.
           transportMode: TransportMode.NONE,
           transportAmount: 0,
           roundingAdjustment: 0,
@@ -495,8 +450,8 @@ export class DocumentsService {
               lineTotal: 0,
               transportAllocated: 0,
               roundingAdjustment: 0,
-              // What the driver collects where: carried over so the note says
-              // which part is loaded here and which comes from elsewhere.
+              // What the driver collects where: carried over so the note says which part is loaded
+              // here and which comes from elsewhere.
               stockQty: i.stockQty,
               supplierSource: i.supplierSource,
             })),
@@ -521,13 +476,12 @@ export class DocumentsService {
     return (await this.findPage(params)).rows;
   }
 
-  // One page of documents plus how many match in all.
   async findPage(params: { statuses?: DocumentStatus[]; type?: DocumentType; from?: string; to?: string; search?: string; sort?: string; limit?: number; offset?: number }) {
     const { statuses, type, from, to, search, sort, limit, offset } = params;
     const term = search?.trim();
     const where = {
-      // Suspended orders are parked carts, not documents — they only ever
-      // surface through the POS "on hold" list, never in quotes/invoices.
+      // Suspended orders are parked carts, not documents — they only ever surface through the POS
+      // "on hold" list, never in quotes/invoices.
       ...(statuses && statuses.length > 0 ? { status: statuses.length === 1 ? statuses[0] : { in: statuses } } : { status: { not: DocumentStatus.SUSPENDED } }),
       ...(type ? { type } : {}),
       ...(term
@@ -542,10 +496,6 @@ export class DocumentsService {
             ],
           }
         : {}),
-      // A bare "to" date means "through the end of that day". Comparing
-      // against new Date('2026-09-21') is midnight at its *start*, which
-      // silently dropped everything sold on the last day of the range —
-      // the same correction parseRange() already makes for analytics.
       ...(from || to
         ? {
             createdAt: {
@@ -567,13 +517,7 @@ export class DocumentsService {
     return { rows, total: counted ?? rows.length };
   }
 
-  // Quote -> Invoice is a status change on the SAME record. No copy, no new id,
-  // so history (who quoted it, when) is never lost. This is also where stock
-  // actually leaves for the quote/invoice workflow (unlike POS, which
-  // deducts immediately) — an invoice is the point the sale is committed,
-  // even if payment (credit) comes later. If the customer is a credit
-  // account, this also books the invoice onto their credit ledger — see
-  // brief §26, Customer.creditBalance is never touched directly.
+  // Quote -> Invoice is a status change on the SAME record.
   async convertToInvoice(
     id: string,
     actorId: string,
@@ -594,8 +538,6 @@ export class DocumentsService {
       allowNegative = true;
     }
 
-    // Where each line is supplied from. A line the caller said nothing about
-    // comes wholly from the shop, as it always did.
     const itemIds = new Set(doc.items.map((i) => i.id));
     const byItem = new Map<string, { stockQty?: number; supplierSource?: string }>();
     for (const f of fulfilmentInput) {
@@ -607,8 +549,8 @@ export class DocumentsService {
       doc.items.map((i) => byItem.get(i.id)),
     );
 
-    // Checked up front so the operator gets the same structured confirmation
-    // dialog the POS shows, rather than a transaction blowing up mid-way.
+    // Checked up front so the operator gets the same structured confirmation dialog the POS shows,
+    // rather than a transaction blowing up mid-way.
     if (!allowNegative) {
       const missing = await this.findShortfalls(doc.items.map((i, idx) => ({ productId: i.productId, qty: fulfilment[idx].stockQty ?? i.qty, description: i.description })));
       if (missing.length > 0) throw this.insufficientStock(missing);
@@ -667,10 +609,6 @@ export class DocumentsService {
     return updated;
   }
 
-  // Invoice -> Paid (which is effectively "receipt issued"). Same record
-  // again. For a credit customer this assumes the invoice is paid in full —
-  // partial payments against an open invoice are a deeper Phase 6 concern;
-  // for now the ledger's PAYMENT entry always matches the invoice total.
   async markPaid(
     id: string,
     actorId: string,
@@ -681,8 +619,8 @@ export class DocumentsService {
       throw new BadRequestException('Only an invoiced document can be marked paid');
     }
 
-    // Older callers only say "paid"; with nothing stated, whatever was
-    // already recorded is kept and no payment rows are written.
+    // Older callers only say "paid"; with nothing stated, whatever was already recorded is kept and
+    // no payment rows are written.
     const stated = !!(input.payments?.length || input.paymentMethod);
     const settled = stated ? settlePayments(doc.total, input.payments, input.paymentMethod, input.changeAction, !!doc.customerId) : null;
 
@@ -732,9 +670,8 @@ export class DocumentsService {
     return updated;
   }
 
-  // Quotes that were only ever a price check are clutter once cancelled, so
-  // a cancelled quote can be removed for good. Anything that has been
-  // invoiced is a real sale and is never deletable — it keeps its numbers.
+  // Quotes that were only ever a price check are clutter once cancelled, so a cancelled quote can
+  // be removed for good.
   async deleteCancelledQuote(id: string, actorId: string) {
     const doc = await this.findOne(id);
     if (doc.status !== DocumentStatus.CANCELLED) {
@@ -768,7 +705,6 @@ export class DocumentsService {
     return { id };
   }
 
-  // Minimal dashboard aggregate — real reports page can build on this later.
   async salesSummary(days = 30) {
     const since = new Date();
     since.setDate(since.getDate() - days);
@@ -786,10 +722,7 @@ export class DocumentsService {
       .map(([date, total]) => ({ date, total }));
   }
 
-  // The POS checkout path (brief §14-17, §27, §59). One atomic transaction:
-  // validate discount + stock, allocate transport, apply commercial
-  // rounding, freeze the document lines, consume inventory FIFO, post to
-  // the customer's credit ledger if applicable. All-or-nothing — brief §70.
+  // The POS checkout path (brief §14-17, §27, §59).
   async posSale(actorId: string, actorRole: Role, input: CreatePosSaleDto) {
     const productIds = [...new Set(input.items.map((i) => i.productId))];
     const products = await this.prisma.product.findMany({ where: { id: { in: productIds } } });
@@ -798,11 +731,10 @@ export class DocumentsService {
       if (!productMap.has(id)) throw new NotFoundException(`Product ${id} not found`);
     }
 
-    // --- Discount limit (brief §24 — enforced here, never trusted from the frontend) ---
-    // Fetched once for both the discount-limit and stock-override checks below.
+    // --- Discount limit (brief §24 — enforced here, never trusted from the frontend) --- Fetched
+    // once for both the discount-limit and stock-override checks below.
     const actor = actorRole !== Role.ADMIN ? await this.prisma.user.findUnique({ where: { id: actorId } }) : null;
 
-    // --- Stock check ---
     const canOverrideStock = actorRole === Role.ADMIN || !!actor?.canInvoiceWithoutStock;
     if (input.allowNegativeStock && !canOverrideStock) {
       throw new ForbiddenException('You are not authorized to invoice against stock the system does not have recorded');
@@ -818,16 +750,14 @@ export class DocumentsService {
       if (missing.length > 0) throw this.insufficientStock(missing);
     }
 
-    // --- Customer ---
-    // The till settles in full, by M-Pesa Paybill or cash. An account sale
-    // (which posts to the customer's credit ledger) is raised as a quote and
-    // converted to an invoice, so there is no credit branch here.
+    // --- Customer --- The till settles in full, by M-Pesa Paybill or cash.
     if (input.customerId) {
       const customer = await this.prisma.customer.findUnique({ where: { id: input.customerId } });
       if (!customer) throw new NotFoundException('Customer not found');
     }
 
-    // --- Per-line pricing: negotiated price -> (+transport if folded) -> commercial rounding (brief §14-17, §59) ---
+    // --- Per-line pricing: negotiated price -> (+transport if folded) -> commercial rounding
+    // (brief §14-17, §59) --
     const businessSettings = await this.settings.get();
     const roundingIncrement = input.roundingIncrement || businessSettings.roundingIncrement;
     const {
@@ -854,16 +784,12 @@ export class DocumentsService {
     this.assertDiscountWithinLimit(actorRole, actor, subtotalAtListPrice, impliedDiscountTotal);
 
     const saleShortfalls: { productId: string; name: string; shortfall: number }[] = [];
-    // Worked out before the transaction so a bad payment fails fast, before
-    // any number is drawn or stock touched.
     if (input.settleLater && input.creditApplied) {
       throw new BadRequestException('Credit can’t be used on a pay-later sale — settle it from the invoice instead');
     }
     const settled = input.settleLater
       ? null
       : settlePayments(total, input.payments, input.paymentMethod, input.changeAction, !!input.customerId, input.creditApplied);
-    // Settle-later: the customer takes the goods now and pays the same day.
-    // It is an unpaid invoice until then — stock still leaves the yard.
     const settleLater = !!input.settleLater;
     const type = settleLater ? DocumentType.INVOICE : DocumentType.RECEIPT;
     const status = settleLater ? DocumentStatus.INVOICED : DocumentStatus.PAID;
@@ -898,8 +824,7 @@ export class DocumentsService {
         },
       });
 
-      // Consume real stock, oldest cost lot first — inside this same
-      // transaction. Only the part that left the shop moves inventory.
+      // Consume real stock, oldest cost lot first — inside this same transaction.
       for (const [idx, line] of computedLines.entries()) {
         const fromShop = fulfilment[idx].stockQty ?? 0;
         if (!line.productId || fromShop <= 0) continue;
@@ -914,8 +839,6 @@ export class DocumentsService {
         await this.depositChange(tx, input.customerId, settled.changeToCredit, created.id, actorId);
       }
 
-      // A resumed hold disappears the moment its sale is committed — same
-      // transaction, so a failed checkout leaves the order still parked.
       if (input.suspendedFromId) {
         const held = await tx.document.findUnique({ where: { id: input.suspendedFromId } });
         if (held && held.status === DocumentStatus.SUSPENDED) {
@@ -961,8 +884,7 @@ export class DocumentsService {
     return doc;
   }
 
-  // Leaves a trail of what was sold but not taken from the shop, since that
-  // part is invisible to inventory.
+  // Leaves a trail of what was sold but not taken from the shop, since that part is invisible to inventory.
   private async auditExternalSupply(
     actorId: string,
     documentId: string,
@@ -982,13 +904,9 @@ export class DocumentsService {
     });
   }
 
-  // --- Suspended (parked) POS orders -------------------------------------
-  //
-  // Reuses the existing Document record rather than a parallel order table:
-  // same items, same customer, same transport figure. It is deliberately
-  // NOT given a quote number and never touches stock — it is a cart the
-  // operator put down, and it either becomes a sale (posSale deletes it) or
-  // is discarded.
+  // --- Suspended (parked) POS orders ------------------------------------- Reuses the existing
+  // Document record rather than a parallel order table: same items, same customer, same transport
+  // figure.
   async suspendOrder(
     actorId: string,
     input: {
@@ -1019,8 +937,8 @@ export class DocumentsService {
         customerId: input.customerId,
         customerName: input.customerName,
         createdById: actorId,
-        // Only the amount and whether it folds survive a suspend; the precise
-        // per-line allocation is recalculated at checkout anyway.
+        // Only the amount and whether it folds survive a suspend; the precise per-line allocation
+        // is recalculated at checkout anyway.
         transportMode: transportAmount > 0 ? (input.foldTransportIntoPrices === false ? TransportMode.ITEMIZED : TransportMode.DISTRIBUTED) : TransportMode.NONE,
         transportAmount,
         subtotal: input.items.reduce((sum, i) => sum + i.qty * i.unitPrice, 0),

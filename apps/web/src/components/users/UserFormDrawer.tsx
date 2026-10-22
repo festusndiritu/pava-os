@@ -180,7 +180,7 @@ export function UserFormDrawer({
                 </span>
               </div>
               <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>
-                Enforced server-side on every POS sale line, regardless of what the till shows.
+                Enforced on every POS sale line.
               </p>
             </div>
 
@@ -194,10 +194,10 @@ export function UserFormDrawer({
 
             <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-ink-900)' }}>
               <input type="checkbox" checked={canInvoiceWithoutStock} onChange={(e) => setCanInvoiceWithoutStock(e.target.checked)} />
-              Can invoice against stock we don't have recorded
+              Can sell beyond recorded stock
             </label>
             <p className="-mt-2.5 ml-6 text-xs" style={{ color: 'var(--color-ink-600)' }}>
-              A backorder override for POS and quote-to-invoice conversion. Every use is logged to the audit trail.
+              Override for POS and invoicing. Every use is logged.
             </p>
           </div>
         </div>

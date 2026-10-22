@@ -11,7 +11,6 @@ export interface Customer {
   notes: string | null;
   isCredit: boolean;
   creditLimit: number | null;
-  /** What they owe the shop. Negative means the shop is holding their money — credit they can spend. */
   creditBalance: number;
   active: boolean;
   createdAt: string;
@@ -46,7 +45,6 @@ function customerQuery(search: string | undefined, status: CustomerStatus, page?
 
 export const customersApi = {
   list: (search?: string, status: CustomerStatus = 'active', page?: { offset: number; limit: number }) => api.get<Customer[]>(`/customers${customerQuery(search, status, page)}`),
-  // One page plus how many customers match in all. `sort` is `field:dir`: name, phone, type or balance.
   listPage: (search: string | undefined, status: CustomerStatus, page: { offset: number; limit: number }, sort?: string) =>
     api.getPage<Customer>(`/customers${customerQuery(search, status, page, sort)}`),
   get: (id: string) => api.get<Customer>(`/customers/${id}`),
@@ -56,11 +54,9 @@ export const customersApi = {
   recordPayment: (id: string, amount: number, note?: string) => api.post(`/customers/${id}/payments`, { amount, note }),
   adjustBalance: (id: string, amount: number, type: 'ADJUSTMENT' | 'OPENING' | 'REFUND' | 'WRITE_OFF', note?: string) =>
     api.post(`/customers/${id}/adjustments`, { amount, type, note }),
-  // Soft delete — a customer's documents and ledger entries stay intact;
-  // they just drop out of the active list and stop being offered at the till.
   archive: (id: string) => api.delete<Customer>(`/customers/${id}`),
   restore: (id: string) => api.post<Customer>(`/customers/${id}/restore`),
-  // Only succeeds on an already-archived customer with no sales/ledger/
-  // lead history — the backend enforces both; this just surfaces the result.
+  // Only succeeds on an already-archived customer with no sales/ledger/ lead history — the backend
+  // enforces both; this just surfaces the result.
   hardDelete: (id: string) => api.delete<{ deleted: true }>(`/customers/${id}/permanent`),
 };

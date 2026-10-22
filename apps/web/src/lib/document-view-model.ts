@@ -2,15 +2,7 @@ import type { BusinessSettings } from './settings-api';
 import type { DocumentType, SaleDocument } from './documents-api';
 import { money } from './format';
 
-/**
- * The single function every document template — PDF or thermal, any of the
- * four types — consumes. Before this existed, "what payment label do we
- * show" and "how do we present the delivery line" were each implemented
- * twice (once in the A4 sheet, once in the thermal receipt), and had
- * already drifted apart: the A4 sheet's payment-label logic didn't handle
- * CARD/CREDIT while the thermal one did. Fixing or extending a field now
- * only has to happen here, once, for every format and every type.
- */
+/** The single function every document template — PDF or thermal, any of the four types — consumes. */
 
 export const DOCUMENT_TITLES: Record<DocumentType, string> = {
   QUOTE: 'Quotation',
@@ -19,9 +11,7 @@ export const DOCUMENT_TITLES: Record<DocumentType, string> = {
   DELIVERY_NOTE: 'Delivery Note',
 };
 
-// Unified across every format — this is the fix for the CARD/CREDIT drift
-// noted above. CREDIT reads as "On account" rather than a payment method
-// name, since it isn't one.
+// Unified across every format — this is the fix for the CARD/CREDIT drift noted above.
 const PAYMENT_LABEL: Record<string, string> = {
   MPESA: 'M-Pesa Paybill',
   CASH: 'Cash',
@@ -46,7 +36,6 @@ export interface DocumentViewModelItem {
   description: string;
   qty: number;
   unitSymbol: string;
-  /** Omitted from a delivery note's own shape — see `showPrices` below. */
   unitPrice: number;
   lineTotal: number;
 }
@@ -63,7 +52,6 @@ export interface DocumentViewModel {
   letterhead: DocumentViewModelLetterhead;
 
   customerName: string;
-  /** Billing address for most types; the delivery/site address for a note. */
   customerAddress: string | null;
   customerPhone: string | null;
 
@@ -75,16 +63,12 @@ export interface DocumentViewModel {
 
   subtotal: number;
   transportAmount: number;
-  /** Transport shown as its own line item (ITEMIZED with an amount > 0). */
   showTransportLine: boolean;
-  /** Transport folded into item prices, noted rather than broken out. */
   showTransportIncludedNote: boolean;
   total: number;
 
   paymentMethod: string | null;
-  /** "Cash" / "M-Pesa Paybill", or for a split sale each part with its amount. */
   paymentLabel: string | null;
-  /** What happened to change: handed back, or kept as the customer's credit. */
   changeNote: string | null;
   /** INVOICED and not yet paid — "Unpaid" badge, "payable on collection" note. */
   isUnpaid: boolean;
@@ -92,13 +76,6 @@ export interface DocumentViewModel {
   notes: string | null;
 }
 
-/**
- * Normalized shape the core builder operates on. `buildDocumentViewModel`
- * (a `SaleDocument`, from the Documents list / drawer) and
- * `buildPosReceiptViewModel` (a `PosSaleResult`, printed straight off the
- * till before any `SaleDocument` fetch) each map their own record into
- * this shape — the shaping logic itself lives in exactly one place.
- */
 export interface DocumentViewModelSource {
   type: DocumentType;
   status: string;
@@ -152,9 +129,7 @@ function buildFromSource(source: DocumentViewModelSource, settings: BusinessSett
       phone: settings?.phone ?? null,
       email: settings?.email ?? null,
       paymentDetails: settings?.paymentDetails ?? null,
-      footerText:
-        settings?.documentFooter?.trim() ||
-        (isDeliveryNote ? 'Goods received in good order unless noted above.' : 'Thank you for your business.'),
+      footerText: isDeliveryNote ? '' : settings?.documentFooter?.trim() || 'Thank you for your business.',
     },
 
     customerName: source.customerName,
@@ -194,10 +169,9 @@ function resolveSourceReference(doc: SaleDocument): string | null {
 export function buildDocumentViewModel(doc: SaleDocument, settings: BusinessSettings | null): DocumentViewModel {
   const isDeliveryNote = doc.type === 'DELIVERY_NOTE';
   const customerName = doc.customer?.businessName || doc.customer?.name || doc.customerName || 'Walk-in customer';
-  // A delivery note prefers the location/phone captured at creation time —
-  // the dispatch site and its contact aren't always the customer's own
-  // billing address and number (a site foreman, a gate guard) — falling
-  // back to the customer's stored details only when none was given.
+  // A delivery note prefers the location/phone captured at creation time — the dispatch site and
+  // its contact aren't always the customer's own billing address and number (a site foreman, a gate
+  // guard) — falling back to the customer's stored details only when none was given.
   const customerAddress = isDeliveryNote
     ? doc.deliveryLocation || doc.customer?.address || doc.customer?.location || null
     : doc.customer?.address || doc.customer?.location || null;
@@ -236,14 +210,44 @@ export function buildDocumentViewModel(doc: SaleDocument, settings: BusinessSett
   );
 }
 
-/**
- * The till-side counterpart: a `PosSaleResult` comes back the instant a sale
- * completes, before there's any reason to re-fetch it as a full
- * `SaleDocument` — this is what the thermal receipt prints from at that
- * moment. Never a delivery note (a delivery note is always created from an
- * already-fetched `SaleDocument`, via `buildDocumentViewModel` above), so
- * this only ever needs to handle RECEIPT or an unpaid INVOICE.
- */
+/** A delivery note is never stored: it is built from the invoice or quote when needed. */
+export function buildDeliveryNoteViewModel(
+  doc: SaleDocument,
+  settings: BusinessSettings | null,
+  site: { location?: string; phone?: string } = {},
+): DocumentViewModel {
+  const number = resolveNumber(doc);
+  return buildFromSource(
+    {
+      type: 'DELIVERY_NOTE',
+      status: doc.status,
+      number,
+      createdAt: new Date().toISOString(),
+      customerName: doc.customer?.businessName || doc.customer?.name || doc.customerName || 'Walk-in customer',
+      customerAddress: site.location?.trim() || null,
+      customerPhone: site.phone?.trim() || null,
+      issuedByName: null,
+      sourceReference: number,
+      items: doc.items.map((item) => ({
+        id: item.id,
+        description: item.description,
+        qty: item.qty,
+        unitSymbol: item.product?.unit?.symbol ?? '',
+        unitPrice: 0,
+        lineTotal: 0,
+      })),
+      subtotal: 0,
+      transportAmount: 0,
+      transportMode: doc.transportMode,
+      total: 0,
+      paymentMethod: null,
+      notes: null,
+    },
+    settings,
+  );
+}
+
+/** The till-side counterpart: a `PosSaleResult` comes back the instant a sale completes, before there's any reason to re-fetch it as a full `SaleDocument` — this is what the thermal receipt prints from at that moment. */
 export function buildPosReceiptViewModel(sale: PosSaleResultLike, settings: BusinessSettings | null): DocumentViewModel {
   return buildFromSource(
     {

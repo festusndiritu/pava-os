@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 
-/** True while the viewport matches the query. False on the server and the first paint, then corrected. */
 export function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(false);
   useEffect(() => {

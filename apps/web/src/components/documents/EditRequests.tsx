@@ -22,18 +22,12 @@ interface DraftLine {
   unitPrice: string;
 }
 
-// An existing line's price before transport was folded into it. Re-sending the
-// folded price together with the transport amount would charge transport twice.
+// An existing line's price before transport was folded into it.
 function negotiatedUnit(doc: SaleDocument, item: SaleDocument['items'][number]) {
   if (doc.transportMode !== 'DISTRIBUTED') return item.unitPrice;
   return Math.round((item.lineTotal - item.transportAllocated - item.roundingAdjustment) / item.qty);
 }
 
-/**
- * Staff propose a correction to an issued invoice or receipt: change what was
- * sold, at what quantity and price, and the transport. Nothing on the
- * document changes until an admin approves it.
- */
 export function EditRequestDialog({ doc, onClose, onSent }: { doc: SaleDocument; onClose: () => void; onSent: () => void }) {
   const [lines, setLines] = useState<DraftLine[]>(() =>
     doc.items.map((i) => ({
@@ -90,7 +84,7 @@ export function EditRequestDialog({ doc, onClose, onSent }: { doc: SaleDocument;
         Request an edit
       </h2>
       <p className="mt-1 text-sm" style={muted}>
-        Nothing changes until an admin approves. Change quantities and prices, remove or add items, or fix the transport.
+        Change quantities, items, add/remove items or fix transport.
       </p>
 
       <div className="mt-4 flex max-h-[45vh] flex-col gap-2 overflow-y-auto">
@@ -164,7 +158,6 @@ const STATUS_STYLE = {
   REJECTED: { label: 'Rejected', fg: 'var(--color-status-bad)' },
 } as const;
 
-/** One edit request: what changes, and — for an admin on a pending one — Approve / Reject. */
 export function EditRequestCard({
   request,
   isAdmin,
@@ -174,7 +167,6 @@ export function EditRequestCard({
 }: {
   request: EditRequest;
   isAdmin: boolean;
-  /** The sale is already paid, so a change in total has to be settled in cash, M-Pesa or credit. */
   paid: boolean;
   showDocument?: boolean;
   onDecided: () => void;
@@ -288,7 +280,6 @@ export function EditRequestCard({
   );
 }
 
-/** Every edit waiting for an admin, across all documents. */
 export function EditRequestsDialog({ onClose, onChanged }: { onClose: () => void; onChanged: () => void }) {
   const [requests, setRequests] = useState<EditRequest[] | null>(null);
 

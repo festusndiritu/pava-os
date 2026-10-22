@@ -1,20 +1,9 @@
 import { THERMAL_WIDTH_MM } from './thermal-config';
 
 /**
- * Browser (driver) path: print the thermal receipt as ONE page exactly as
- * tall as the receipt.
- *
- * Why this is shaped the way it is:
- *  - Chromium does not honour `size: 72mm auto` for print; an `auto` height
- *    falls back to whatever page the driver is set to (72x210, 72x297 ...),
- *    the receipt is split across pages and the cutter fires at every break.
- *  - A fixed huge "user defined" page (2000/9999mm) is the opposite failure:
- *    the driver rasterises the whole page and feeds out blank paper (the
- *    stray dots) and can stall mid-print while it streams the bitmap.
- *  - So: measure the real height, hand the browser a page of exactly that
- *    size, and make sure NOTHING else in the stylesheets declares a page size
- *    for this element (a named `@page thermal { size: ... auto }` rule used
- *    to override the page injected here, which is what broke printing).
+ * Browser (driver) path: print the receipt as ONE page exactly as tall as the receipt.
+ * Chromium ignores `size: 72mm auto`, and a huge fixed page makes the driver feed blank
+ * paper, so the real height is measured and passed to @page. Nothing else may set a page size.
  */
 const STYLE_ID = 'thermal-page-size';
 const PX_PER_MM = 96 / 25.4;
@@ -29,8 +18,8 @@ export async function printThermal(): Promise<void> {
     return;
   }
 
-  // Measuring before the monospace font loads gives a shorter height than
-  // the printed one, which would spill the last lines onto a second page.
+  // Measuring before the monospace font loads gives a shorter height than the printed one, which
+  // would spill the last lines onto a second page.
   try {
     await document.fonts?.ready;
   } catch {

@@ -14,12 +14,7 @@ function fmtDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(iso));
 }
 
-/**
- * Partial returns against a completed sale. The original sale is never
- * edited: quantities are checked against what is still returnable (sold minus
- * anything given back on an earlier return), and the backend writes a
- * separate return record, restores stock and handles the refund.
- */
+/** Partial returns against a completed sale. */
 export function ReturnDialog({ onClose, onCompleted }: { onClose: () => void; onCompleted: (result: SaleReturn) => void }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SaleDocument[] | null>(null);
@@ -30,8 +25,7 @@ export function ReturnDialog({ onClose, onCompleted }: { onClose: () => void; on
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<SaleReturn | null>(null);
 
-  // Most returns are for something bought today, so the recent sales are
-  // listed before anything is typed.
+  // Most returns are for something bought today, so the recent sales are listed before anything is typed.
   useEffect(() => {
     const t = setTimeout(async () => {
       try {
@@ -74,8 +68,8 @@ export function ReturnDialog({ onClose, onCompleted }: { onClose: () => void; on
   const selected = sale ? sale.items.filter((i) => (quantities[i.documentItemId] || 0) > 0) : [];
   const refundTotal = selected.reduce((sum, i) => sum + (quantities[i.documentItemId] || 0) * i.unitPrice, 0);
   const onAccount = sale?.paymentMethod === 'CREDIT';
-  // A sale with a customer on it can be refunded onto their credit; one that
-  // was paid out of their credit can only go back there.
+  // A sale with a customer on it can be refunded onto their credit; one that was paid out of their
+  // credit can only go back there.
   const creditOnly = sale?.paymentMethod === 'STORE_CREDIT';
   const canCredit = !!sale?.customerId;
 
@@ -125,7 +119,7 @@ export function ReturnDialog({ onClose, onCompleted }: { onClose: () => void; on
                 {money(done.total)} returned
               </p>
               <p className="mt-1 text-sm" style={{ color: 'var(--color-ink-600)' }}>
-                Stock has been put back and the original sale is unchanged.
+                Stock restored.
               </p>
             </div>
           )}
@@ -312,7 +306,7 @@ export function ReturnDialog({ onClose, onCompleted }: { onClose: () => void; on
             </div>
           ) : (
             <p className="text-center text-xs" style={{ color: 'var(--color-ink-600)' }}>
-              Pick the sale the items were bought on.
+              Pick the original sale.
             </p>
           )}
         </div>

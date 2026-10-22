@@ -9,15 +9,7 @@ import { toast } from './Toast';
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
 const fieldClass = 'w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]';
 
-/**
- * A select with an inline "add a new one" affordance (brand, category).
- *
- * Enter adds the new entry — it does not submit the surrounding form — and
- * Escape backs out without closing the drawer. Typing a name that already
- * exists just selects the existing one; a failed create shows its reason
- * as a toast instead of failing silently; a newly created entry
- * is selected straight away.
- */
+/** A select with an inline "add a new one" affordance (brand, category). */
 export function InlineAddSelect({
   label,
   noun,

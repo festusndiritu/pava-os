@@ -160,7 +160,6 @@ export class UsersService {
     }
     const pinHash = await bcrypt.hash(newPin, PIN_HASH_ROUNDS);
     await this.prisma.user.update({ where: { id }, data: { pinHash } });
-    // Reset PIN also invalidates existing sessions for that user
     await this.prisma.session.updateMany({
       where: { userId: id, revokedAt: null },
       data: { revokedAt: new Date() },

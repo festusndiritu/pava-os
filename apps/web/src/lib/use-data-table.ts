@@ -10,7 +10,6 @@ export interface SortState {
 }
 
 export interface PaginationState {
-  /** 1-based. */
   page: number;
   pageSize: number;
   total: number;
@@ -26,14 +25,6 @@ const sameDeps = (a: unknown[], b: unknown[]) => a.length === b.length && a.ever
 
 const errorMessage = (err: unknown) => (err instanceof ApiError ? err.message : 'Could not load this list. Check your connection and try again.');
 
-// ---------------------------------------------------------------------------
-// Pure helpers (also what the tests exercise)
-
-/**
- * Sorts a copy of `rows` by whatever `get` reads from each. Numbers compare as
- * numbers, text as text with "10" after "9", and blanks always go last
- * whichever way the column is sorted. Equal rows keep their original order.
- */
 export function sortRows<T>(rows: T[], get: (row: T) => string | number | null | undefined, dir: SortDir): T[] {
   const blank = (v: unknown) => v === null || v === undefined || v === '';
   return rows
@@ -54,7 +45,6 @@ export function sortRows<T>(rows: T[], get: (row: T) => string | number | null |
     .map((w) => w.row);
 }
 
-/** The page buttons to show: first, last, and a few around the current page, with gaps marked. */
 export function pageWindow(page: number, pageCount: number): (number | 'gap')[] {
   if (pageCount <= 7) return Array.from({ length: pageCount }, (_, i) => i + 1);
   const keep = new Set<number>([1, pageCount, page - 1, page, page + 1]);
@@ -69,29 +59,14 @@ export function pageWindow(page: number, pageCount: number): (number | 'gap')[] 
   return out;
 }
 
-// ---------------------------------------------------------------------------
-// Server-side tables: the API sorts and pages, the hook keeps track of where we are
-
 export interface ServerQuery {
   offset: number;
   limit: number;
-  /** `field:dir`, ready for the `sort` query parameter. */
   sort: string;
-  /** True until the person clicks a column header. Lets a search keep its relevance order. */
   sortIsDefault: boolean;
 }
 
-/**
- * One page of a list that lives on the server.
- *
- *  - changing `deps` (search text, tab, filter) goes back to page one and the default sort
- *  - clicking a header sorts on the server and goes back to page one
- *  - the rows already on screen stay (dimmed, `loading`) while the next page arrives,
- *    so the table doesn't flash empty between pages
- *  - a slow response for an old query can't overwrite a newer one
- *  - if the last row of the last page goes away, it steps back a page instead of showing "empty"
- *  - `reload()` refreshes the page on screen after an edit without moving
- */
+/** One page of a list that lives on the server. */
 export function useServerTable<T>(opts: {
   fetcher: (q: ServerQuery) => Promise<{ items: T[]; total: number }>;
   deps: unknown[];
@@ -108,8 +83,8 @@ export function useServerTable<T>(opts: {
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
 
-  // Adjusting state while rendering (React's documented pattern) so a filter
-  // change and the reset to page one land in a single fetch, not two.
+  // Adjusting state while rendering (React's documented pattern) so a filter change and the reset
+  // to page one land in a single fetch, not two.
   const [prevDeps, setPrevDeps] = useState(deps);
   if (!sameDeps(prevDeps, deps)) {
     setPrevDeps(deps);
@@ -125,9 +100,7 @@ export function useServerTable<T>(opts: {
   fetcherRef.current = opts.fetcher;
   const seq = useRef(0);
 
-  // Everything that changes what the server should return. A string, so the
-  // effect re-runs exactly when the query changes (the filters in `deps` are
-  // plain values: search text, tab, ids).
+  // Everything that changes what the server should return.
   const runKey = JSON.stringify([...deps.map((d) => (d === undefined ? null : d)), page, pageSize, sortKey, sortIsDefault, tick]);
 
   useEffect(() => {
@@ -179,20 +152,14 @@ export function useServerTable<T>(opts: {
     sortIsDefault,
     onSortChange,
     pagination,
-    /** Spread onto <DataTable>. */
     tableProps: { rows, loading, error, onRetry: reload, sort, onSortChange, pagination },
   };
 }
 
-// ---------------------------------------------------------------------------
-// Client-side tables: everything is already loaded, the hook sorts and pages it
-
 export function useClientTable<T>(opts: {
   rows: T[] | null;
-  /** How to read each sortable column's value from a row, by column id. */
   sortValues: Record<string, (row: T) => string | number | null | undefined>;
   defaultSort: SortState;
-  /** Changing any of these goes back to page one and the default sort. */
   deps?: unknown[];
   pageSize?: number;
   error?: string | null;
@@ -240,9 +207,7 @@ export function useClientTable<T>(opts: {
   const pagination: PaginationState = { page: current, pageSize, total, onPageChange: setPage, onPageSizeChange, pageSizeOptions: PAGE_SIZES };
 
   return {
-    /** The rows on the current page. */
     rows: pageRows,
-    /** Every row after sorting, ignoring paging (for exports). */
     sortedRows: sorted,
     sort,
     onSortChange,
@@ -251,12 +216,8 @@ export function useClientTable<T>(opts: {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Row selection
-
 export interface RowSelection<T> {
   count: number;
-  /** The selected rows themselves, across every page visited. */
   items: T[];
   has: (key: string) => boolean;
   toggle: (row: T) => void;
@@ -265,12 +226,7 @@ export interface RowSelection<T> {
   clear: () => void;
 }
 
-/**
- * Which rows are ticked. Whole rows are kept (not just ids) so a bulk action
- * still has them after the person pages on. Changing `resetDeps` (a new
- * search, filter or tab) clears it: a selection should never silently include
- * rows that are no longer on screen under the current filters.
- */
+/** Which rows are ticked. */
 export function useRowSelection<T>(rowKey: (row: T) => string, resetDeps: unknown[] = []): RowSelection<T> {
   const [map, setMap] = useState<Map<string, T>>(() => new Map());
   const keyRef = useRef(rowKey);

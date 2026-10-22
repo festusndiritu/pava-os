@@ -3,7 +3,6 @@ import { api } from './api';
 export interface Brand {
   id: string;
   name: string;
-  // Present on the list/create/rename responses; how many products use it.
   _count?: { products: number };
 }
 export interface Category {
@@ -15,7 +14,6 @@ export interface SubUnit {
   id: string;
   unitId: string;
   name: string;
-  // How much of the base measure one of these is — "50kg bag" under Bag is 50.
   factor: number;
 }
 export interface Unit {
@@ -123,7 +121,6 @@ export interface InventorySummary {
 export interface ReceiptListParams {
   search?: string;
   kind?: ReceiptKind;
-  /** `field:dir`, where field is date, supplier or reference. */
   sort?: string;
   limit?: number;
   offset?: number;
@@ -148,7 +145,6 @@ export interface ReceiveLineResult {
 }
 
 export type CatalogueStatus = 'active' | 'archived' | 'all';
-// restock = at or below the low-stock threshold (low and out together).
 export type StockFilter = 'in' | 'low' | 'out' | 'restock';
 
 export interface ProductListParams {
@@ -157,7 +153,6 @@ export interface ProductListParams {
   categoryId?: string;
   status?: CatalogueStatus;
   stock?: StockFilter;
-  /** `field:dir`, where field is name, price, stock, cost, created, category or brand. */
   sort?: string;
   limit?: number;
   offset?: number;
@@ -178,17 +173,14 @@ function productQuery(params: ProductListParams) {
 
 export const productsApi = {
   list: (params: ProductListParams = {}) => api.get<Product[]>(`/products${productQuery(params)}`),
-  // One page plus how many products match in all.
   listPage: (params: ProductListParams = {}) => api.getPage<Product>(`/products${productQuery(params)}`),
   get: (id: string) => api.get<Product>(`/products/${id}`),
   create: (data: Partial<Omit<Product, 'aliases'>> & { aliases?: string[] }) => api.post<Product>('/products', data),
   update: (id: string, data: Partial<Omit<Product, 'aliases'>> & { aliases?: string[] }) => api.patch<Product>(`/products/${id}`, data),
-  // Soft delete — the product's past documents and price history stay
-  // intact; it just drops out of the active catalogue and the POS search.
   archive: (id: string) => api.delete<Product>(`/products/${id}`),
   restore: (id: string) => api.post<Product>(`/products/${id}/restore`),
-  // Only succeeds on an already-archived product with no sales/stock/price
-  // history — the backend enforces both; this just surfaces the result.
+  // Only succeeds on an already-archived product with no sales/stock/price history — the backend
+  // enforces both; this just surfaces the result.
   hardDelete: (id: string) => api.delete<{ deleted: true }>(`/products/${id}/permanent`),
   priceHistory: (id: string) => api.get<ProductPriceHistoryEntry[]>(`/products/${id}/price-history`),
   brands: () => api.get<Brand[]>('/brands'),
@@ -222,7 +214,6 @@ export const inventoryApi = {
     api.post<{ receipt: InventoryReceipt; lines: ReceiveLineResult[] }>('/inventory/receipts', data),
   adjust: (data: { productId: string; quantity: number; type: AdjustType; note?: string; allowNegative?: boolean; unitCost?: number }) =>
     api.post<{ id: string }>('/inventory/adjustments', data),
-  // Seeds stock a product already has when it is first entered, with a real cost lot behind it.
   openingBalance: (data: { productId: string; quantity: number; unitCost: number }) => api.post<{ id: string }>('/inventory/opening-balance', data),
   batches: (productId: string) => api.get<InventoryBatch[]>(`/inventory/batches?productId=${productId}`),
   movements: (productId: string) => api.get<InventoryMovement[]>(`/inventory/movements?productId=${productId}`),

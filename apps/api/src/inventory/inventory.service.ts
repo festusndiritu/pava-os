@@ -6,9 +6,8 @@ import { roundMoney } from '../common/money.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { nullsLast, parseSort, type SortDir } from '../common/paging.js';
 
-// Simple markup-preserving suggestion for the "update selling price?" prompt
-// on receiving (brief §23) — not a general rounding/pricing engine (that's
-// its own Settings-driven phase later). Round up to the nearest 5.
+// Simple markup-preserving suggestion for the "update selling price?" prompt on receiving (brief
+// §23) — not a general rounding/pricing engine (that's its own Settings-driven phase later).
 function suggestPrice(currentBasePrice: number, previousCost: number | null, newCost: number): number {
   const marginRatio = previousCost && previousCost > 0 ? currentBasePrice / previousCost : 1.12; // ~12% fallback markup
   const raw = newCost * marginRatio;
@@ -21,9 +20,7 @@ interface ReceiveLine {
   unitCost: number;
 }
 
-// Receipts that exist only to give a stock change a cost lot. They are real
-// rows (FIFO needs a batch to hang off) but not supplier deliveries, so the
-// receipts log can tell them apart from goods actually received.
+// Receipts that exist only to give a stock change a cost lot.
 const OPENING_SUPPLIER = 'Opening Balance';
 const ADJUSTMENT_SUPPLIER = 'Stock adjustment';
 const RETURN_SUPPLIER = 'Customer return';
@@ -33,14 +30,13 @@ type AdjustType = 'ADJUSTMENT' | 'CORRECTION' | 'RETURN' | 'DAMAGE' | 'LOSS';
 
 interface AdjustInput {
   productId: string;
-  quantity: number; // signed
+  quantity: number;
   type: AdjustType;
   note?: string;
   allowNegative?: boolean;
-  unitCost?: number; // per-unit cost of added stock; ignored when reducing
+  unitCost?: number;
 }
 
-// What a table header can sort receipts by (`field:dir`, see parseSort). Newest first stays the default.
 const RECEIPT_SORT_FIELDS: Record<string, (dir: SortDir) => object> = {
   date: (d) => ({ receivedAt: d }),
   supplier: (d) => ({ supplier: d }),
@@ -134,16 +130,7 @@ export class InventoryService {
     return result;
   }
 
-  // Draws down real cost lots oldest-first (brief §20). Used for anything
-  // that represents real stock actually leaving at cost: sales (once POS
-  // wires this in), damage, loss. Throws on insufficient stock unless the
-  // caller explicitly authorizes going negative.
-  //
-  // Accepts an optional `client` (a Prisma transaction client) so callers
-  // like DocumentsService.posSale can run this INSIDE their own
-  // transaction — finalizing a sale must be one atomic operation (brief
-  // §70: validate stock, freeze document lines, consume inventory, all or
-  // nothing), not two separate commits that could leave things half-done.
+  // Draws down real cost lots oldest-first (brief §20).
   async consumeFifo(
     productId: string,
     quantity: number,
@@ -197,19 +184,18 @@ export class InventoryService {
             `Insufficient stock: short by ${remaining} unit(s). Use an authorized adjustment to proceed anyway.`,
           );
         }
-        // Authorized shortfall: record what could not be fulfilled from
-        // stock as its own movement (for the audit trail and for whoever
-        // fulfils the backorder later), but recorded stock is never pushed
-        // below zero for it — only the part actually taken off the shelf
-        // above is deducted from the product's stockQuantity below.
+        // Authorized shortfall: record what could not be fulfilled from stock as its own movement
+        // (for the audit trail and for whoever fulfils the backorder later), but recorded stock is
+        // never pushed below zero for it — only the part actually taken off the shelf above is
+        // deducted from the product's stockQuantity below.
         await tx.inventoryMovement.create({
           data: { productId, type: type as MovementType, quantity: -remaining, createdById, note: note ?? 'Backorder — sold beyond recorded stock' },
         });
       }
 
-      // Only what was actually consumed from batches comes off stockQuantity
-      // — never the full requested amount — so stock floors at zero instead
-      // of reading negative when a sale outruns what's on the shelf.
+      // Only what was actually consumed from batches comes off stockQuantity — never the full
+      // requested amount — so stock floors at zero instead of reading negative when a sale outruns
+      // what's on the shelf.
       const consumedQuantity = quantity - remaining;
       await tx.product.update({
         where: { id: productId },
@@ -227,18 +213,7 @@ export class InventoryService {
     return client ? run(client) : this.prisma.$transaction(run);
   }
 
-  // Puts stock back on the shelf. Used by the returns flow, which has to run
-  // inside the same transaction as the Return record it belongs to, so this
-  // takes an optional Prisma transaction client exactly like consumeFifo.
-  //
-  // This used to just bump stockQuantity with no batch behind it — which
-  // looked right everywhere the number is displayed, but left the returned
-  // units permanently unsellable, since a sale can only ever draw from a
-  // real InventoryBatch. It now opens one, the same lightweight way a
-  // manual stock addition does (see adjust() below), costed at the
-  // product's last known cost. That isn't necessarily the exact lot the
-  // returned unit first left on, but it's a real, current figure rather
-  // than a fictional one, and it's what keeps the item sellable.
+  // Puts stock back on the shelf.
   async restock(
     productId: string,
     quantity: number,
@@ -282,13 +257,7 @@ export class InventoryService {
     if (!product) throw new NotFoundException('Product not found');
 
     if (input.quantity > 0) {
-      // Adding stock outside a formal goods-received flow (a stocktake
-      // correction, a manually-logged return). FIFO can only ever sell from
-      // a real InventoryBatch, so this opens one the same way restock() and
-      // openingBalance() do. The caller can say what the units cost; without
-      // that it falls back to the last known cost, and a product that has
-      // never had one gets a zero-cost lot (which valuation and margins then
-      // treat as "no cost on record").
+      // Adding stock outside a formal goods-received flow (a stocktake correction, a manually-logged return).
       const cost = input.unitCost || product.lastCost || 0;
       const movement = await this.prisma.$transaction(async (tx) => {
         const receipt = await tx.inventoryReceipt.create({
@@ -304,7 +273,6 @@ export class InventoryService {
           where: { id: input.productId },
           data: {
             stockQuantity: { increment: input.quantity },
-            // First real cost for a product that had none becomes its last cost.
             ...(input.unitCost && input.unitCost > 0 && !product.lastCost ? { lastCost: input.unitCost } : {}),
           },
         });
@@ -321,16 +289,13 @@ export class InventoryService {
       return movement;
     }
 
-    // Reducing stock — draw down real batches oldest-first, exactly like a
-    // sale, so batches and the product's stockQuantity never drift apart.
-    // Same floor-at-zero rule as a sale: an authorized shortfall never
-    // pushes recorded stock below zero, it just can't remove more than is
-    // really there.
+    // Reducing stock — draw down real batches oldest-first, exactly like a sale, so batches and the
+    // product's stockQuantity never drift apart.
     const decrease = Math.abs(input.quantity);
     const resultingStock = product.stockQuantity - decrease;
     if (resultingStock < 0 && !input.allowNegative) {
-      // Same shape as documents' INSUFFICIENT_STOCK refusal — one dialog
-      // component on the frontend renders both instead of parsing text.
+      // Same shape as documents' INSUFFICIENT_STOCK refusal — one dialog component on the frontend
+      // renders both instead of parsing text.
       throw new BadRequestException({
         statusCode: 400,
         code: 'NEGATIVE_STOCK',
@@ -361,10 +326,9 @@ export class InventoryService {
     return { ok: true, shortfall };
   }
 
-  // Seeds a starting stock position for a product that already has physical
-  // stock when it's first entered into the system — modeled as a receipt
-  // from a synthetic "Opening Balance" supplier so FIFO has a real cost lot
-  // to consume from, rather than a bare quantity with no cost basis.
+  // Seeds a starting stock position for a product that already has physical stock when it's first
+  // entered into the system — modeled as a receipt from a synthetic "Opening Balance" supplier so
+  // FIFO has a real cost lot to consume from, rather than a bare quantity with no cost basis.
   async openingBalance(productId: string, quantity: number, unitCost: number, createdById: string) {
     return this.prisma.$transaction(async (tx) => {
       const receipt = await tx.inventoryReceipt.create({
@@ -384,10 +348,8 @@ export class InventoryService {
     });
   }
 
-  // Cost visibility is a permission axis separate from module access (a
-  // user can have INVENTORY access — receive/adjust stock — without seeing
-  // what any of it cost). Batch/movement unitCost is stripped here rather
-  // than at the controller so every caller gets the same guarantee.
+  // Cost visibility is a permission axis separate from module access (a user can have INVENTORY
+  // access — receive/adjust stock — without seeing what any of it cost).
   private redactBatchCost<T extends { unitCost: number }>(batch: T, canViewCost: boolean) {
     if (canViewCost) return batch;
     return { ...batch, unitCost: undefined as unknown as number };
@@ -404,7 +366,6 @@ export class InventoryService {
     return (await this.receiptsPage(canViewCost, params)).rows;
   }
 
-  // One page of receipts plus how many match in all.
   async receiptsPage(
     canViewCost: boolean,
     params: { search?: string; kind?: 'delivery' | 'other'; sort?: string; limit?: number; offset?: number } = {},
@@ -453,13 +414,7 @@ export class InventoryService {
     };
   }
 
-  // The numbers behind the Inventory header: how healthy stock is, and what it
-  // is worth. Value at cost walks the live FIFO lots; a lot costed at zero (stock
-  // added by an adjustment on a product that never had a cost) falls back to the
-  // product's last cost, and stock with no lot at all is valued the same way.
-  // Anything still without a cost is counted separately rather than silently
-  // reading as free. Uses the global low-stock threshold, same as the stock
-  // filters; per-family thresholds are not applied here.
+  // The numbers behind the Inventory header: how healthy stock is, and what it is worth.
   async summary(canViewCost: boolean) {
     const { lowStockThreshold } = await this.settings.get();
     const [products, batches] = await Promise.all([

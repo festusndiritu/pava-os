@@ -7,17 +7,7 @@ import { ApiError } from './api';
 import type { RowAction } from '../components/ui/ActionMenu';
 import { toast } from '../components/ui/Toast';
 
-/**
- * The same action set on every document table, so a row behaves identically
- * whether it is listed under Quotes or under Invoices. Anything that needs a
- * decision (which way an invoice was settled, whether to sell short stock)
- * still happens in the detail drawer or its own dialog; these are only the
- * one-tap moves.
- *
- * Returns a function that lists the actions for one document. A move that
- * calls the server is disabled for that document while it runs, and says what
- * happened when it finishes, because the menu it was started from has closed.
- */
+/** The same action set on every document table, so a row behaves identically whether it is listed under Quotes or under Invoices. */
 export function useDocumentActions({
   onOpen,
   onEdit,
@@ -57,15 +47,9 @@ export function useDocumentActions({
         label: 'Convert to invoice',
         icon: FileCheck2,
         disabled: busy,
-        // Where the goods come from (the shop, a supplier, or both) is a
-        // decision per line, so this hands off to the detail drawer.
         onClick: () => onOpen(doc.id),
       },
-      // Capturing the delivery location is a small judgement call (site vs.
-      // the customer's stored address), so this hands off to the detail
-      // drawer's dialog rather than firing straight from the row.
-      canDeliveryNote && { label: 'Create delivery note', icon: Truck, disabled: busy, onClick: () => onOpen(doc.id) },
-      // Deleting needs a deliberate second tap, which the detail drawer provides.
+      canDeliveryNote && { label: 'Delivery note', icon: Truck, disabled: busy, onClick: () => onOpen(doc.id) },
       canDelete && { label: 'Delete quote…', icon: Trash2, tone: 'danger', disabled: busy, separatorBefore: true, onClick: () => onOpen(doc.id) },
       canCancel && { label: 'Cancel', icon: Ban, tone: 'danger', disabled: busy, separatorBefore: true, onClick: () => run(doc, () => documentsApi.cancel(doc.id), 'Document cancelled') },
     ];

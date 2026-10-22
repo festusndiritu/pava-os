@@ -27,9 +27,8 @@ function apply(resolved: ResolvedTheme) {
   document.documentElement.setAttribute('data-theme', resolved);
 }
 
-// This inline script runs before React hydrates (see layout.tsx) so the
-// correct theme is painted on the very first frame — without it there's a
-// flash of the wrong theme every hard navigation.
+// This inline script runs before React hydrates (see layout.tsx) so the correct theme is painted on
+// the very first frame — without it there's a flash of the wrong theme every hard navigation.
 export const THEME_BOOT_SCRIPT = `
 (function() {
   try {

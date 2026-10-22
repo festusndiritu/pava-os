@@ -18,17 +18,16 @@ function fmtDate(iso: string) {
 }
 
 const STATUS_BADGE: Record<string, { label: string; bg: string; fg: string }> = {
-  DRAFT: { label: 'Delivery note', bg: 'var(--color-bg)', fg: 'var(--color-ink-600)' },
   INVOICED: { label: 'Invoiced', bg: 'var(--color-status-warnSoft)', fg: 'var(--color-status-warn)' },
   PAID: { label: 'Paid', bg: 'var(--color-status-okSoft)', fg: 'var(--color-status-ok)' },
   CANCELLED: { label: 'Cancelled', bg: 'var(--color-status-badSoft)', fg: 'var(--color-status-bad)' },
 };
 
 const customerOf = (d: SaleDocument) => d.customer?.businessName || d.customer?.name || d.customerName || 'Walk-in';
-const numberOf = (d: SaleDocument) => d.deliveryNoteNumber ?? d.receiptNumber ?? d.invoiceNumber ?? null;
+const numberOf = (d: SaleDocument) => d.receiptNumber ?? d.invoiceNumber ?? null;
 
 function StatusPill({ doc }: { doc: SaleDocument }) {
-  const badge = STATUS_BADGE[doc.status] ?? STATUS_BADGE.DRAFT;
+  const badge = STATUS_BADGE[doc.status] ?? STATUS_BADGE.INVOICED;
   return (
     <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: badge.bg, color: badge.fg }}>
       {badge.label}
@@ -36,74 +35,42 @@ function StatusPill({ doc }: { doc: SaleDocument }) {
   );
 }
 
-type Tab = 'invoices' | 'delivery-notes';
-
 export default function InvoicesPage() {
-  const [tab, setTab] = useState<Tab>('invoices');
   const [detailId, setDetailId] = useState<string | null>(null);
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
   const [queueOpen, setQueueOpen] = useState(false);
   const [pendingEdits, setPendingEdits] = useState(0);
-  // Admins see how many corrections are waiting on them.
   const countPending = () => {
     if (!isAdmin) return;
     documentsApi.listEditRequests('PENDING').then((r) => setPendingEdits(r.length)).catch(() => {});
   };
   useEffect(countPending, [isAdmin]);
 
-  // Lets global search (Ctrl/Cmd+K) land straight on a document's detail
-  // drawer via `/invoices?open=<id>` — it fetches by id itself, independent
-  // of which tab/list is currently loaded.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const id = params.get('open');
     if (id) setDetailId(id);
-    // A notification about an edit waiting for approval lands on its queue.
     if (params.get('approvals') && isAdmin) setQueueOpen(true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Newest first, a page at a time — the server orders and pages one combined
-  // list rather than the browser merging two full ones.
-  const filters: DocumentListParams = tab === 'delivery-notes' ? { type: 'DELIVERY_NOTE' } : { status: ['INVOICED', 'PAID'] };
+  const filters: DocumentListParams = { status: ['INVOICED', 'PAID'] };
   const table = useServerTable<SaleDocument>({
     fetcher: (q) => documentsApi.listPage({ ...filters, sort: q.sort, offset: q.offset, limit: q.limit }),
-    deps: [tab],
+    deps: [],
     defaultSort: { id: 'created', dir: 'desc' },
   });
   const { reload: load } = table;
   const documentActions = useDocumentActions({ onOpen: setDetailId, onChanged: load });
-  const selection = useRowSelection<SaleDocument>((d) => d.id, [tab]);
-  const isNotes = tab === 'delivery-notes';
+  const selection = useRowSelection<SaleDocument>((d) => d.id, []);
 
   const columns: Column<SaleDocument>[] = [
-    // Invoices and POS receipts carry different numbers, and only the quote,
-    // invoice and delivery-note numbers can be ordered by on the server, so
-    // this column sorts for delivery notes only.
-    { id: 'deliveryNoteNumber', header: 'Number', sortable: isNotes, cell: (d) => <span className="data-num" style={{ color: 'var(--color-ink-600)' }}>{numberOf(d) ?? '—'}</span> },
+    { id: 'number', header: 'Number', cell: (d) => <span className="data-num" style={{ color: 'var(--color-ink-600)' }}>{numberOf(d) ?? '—'}</span> },
     { id: 'customer', header: 'Customer', sortable: true, cell: (d) => <span className="font-medium" style={{ color: 'var(--color-ink-900)' }}>{customerOf(d)}</span> },
-    // Sorted by when the document was created; the date shown is when it became an invoice.
-    { id: 'created', header: isNotes ? 'Created' : 'Invoiced', label: 'Date', sortable: true, defaultDir: 'desc', cell: (d) => <span style={{ color: 'var(--color-ink-600)' }}>{fmtDate(d.invoicedAt ?? d.createdAt)}</span> },
+    { id: 'created', header: 'Invoiced', label: 'Date', sortable: true, defaultDir: 'desc', cell: (d) => <span style={{ color: 'var(--color-ink-600)' }}>{fmtDate(d.invoicedAt ?? d.createdAt)}</span> },
     { id: 'status', header: 'Status', sortable: true, cell: (d) => <StatusPill doc={d} /> },
-    {
-      id: 'total',
-      header: isNotes ? 'Items' : 'Total',
-      sortable: !isNotes,
-      defaultDir: 'desc',
-      align: 'right',
-      // A delivery note carries no pricing anywhere, list views included.
-      cell: (d) =>
-        d.type === 'DELIVERY_NOTE' ? (
-          <span style={{ color: 'var(--color-ink-600)' }}>
-            {d.items.length} item{d.items.length === 1 ? '' : 's'}
-          </span>
-        ) : (
-          <span className="font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>
-            KSh {fmtNumber(d.total)}
-          </span>
-        ),
-    },
+    { id: 'total', header: 'Total', sortable: true, defaultDir: 'desc', align: 'right', cell: (d) => <span className="font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>KSh {fmtNumber(d.total)}</span> },
   ];
 
   const renderCard = (d: SaleDocument) => (
@@ -112,8 +79,8 @@ export default function InvoicesPage() {
         <p className="font-medium" style={{ color: 'var(--color-ink-900)' }}>
           {customerOf(d)}
         </p>
-        <p className="shrink-0 font-medium data-num" style={{ color: d.type === 'DELIVERY_NOTE' ? 'var(--color-ink-600)' : 'var(--color-ink-900)' }}>
-          {d.type === 'DELIVERY_NOTE' ? `${d.items.length} item${d.items.length === 1 ? '' : 's'}` : `KSh ${fmtNumber(d.total)}`}
+        <p className="shrink-0 font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>
+          KSh {fmtNumber(d.total)}
         </p>
       </div>
       <div className="flex items-center justify-between text-sm">
@@ -124,24 +91,11 @@ export default function InvoicesPage() {
   );
 
   function exportRows(rows: SaleDocument[]) {
-    // Delivery notes carry no prices, in an export either.
-    const head = ['Number', 'Customer', 'Date', 'Status', ...(isNotes ? ['Items'] : ['Total (KSh)'])];
-    const body = rows.map((d) => [numberOf(d), customerOf(d), (d.invoicedAt ?? d.createdAt).slice(0, 10), (STATUS_BADGE[d.status] ?? STATUS_BADGE.DRAFT).label, isNotes ? d.items.length : d.total]);
-    downloadCsv(`${isNotes ? 'delivery-notes' : 'invoices'}-${new Date().toISOString().slice(0, 10)}.csv`, [head, ...body]);
-    toast.success(`Exported ${rows.length} ${isNotes ? 'delivery note' : 'invoice'}${rows.length === 1 ? '' : 's'}`);
+    const head = ['Number', 'Customer', 'Date', 'Status', 'Total (KSh)'];
+    const body = rows.map((d) => [numberOf(d), customerOf(d), (d.invoicedAt ?? d.createdAt).slice(0, 10), (STATUS_BADGE[d.status] ?? STATUS_BADGE.INVOICED).label, d.total]);
+    downloadCsv(`invoices-${new Date().toISOString().slice(0, 10)}.csv`, [head, ...body]);
+    toast.success(`Exported ${rows.length} invoice${rows.length === 1 ? '' : 's'}`);
   }
-
-  const tabButton = (key: Tab, label: string) => (
-    <button
-      type="button"
-      aria-pressed={tab === key}
-      onClick={() => setTab(key)}
-      className="min-h-9 rounded-md border px-3 text-xs font-medium"
-      style={{ borderColor: tab === key ? 'var(--color-accent)' : 'var(--color-border)', color: tab === key ? 'var(--color-accent)' : 'var(--color-ink-600)' }}
-    >
-      {label}
-    </button>
-  );
 
   return (
     <div className="p-6">
@@ -151,7 +105,7 @@ export default function InvoicesPage() {
             Invoices
           </h1>
           <p className="mt-0.5 text-sm" style={{ color: 'var(--color-ink-600)' }}>
-            {tab === 'invoices' ? "Converted from quotes. New invoices are created from a quote's detail view." : "Frozen at creation — printing a delivery note again later won't reflect changes to the source invoice."}
+            Invoices and paid sales.
           </p>
         </div>
         {isAdmin && (
@@ -167,15 +121,10 @@ export default function InvoicesPage() {
         )}
       </div>
 
-      <div className="mt-4 flex gap-1.5" role="group" aria-label="Document type">
-        {tabButton('invoices', 'Invoices')}
-        {tabButton('delivery-notes', 'Delivery notes')}
-      </div>
-
       <div className="mt-5">
         <DataTable<SaleDocument>
           {...table.tableProps}
-          caption={isNotes ? 'Delivery notes' : 'Invoices'}
+          caption="Invoices"
           columns={columns}
           rowKey={(d) => d.id}
           rowLabel={(d) => numberOf(d) ?? customerOf(d)}
@@ -194,10 +143,7 @@ export default function InvoicesPage() {
             <>
               <Receipt size={28} strokeWidth={1.5} className="mx-auto mb-2" style={{ color: 'var(--color-ink-600)' }} />
               <p className="text-sm font-medium" style={{ color: 'var(--color-ink-900)' }}>
-                {isNotes ? 'No delivery notes yet' : 'No invoices yet'}
-              </p>
-              <p className="mt-1 text-sm" style={{ color: 'var(--color-ink-600)' }}>
-                {isNotes ? "Create one from a quote or invoice's detail view." : 'Convert a quote to an invoice to see it here.'}
+                No invoices yet
               </p>
             </>
           }
@@ -211,7 +157,6 @@ export default function InvoicesPage() {
           load();
           countPending();
         }}
-        onNavigate={setDetailId}
       />
       {queueOpen && (
         <EditRequestsDialog

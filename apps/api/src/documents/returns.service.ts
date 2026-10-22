@@ -6,12 +6,7 @@ import { AuditService } from '../audit/audit.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import type { CreateReturnDto } from './dto/return.dto.js';
 
-/**
- * A return never mutates the sale it came from. The original Document stays
- * exactly as it was issued; each return is its own record pointing at the
- * document lines being given back, so a sale can be returned against more
- * than once and the history of who returned what, when, survives.
- */
+/** A return never mutates the sale it came from. */
 @Injectable()
 export class ReturnsService {
   constructor(
@@ -21,12 +16,7 @@ export class ReturnsService {
     private settings: SettingsService,
   ) {}
 
-  /**
-   * The document's lines with sold / already-returned / still-returnable
-   * quantities — what the POS return screen is built from. Returnable is
-   * always (sold − already returned), so two returns can never give back
-   * more than was bought.
-   */
+  /** The document's lines with sold / already-returned / still-returnable quantities — what the POS return screen is built from. */
   async returnable(documentId: string) {
     const doc = await this.prisma.document.findUnique({
       where: { id: documentId },
@@ -73,10 +63,9 @@ export class ReturnsService {
           qtySold: item.qty,
           qtyReturned: returned,
           qtyReturnable: Math.max(0, item.qty - returned),
-          // Returns always come back to the shop, even goods that were
-          // supplied from elsewhere: there is no way to know whether a
-          // supplier's driver took them back, so the shop's shelf is the
-          // single place a return lands.
+          // Returns always come back to the shop, even goods that were supplied from elsewhere:
+          // there is no way to know whether a supplier's driver took them back, so the shop's shelf
+          // is the single place a return lands.
           qtyRestockable: Math.max(0, item.qty - returned),
         };
       }),
@@ -98,8 +87,8 @@ export class ReturnsService {
     if (lines.length === 0) throw new BadRequestException('Select at least one item to return');
 
     const byItemId = new Map(snapshot.items.map((i) => [i.documentItemId, i]));
-    // Guard the sum, not each line on its own — the same document line can
-    // only be listed once, and never beyond what is still returnable.
+    // Guard the sum, not each line on its own — the same document line can only be listed once, and
+    // never beyond what is still returnable.
     const requested = new Map<string, number>();
     for (const line of lines) {
       const item = byItemId.get(line.documentItemId);
@@ -129,13 +118,11 @@ export class ReturnsService {
     });
     const total = returnLines.reduce((sum, l) => sum + l.lineTotal, 0);
 
-    // An account sale is refunded to the customer's ledger, not out of the
-    // till; a cash/M-Pesa sale is refunded by the same route it was paid.
+    // An account sale is refunded to the customer's ledger, not out of the till; a cash/M-Pesa sale
+    // is refunded by the same route it was paid.
     const onAccount = snapshot.paymentMethod === PaymentMethod.CREDIT;
     // A mixed sale has no single route back, so default to cash unless told.
     const paidBy = snapshot.paymentMethod === PaymentMethod.MIXED ? null : (snapshot.paymentMethod as PaymentMethod | null);
-    // A sale that was paid out of the customer's held credit goes back to that
-    // credit; any other sale with a customer can be refunded that way if asked.
     const toCredit = !onAccount && (input.refundMethod === PaymentMethod.STORE_CREDIT || snapshot.paymentMethod === PaymentMethod.STORE_CREDIT);
     if (toCredit && !snapshot.customerId) throw new BadRequestException('There is no customer on this sale to hold the refund as credit');
     const refundMethod = onAccount ? null : toCredit ? PaymentMethod.STORE_CREDIT : ((input.refundMethod as PaymentMethod) ?? paidBy ?? PaymentMethod.CASH);

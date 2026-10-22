@@ -23,22 +23,13 @@ const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(-
 const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase';
 const labelStyle = { color: 'var(--color-ink-600)', letterSpacing: '0.06em' };
 
-/**
- * What the person typed for a saved line, recovered from what was stored.
- * With transport folded into prices the stored unit price already includes
- * its share of transport plus rounding, so the negotiated price is rebuilt by
- * taking those back out of the line total. Otherwise it is stored as typed.
- */
+/** What the person typed for a saved line, recovered from what was stored. */
 function negotiatedUnitPrice(doc: SaleDocument, item: SaleDocument['items'][number]) {
   if (doc.transportMode !== 'DISTRIBUTED') return item.unitPrice;
   return Math.round((item.lineTotal - item.transportAllocated - item.roundingAdjustment) / item.qty);
 }
 
-/**
- * Creates a quote, or — when `editId` is given — edits that quote in place
- * (same quote number). The same form either way, so a change can never be
- * priced differently from how it would have been the first time.
- */
+/** Creates a quote, or — when `editId` is given — edits that quote in place (same quote number). */
 export function QuoteFormDrawer({
   open,
   onClose,
@@ -65,8 +56,8 @@ export function QuoteFormDrawer({
   const [saving, setSaving] = useState(false);
   const [loadingQuote, setLoadingQuote] = useState(false);
   const [quoteNumber, setQuoteNumber] = useState<string | null>(null);
-  // Edit mode only: true once the quote has been fetched and prefilled, so a
-  // failed load can never be saved over the real quote with an empty form.
+  // Edit mode only: true once the quote has been fetched and prefilled, so a failed load can never
+  // be saved over the real quote with an empty form.
   const [editReady, setEditReady] = useState(false);
 
   useEffect(() => {
@@ -83,8 +74,8 @@ export function QuoteFormDrawer({
     }
   }, [open]);
 
-  // Edit mode: fetch the quote by id (the list rows don't carry full product
-  // details) and prefill every field from it.
+  // Edit mode: fetch the quote by id (the list rows don't carry full product details) and prefill
+  // every field from it.
   useEffect(() => {
     if (!open || !editId) return;
     let stale = false;
@@ -154,7 +145,6 @@ export function QuoteFormDrawer({
     };
   }, [customerQuery, customerMode]);
 
-  // Approximate for the footer — the server computes the precise, correctly-rounded total.
   const subtotal = lines.reduce((s, l) => s + (Number(l.qty) || 0) * (Number(l.unitPrice) || 0), 0);
   const transportAmt = transport?.amount || 0;
   const total = subtotal + transportAmt;
@@ -303,7 +293,7 @@ export function QuoteFormDrawer({
                         onChange={(v) => setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, unitPrice: v } : l)))}
                         className="w-24 rounded border px-2 py-1 text-sm data-num"
                         style={inputStyle}
-                        title="Edit directly to the price you negotiated — this is the final price, not a list price to discount from."
+                        title="Final negotiated price."
                       />
                     </td>
                     <td className="px-3 py-2 text-right data-num" style={{ color: 'var(--color-ink-900)' }}>

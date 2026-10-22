@@ -9,7 +9,6 @@ export class CreateUnitDto {
   @RequiredName()
   name!: string;
 
-  // What prints after a quantity on receipts and the POS: "pcs", "kg", "bag".
   @Transform(trim)
   @IsString()
   @IsNotEmpty({ message: 'Symbol is required' })
@@ -34,7 +33,6 @@ export class CreateSubUnitDto {
   @RequiredName()
   name!: string;
 
-  // How much of the base measure one of these is — "50kg bag" under Bag is 50.
   @IsNumber({}, { message: 'Factor must be a number' })
   @IsPositive({ message: 'Factor must be greater than zero' })
   @Max(1_000_000)
