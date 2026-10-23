@@ -25,7 +25,7 @@ export const emptyPayment: PaymentDraft = { mode: 'MPESA', cash: '', mpesa: '', 
 const MODES: { value: PayMode; label: string; hint: string }[] = [
   { value: 'MPESA', label: 'M-Pesa', hint: 'Paybill' },
   { value: 'CASH', label: 'Cash', hint: 'Counter' },
-  { value: 'SPLIT', label: 'Cash + M-Pesa', hint: 'Both' },
+  { value: 'SPLIT', label: 'Split Payment', hint: 'Both' },
 ];
 
 const num = (s: string) => parseInt(s, 10) || 0;
