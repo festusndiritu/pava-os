@@ -62,6 +62,9 @@ export interface DocumentViewModel {
   items: DocumentViewModelItem[];
 
   subtotal: number;
+  /** Pre-discount figure to show above a discount line; null when no subtotal row is shown. */
+  subtotalLine: number | null;
+  discount: number;
   transportAmount: number;
   showTransportLine: boolean;
   showTransportIncludedNote: boolean;
@@ -88,6 +91,7 @@ export interface DocumentViewModelSource {
   sourceReference: string | null;
   items: { id: string; description: string; qty: number; unitSymbol: string; unitPrice: number; lineTotal: number }[];
   subtotal: number;
+  discount?: number;
   transportAmount: number;
   transportMode: string;
   total: number;
@@ -142,6 +146,8 @@ function buildFromSource(source: DocumentViewModelSource, settings: BusinessSett
     items: source.items.map((item, i) => ({ ...item, index: i + 1 })),
 
     subtotal: source.subtotal,
+    subtotalLine: !showTransportIncludedNote ? source.subtotal : (source.discount ?? 0) > 0 ? source.total + (source.discount ?? 0) : null,
+    discount: source.discount ?? 0,
     transportAmount: source.transportAmount,
     showTransportLine,
     showTransportIncludedNote,
@@ -197,6 +203,7 @@ export function buildDocumentViewModel(doc: SaleDocument, settings: BusinessSett
         lineTotal: item.lineTotal,
       })),
       subtotal: doc.subtotal,
+      discount: doc.discount,
       transportAmount: doc.transportAmount,
       transportMode: doc.transportMode,
       total: doc.total,
@@ -270,6 +277,7 @@ export function buildPosReceiptViewModel(sale: PosSaleResultLike, settings: Busi
         lineTotal: item.lineTotal,
       })),
       subtotal: sale.subtotal,
+      discount: sale.discount,
       transportAmount: sale.transportAmount,
       transportMode: sale.transportMode,
       total: sale.total,
@@ -291,6 +299,7 @@ export interface PosSaleResultLike {
   invoiceNumber: string | null;
   receiptNumber: string | null;
   subtotal: number;
+  discount?: number;
   total: number;
   transportAmount: number;
   transportMode: string;

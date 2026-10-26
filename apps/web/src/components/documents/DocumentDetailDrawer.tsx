@@ -20,6 +20,7 @@ import { DeliveryNoteDialog } from './DeliveryNoteDialog';
 import { useMediaQuery } from '../../lib/use-media-query';
 import { readStockShortfalls } from '../../lib/pos-api';
 import { money } from '../../lib/format';
+import { NumericInput, toNumber } from '../ui/inputs';
 import { toast } from '../ui/Toast';
 
 function docTypeLabel(type: string) {
@@ -60,6 +61,8 @@ export function DocumentDetailDrawer({
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
   const [payment, setPayment] = useState<PaymentDraft>(emptyPayment);
+  // What the customer actually settles for, when it is less than the invoice total.
+  const [agreed, setAgreed] = useState('');
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [editRequests, setEditRequests] = useState<EditRequest[]>([]);
@@ -102,11 +105,15 @@ export function DocumentDetailDrawer({
     setDeleteOpen(false);
     setDeliveryNoteOpen(false);
     setPayment(emptyPayment);
+    setAgreed('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documentId]);
 
   if (!documentId) return null;
-  const settling = resolvePayment(payment, doc?.total ?? 0, !!doc?.customerId);
+  const agreedAmount = toNumber(agreed);
+  const settleTotal = doc && agreedAmount !== null && agreedAmount > 0 && agreedAmount < doc.total ? agreedAmount : (doc?.total ?? 0);
+  const settleDiscount = doc ? doc.total - settleTotal : 0;
+  const settling = resolvePayment(payment, settleTotal, !!doc?.customerId);
 
   async function runAction(fn: () => Promise<SaleDocument>) {
     setBusy(true);
@@ -194,15 +201,33 @@ export function DocumentDetailDrawer({
                     Settle this invoice
                   </p>
                   <div className="mt-2 flex flex-col gap-2">
-                    <PaymentPanel draft={payment} onChange={setPayment} total={doc.total} hasCustomer={!!doc.customerId} />
+                    <div>
+                      <label htmlFor="settle-agreed" className="mb-1 block text-xs" style={{ color: 'var(--color-ink-600)' }}>
+                        Agreed amount
+                      </label>
+                      <NumericInput
+                        id="settle-agreed"
+                        value={agreed}
+                        onChange={setAgreed}
+                        placeholder={money(doc.total)}
+                        className="data-num min-h-10 w-full rounded-md border px-3 text-sm"
+                        style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}
+                      />
+                      {settleDiscount > 0 && (
+                        <p className="mt-1 text-xs" style={{ color: 'var(--color-status-warn)' }}>
+                          Discount {money(settleDiscount)}
+                        </p>
+                      )}
+                    </div>
+                    <PaymentPanel draft={payment} onChange={setPayment} total={settleTotal} hasCustomer={!!doc.customerId} />
                     <button
                       type="button"
                       disabled={busy || !!settling.problem}
-                      onClick={() => runAction(() => documentsApi.markPaid(doc.id, { paymentMethod: settling.method, payments: settling.tenders, changeAction: settling.changeAction }))}
+                      onClick={() => runAction(() => documentsApi.markPaid(doc.id, { paymentMethod: settling.method, payments: settling.tenders, changeAction: settling.changeAction, discount: settleDiscount > 0 ? doc.discount + settleDiscount : undefined }))}
                       className="min-h-10 rounded-md px-3 text-sm font-semibold text-white disabled:opacity-60"
                       style={{ backgroundColor: 'var(--color-accent)' }}
                     >
-                      {settling.problem ?? `Mark paid · ${money(doc.total)}`}
+                      {settling.problem ?? `Mark paid · ${money(settleTotal)}`}
                     </button>
                   </div>
                 </div>
@@ -389,10 +414,10 @@ export function DocumentDetailDrawer({
           </div>
 
           <div className={isDeliveryNote ? 'hidden' : 'flex flex-col gap-1 text-sm'}>
-            {doc.transportMode !== 'DISTRIBUTED' && (
+            {(doc.transportMode !== 'DISTRIBUTED' || doc.discount > 0) && (
               <div className="flex justify-between">
                 <span style={{ color: 'var(--color-ink-600)' }}>Subtotal</span>
-                <span className="data-num" style={{ color: 'var(--color-ink-900)' }}>{money(doc.subtotal)}</span>
+                <span className="data-num" style={{ color: 'var(--color-ink-900)' }}>{money(doc.transportMode !== 'DISTRIBUTED' ? doc.subtotal : doc.total + doc.discount)}</span>
               </div>
             )}
             {doc.transportAmount > 0 && doc.transportMode !== 'DISTRIBUTED' && (
@@ -403,6 +428,12 @@ export function DocumentDetailDrawer({
             )}
             {doc.transportMode === 'DISTRIBUTED' && (
               <p className="text-right text-xs" style={{ color: 'var(--color-ink-600)' }}>Delivery included in prices</p>
+            )}
+            {doc.discount > 0 && (
+              <div className="flex justify-between">
+                <span style={{ color: 'var(--color-ink-600)' }}>Discount</span>
+                <span className="data-num" style={{ color: 'var(--color-ink-900)' }}>-{money(doc.discount)}</span>
+              </div>
             )}
             <div className="flex justify-between text-base font-semibold">
               <span style={{ color: 'var(--color-ink-900)' }}>Total</span>

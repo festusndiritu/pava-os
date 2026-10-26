@@ -16,6 +16,11 @@ export class ReturnsService {
     private settings: SettingsService,
   ) {}
 
+  private refundFactor(doc: { discount: number; items: { lineTotal: number }[] }) {
+    const gross = doc.items.reduce((s, i) => s + i.lineTotal, 0);
+    return doc.discount > 0 && gross > 0 ? Math.max(0, (gross - doc.discount) / gross) : 1;
+  }
+
   /** The document's lines with sold / already-returned / still-returnable quantities — what the POS return screen is built from. */
   async returnable(documentId: string) {
     const doc = await this.prisma.document.findUnique({
@@ -52,6 +57,8 @@ export class ReturnsService {
       customerLabel: doc.customer?.businessName || doc.customer?.name || doc.customerName || 'Walk-in customer',
       createdAt: doc.createdAt,
       total: doc.total,
+      // Share of a line's price actually paid once the whole-bill discount is spread over the lines.
+      refundFactor: this.refundFactor(doc),
       items: doc.items.map((item) => {
         const returned = returnedByItem.get(item.id) || 0;
         return {
@@ -113,7 +120,7 @@ export class ReturnsService {
         qty,
         restockedQty: item.productId ? Math.min(qty, item.qtyRestockable) : 0,
         unitPrice: item.unitPrice,
-        lineTotal: qty * item.unitPrice,
+        lineTotal: Math.round(qty * item.unitPrice * snapshot.refundFactor),
       };
     });
     const total = returnLines.reduce((sum, l) => sum + l.lineTotal, 0);

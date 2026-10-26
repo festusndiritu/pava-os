@@ -176,7 +176,7 @@ export class DocumentsController {
   @Permissions(Module.INVOICES)
   @Post(':id/mark-paid')
   markPaid(@Param('id') id: string, @Req() req: any, @Body() body: MarkPaidDto) {
-    return this.documents.markPaid(id, req.user.sub, body ?? {});
+    return this.documents.markPaid(id, req.user.sub, req.user.role, body ?? {});
   }
 
   // Only a cancelled quote that never became an invoice can be removed.

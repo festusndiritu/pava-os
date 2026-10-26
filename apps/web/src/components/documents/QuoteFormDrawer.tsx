@@ -53,6 +53,8 @@ export function QuoteFormDrawer({
   const [transport, setTransport] = useState<TransportSettings | null>(null);
   const [transportOpen, setTransportOpen] = useState(false);
   const [notes, setNotes] = useState('');
+  // Knocked off the whole quote after line prices are set.
+  const [discountInput, setDiscountInput] = useState('');
   const [saving, setSaving] = useState(false);
   const [loadingQuote, setLoadingQuote] = useState(false);
   const [quoteNumber, setQuoteNumber] = useState<string | null>(null);
@@ -68,6 +70,7 @@ export function QuoteFormDrawer({
       setLines([]);
       setTransport(null);
       setNotes('');
+      setDiscountInput('');
       setQuoteNumber(null);
       setEditReady(false);
       setLoadingQuote(false);
@@ -114,6 +117,7 @@ export function QuoteFormDrawer({
           setTransport(null);
         }
         setNotes(doc.notes ?? '');
+        setDiscountInput(doc.discount > 0 ? String(doc.discount) : '');
       })
       .catch((err) => {
         if (!stale) toast.error(err instanceof ApiError ? err.message : "Couldn't load quote");
@@ -147,7 +151,8 @@ export function QuoteFormDrawer({
 
   const subtotal = lines.reduce((s, l) => s + (Number(l.qty) || 0) * (Number(l.unitPrice) || 0), 0);
   const transportAmt = transport?.amount || 0;
-  const total = subtotal + transportAmt;
+  const discount = Math.min(toNumber(discountInput) ?? 0, Math.max(0, subtotal + transportAmt - 1));
+  const total = subtotal + transportAmt - discount;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -170,6 +175,7 @@ export function QuoteFormDrawer({
         transportApplyTo: transport?.applyTo,
         manualAllocations: undefined,
         foldTransportIntoPrices: transport?.fold ?? true,
+        discount: discount > 0 ? discount : undefined,
         notes: notes || undefined,
       };
       if (editId) {
@@ -328,6 +334,13 @@ export function QuoteFormDrawer({
             </span>
             <span>{transport ? 'Edit' : '+ Add'}</span>
           </button>
+        </div>
+
+        <div>
+          <label htmlFor="quoteformdrawer-discount" className={labelClass} style={labelStyle}>
+            Discount on total
+          </label>
+          <NumericInput id="quoteformdrawer-discount" value={discountInput} onChange={setDiscountInput} placeholder="0" className="w-full rounded-md border px-3 py-2 text-sm data-num" style={inputStyle} />
         </div>
 
         <div>

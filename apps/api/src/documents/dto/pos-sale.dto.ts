@@ -85,6 +85,11 @@ export class CreatePosSaleDto {
   @Min(1)
   roundingIncrement?: number;
 
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  discount?: number;
+
   // Optional only because a settle-later sale has not been paid yet.
   @IsOptional()
   @IsIn(PAYMENT_METHODS)

@@ -32,6 +32,7 @@ type CreateDocumentInput = {
   manualAllocations?: { productId: string; amount: number }[];
   foldTransportIntoPrices?: boolean;
   roundingIncrement?: number;
+  discount?: number;
   notes?: string;
 };
 
@@ -177,6 +178,20 @@ export class DocumentsService {
     }
   }
 
+  // The whole-bill discount sits on top of the per-line prices: the total drops by it, and it counts
+  // toward the same discount limit as any line discount.
+  private applyTotalDiscount<T extends { total: number; subtotalAtListPrice: number; impliedDiscountTotal: number }>(
+    priced: T,
+    discount: number | undefined,
+    actorRole: Role,
+    actor: { maxDiscountPercent: number } | null,
+  ) {
+    const amount = discount ?? 0;
+    if (amount > 0 && amount >= priced.total) throw new BadRequestException('The discount must be less than the total');
+    this.assertDiscountWithinLimit(actorRole, actor, priced.subtotalAtListPrice, priced.impliedDiscountTotal + amount);
+    return { ...priced, discount: amount, total: roundMoney(priced.total - amount) };
+  }
+
   // One shape of error for every "not enough stock" refusal, so the POS and the quote->invoice
   // screen can both render a proper confirmation dialog (product, requested, available, short by)
   // instead of parsing a sentence.
@@ -294,12 +309,11 @@ export class DocumentsService {
       input.roundingIncrement || businessSettings.roundingIncrement,
     );
 
-    this.assertDiscountWithinLimit(actorRole, actor, priced.subtotalAtListPrice, priced.impliedDiscountTotal);
-    return priced;
+    return this.applyTotalDiscount(priced, input.discount, actorRole, actor);
   }
 
   async create(createdById: string, actorRole: Role, input: CreateDocumentInput) {
-    const { lines, subtotalAtNegotiatedPrice, roundingAdjustmentTotal, total, transportMode } = await this.priceQuoteInput(createdById, actorRole, input);
+    const { lines, subtotalAtNegotiatedPrice, roundingAdjustmentTotal, total, discount, transportMode } = await this.priceQuoteInput(createdById, actorRole, input);
 
     const doc = await this.prisma.$transaction(async (tx) => {
       const quoteNumber = await this.settings.nextNumber('QUOTE', tx);
@@ -314,6 +328,7 @@ export class DocumentsService {
           transportAmount: input.transportAmount || 0,
           roundingAdjustment: roundingAdjustmentTotal,
           subtotal: subtotalAtNegotiatedPrice,
+          discount,
           total,
           notes: input.notes,
           quoteNumber,
@@ -347,7 +362,7 @@ export class DocumentsService {
       throw new BadRequestException('Only a quote that has not been invoiced can be edited — cancel it and issue a new one instead');
     }
 
-    const { lines, subtotalAtNegotiatedPrice, roundingAdjustmentTotal, total, transportMode } = await this.priceQuoteInput(actorId, actorRole, input);
+    const { lines, subtotalAtNegotiatedPrice, roundingAdjustmentTotal, total, discount, transportMode } = await this.priceQuoteInput(actorId, actorRole, input);
 
     await this.prisma.$transaction(async (tx) => {
       // The status condition is what makes this safe against a quote being converted or cancelled
@@ -362,6 +377,7 @@ export class DocumentsService {
           transportAmount: input.transportAmount || 0,
           roundingAdjustment: roundingAdjustmentTotal,
           subtotal: subtotalAtNegotiatedPrice,
+          discount,
           total,
           notes: input.notes?.trim() || null,
         },
@@ -612,11 +628,53 @@ export class DocumentsService {
   async markPaid(
     id: string,
     actorId: string,
-    input: { paymentMethod?: 'CASH' | 'MPESA'; payments?: TenderInput[]; changeAction?: 'GIVE' | 'CREDIT' } = {},
+    actorRole: Role,
+    input: { paymentMethod?: 'CASH' | 'MPESA'; payments?: TenderInput[]; changeAction?: 'GIVE' | 'CREDIT'; discount?: number } = {},
   ) {
-    const doc = await this.findOne(id);
+    let doc = await this.findOne(id);
     if (doc.status !== DocumentStatus.INVOICED) {
       throw new BadRequestException('Only an invoiced document can be marked paid');
+    }
+
+    // Settling for less than the invoice: the discount is re-set against the pre-discount bill, and a
+    // credit customer's ledger (already charged the old total) is corrected by the difference.
+    const previousDiscount = doc.discount;
+    const newDiscount = input.discount ?? previousDiscount;
+    if (newDiscount !== previousDiscount) {
+      const gross = doc.total + previousDiscount;
+      const actor = actorRole !== Role.ADMIN ? await this.prisma.user.findUnique({ where: { id: actorId } }) : null;
+      const priced = this.applyTotalDiscount(
+        {
+          total: gross,
+          subtotalAtListPrice: doc.items.reduce((s, i) => s + i.basePrice * i.qty, 0),
+          impliedDiscountTotal: doc.items.reduce((s, i) => s + i.discount, 0),
+        },
+        newDiscount,
+        actorRole,
+        actor,
+      );
+      const change = priced.total - doc.total;
+      await this.prisma.$transaction(async (tx) => {
+        const moved = await tx.document.updateMany({
+          where: { id, status: DocumentStatus.INVOICED, total: doc.total },
+          data: { discount: newDiscount, total: priced.total },
+        });
+        if (moved.count === 0) throw new BadRequestException('This invoice changed while you were settling it — reopen it and try again');
+        if (doc.customerId && doc.customer?.isCredit) {
+          await tx.customerLedgerEntry.create({
+            data: { customerId: doc.customerId, type: LedgerEntryType.ADJUSTMENT, amount: change, documentId: id, note: 'Discount on settlement', createdById: actorId },
+          });
+          await tx.customer.update({ where: { id: doc.customerId }, data: { creditBalance: { increment: change } } });
+        }
+      });
+      await this.audit.log({
+        actorId,
+        action: 'document.settled_with_discount',
+        entityType: 'Document',
+        entityId: id,
+        metadata: { previousTotal: doc.total, total: priced.total, discount: newDiscount },
+      });
+      doc = await this.findOne(id);
     }
 
     // Older callers only say "paid"; with nothing stated, whatever was already recorded is kept and
@@ -766,7 +824,7 @@ export class DocumentsService {
       subtotalAtListPrice,
       impliedDiscountTotal,
       roundingAdjustmentTotal,
-      total,
+      total: totalBeforeDiscount,
       transportMode,
     } = this.priceDocumentLines(
       input.items,
@@ -781,7 +839,12 @@ export class DocumentsService {
       roundingIncrement,
     );
 
-    this.assertDiscountWithinLimit(actorRole, actor, subtotalAtListPrice, impliedDiscountTotal);
+    const { total, discount } = this.applyTotalDiscount(
+      { total: totalBeforeDiscount, subtotalAtListPrice, impliedDiscountTotal },
+      input.discount,
+      actorRole,
+      actor,
+    );
 
     const saleShortfalls: { productId: string; name: string; shortfall: number }[] = [];
     if (input.settleLater && input.creditApplied) {
@@ -814,6 +877,7 @@ export class DocumentsService {
           creditApplied: settled?.creditApplied ?? 0,
           payments: settled ? { create: settled.rows } : undefined,
           subtotal,
+          discount,
           total,
           notes: input.notes,
           invoicedAt: settleLater ? now : undefined,

@@ -54,7 +54,7 @@ export class DocumentEditsService {
 
     // Priced by the same rules as a new sale — including the requester's own discount limit — so
     // the proposed total is exactly what approval applies.
-    const priced = await this.documents.priceQuoteInput(actorId, actorRole, input);
+    const priced = await this.documents.priceQuoteInput(actorId, actorRole, { ...input, discount: doc.discount });
     if (priced.total === doc.total && !this.linesDiffer(doc, priced.lines)) {
       throw new BadRequestException('Nothing would change — adjust a quantity, price or the transport first');
     }
@@ -160,7 +160,7 @@ export class DocumentEditsService {
 
     const changes = req.changes as unknown as CreateEditRequestDto;
     // Re-priced as the approving admin (no discount cap): the admin's sign-off is the override.
-    const priced = await this.documents.priceQuoteInput(actorId, actorRole, changes);
+    const priced = await this.documents.priceQuoteInput(actorId, actorRole, { ...changes, discount: doc.discount });
     if (priced.total !== req.proposedTotal) {
       throw new BadRequestException('Prices or rounding settings changed since this was requested — reject it and ask for a fresh request');
     }

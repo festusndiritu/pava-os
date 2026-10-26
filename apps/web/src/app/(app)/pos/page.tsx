@@ -93,6 +93,8 @@ export default function PosPage() {
   const [heldOpen, setHeldOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
   const [heldCount, setHeldCount] = useState(0);
+  // Bumped after anything that moves stock, so the product grid refetches instead of showing old counts.
+  const [stockTick, setStockTick] = useState(0);
 
   // Focus mode hides the app topbar (via the data-pos-focus attribute on <html>) AND requests real
   // browser fullscreen — the button was previously only doing the former while claiming to be
@@ -155,7 +157,7 @@ export default function PosPage() {
     return () => {
       stale = true;
     };
-  }, [activeCategory]);
+  }, [activeCategory, stockTick]);
 
   useEffect(() => {
     if (query.trim().length < 1) {
@@ -175,7 +177,7 @@ export default function PosPage() {
       stale = true;
       clearTimeout(t);
     };
-  }, [query]);
+  }, [query, stockTick]);
 
   useEffect(() => {
     if (customerMode !== 'existing' || customerQuery.trim().length < 1) {
@@ -355,11 +357,13 @@ export default function PosPage() {
       setReceipt(sale);
       clearCounter();
       refreshHeldCount();
+      setStockTick((t) => t + 1);
     } catch (err) {
       const detected = err instanceof ApiError ? readStockShortfalls(err.details) : null;
       if (detected) {
         toast.error('Stock changed while you were selling — check where each item comes from');
         await refreshCartStock();
+        setStockTick((t) => t + 1);
         setFulfilmentOpen(true);
       } else toast.error(err instanceof ApiError ? err.message : "Couldn't complete sale");
     } finally {
@@ -946,7 +950,10 @@ export default function PosPage() {
       {returnOpen && (
         <ReturnDialog
           onClose={() => setReturnOpen(false)}
-          onCompleted={(result) => toast.success(`Return ${result.returnNumber} recorded`)}
+          onCompleted={(result) => {
+            toast.success(`Return ${result.returnNumber} recorded`);
+            setStockTick((t) => t + 1);
+          }}
         />
       )}
 

@@ -480,6 +480,8 @@ model Document {
   changeToCredit     Int            @default(0)
   // Part of the bill paid from the customer's held credit.
   creditApplied      Int            @default(0)
+  // Amount knocked off the whole bill after line prices were agreed; total is already net of it.
+  discount           Int            @default(0)
   subtotal           Int            @default(0)
   total              Int            @default(0)
   quoteNumber        String?        @unique

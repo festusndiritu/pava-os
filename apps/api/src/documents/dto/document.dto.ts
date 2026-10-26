@@ -43,6 +43,12 @@ export class CreateDeliveryNoteDto {
 }
 
 export class MarkPaidDto {
+  // The bill is settled for this much less than its total.
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  discount?: number;
+
   // How the outstanding invoice was actually settled, so the receipt says so.
   @IsOptional()
   @IsIn(['CASH', 'MPESA'] as const)
@@ -131,6 +137,12 @@ export class CreateDocumentDto {
   @IsInt()
   @Min(1)
   roundingIncrement?: number;
+
+  // Taken off the whole bill after line prices are set.
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  discount?: number;
 
   @IsOptional()
   @IsString()

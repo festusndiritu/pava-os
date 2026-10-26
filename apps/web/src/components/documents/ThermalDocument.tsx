@@ -106,10 +106,10 @@ function PricedBody({ vm }: { vm: DocumentViewModel }) {
 
       <div style={{ borderTop: RULE, margin: '10px 0' }} />
 
-      {!vm.showTransportIncludedNote && (
+      {vm.subtotalLine !== null && (
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <span>Subtotal</span>
-          <span style={{ fontVariantNumeric: 'tabular-nums' }}>{money(vm.subtotal)}</span>
+          <span style={{ fontVariantNumeric: 'tabular-nums' }}>{money(vm.subtotalLine)}</span>
         </div>
       )}
       {vm.showTransportLine && (
@@ -119,6 +119,12 @@ function PricedBody({ vm }: { vm: DocumentViewModel }) {
         </div>
       )}
       {vm.showTransportIncludedNote && <p style={{ textAlign: 'center', color: MUTED }}>Delivery included</p>}
+      {vm.discount > 0 && (
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <span>Discount</span>
+          <span style={{ fontVariantNumeric: 'tabular-nums' }}>-{money(vm.discount)}</span>
+        </div>
+      )}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', fontSize: '14px', fontWeight: 700 }}>
         <span>TOTAL</span>

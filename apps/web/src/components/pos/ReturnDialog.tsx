@@ -66,7 +66,8 @@ export function ReturnDialog({ onClose, onCompleted }: { onClose: () => void; on
   }
 
   const selected = sale ? sale.items.filter((i) => (quantities[i.documentItemId] || 0) > 0) : [];
-  const refundTotal = selected.reduce((sum, i) => sum + (quantities[i.documentItemId] || 0) * i.unitPrice, 0);
+  // The whole-bill discount is spread over the lines, so a return gives back only what was paid.
+  const refundTotal = Math.round(selected.reduce((sum, i) => sum + (quantities[i.documentItemId] || 0) * i.unitPrice, 0) * (sale?.refundFactor ?? 1));
   const onAccount = sale?.paymentMethod === 'CREDIT';
   // A sale with a customer on it can be refunded onto their credit; one that was paid out of their
   // credit can only go back there.

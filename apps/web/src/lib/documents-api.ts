@@ -46,6 +46,7 @@ export interface SaleDocument {
   changeToCredit?: number;
   creditApplied?: number;
   subtotal: number;
+  discount: number;
   total: number;
   notes: string | null;
   items: DocumentItem[];
@@ -68,6 +69,7 @@ export interface CreateDocumentInput {
   transportAllocation?: 'QUANTITY' | 'VALUE' | 'MANUAL';
   transportApplyTo?: string[];
   manualAllocations?: { productId: string; amount: number }[];
+  discount?: number;
   foldTransportIntoPrices?: boolean;
   roundingIncrement?: number;
   notes?: string;
@@ -152,7 +154,7 @@ export const documentsApi = {
   update: (id: string, data: CreateDocumentInput) => api.patch<SaleDocument>(`/documents/${id}`, data),
   convertToInvoice: (id: string, opts: { allowNegativeStock?: boolean; fulfilment?: { itemId: string; stockQty: number; supplierSource?: string }[] } = {}) =>
     api.post<SaleDocument>(`/documents/${id}/convert-to-invoice`, opts),
-  markPaid: (id: string, opts: { paymentMethod?: 'CASH' | 'MPESA'; payments?: PaymentLine[]; changeAction?: 'GIVE' | 'CREDIT' } = {}) =>
+  markPaid: (id: string, opts: { paymentMethod?: 'CASH' | 'MPESA'; payments?: PaymentLine[]; changeAction?: 'GIVE' | 'CREDIT'; discount?: number } = {}) =>
     api.post<SaleDocument>(`/documents/${id}/mark-paid`, opts),
   // Only a cancelled quote that was never invoiced can be deleted.
   deleteQuote: (id: string) => api.delete<{ id: string }>(`/documents/${id}`),

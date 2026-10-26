@@ -182,10 +182,10 @@ export function TotalsBlock({ vm }: { vm: DocumentViewModel }) {
   return (
     <View style={styles.totalsWrap}>
       <View style={styles.totalsBox}>
-        {!vm.showTransportIncludedNote && (
+        {vm.subtotalLine !== null && (
           <View style={styles.totalsLine}>
             <Text style={styles.muted}>Subtotal</Text>
-            <Text>KSh {money(vm.subtotal)}</Text>
+            <Text>KSh {money(vm.subtotalLine)}</Text>
           </View>
         )}
         {vm.showTransportLine && (
@@ -196,6 +196,12 @@ export function TotalsBlock({ vm }: { vm: DocumentViewModel }) {
         )}
         {vm.showTransportIncludedNote && (
           <Text style={{ textAlign: 'right', fontSize: 9, color: LABEL }}>Delivery included in prices</Text>
+        )}
+        {vm.discount > 0 && (
+          <View style={styles.totalsLine}>
+            <Text style={styles.muted}>Discount</Text>
+            <Text>-KSh {money(vm.discount)}</Text>
+          </View>
         )}
         <View style={styles.grandTotal}>
           <Text>Total</Text>

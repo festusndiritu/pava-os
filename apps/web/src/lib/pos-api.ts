@@ -28,6 +28,7 @@ export interface PosSaleInput {
   customerId?: string;
   customerName?: string;
   items: PosCartItemInput[];
+  discount?: number;
   transportAmount?: number;
   transportAllocation?: TransportAllocation;
   transportApplyTo?: string[];
@@ -114,6 +115,8 @@ export interface ReturnableSale {
   customerLabel: string;
   createdAt: string;
   total: number;
+  // Share of each line price actually paid after a whole-bill discount (1 when none).
+  refundFactor?: number;
   items: ReturnableItem[];
   returns: { id: string; returnNumber: string; total: number; refundMethod: string | null; createdAt: string; itemCount: number }[];
 }
@@ -149,6 +152,7 @@ export interface PosSaleResult {
   invoiceNumber: string | null;
   receiptNumber: string | null;
   subtotal: number;
+  discount?: number;
   total: number;
   transportAmount: number;
   transportMode: string;

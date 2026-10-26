@@ -151,9 +151,10 @@ export function buildReceiptBytes(vm: DocumentViewModel, opts: EscPosOptions = {
       pair(`  ${fmtNumber(item.qty)} x ${money(item.unitPrice)}`, money(item.lineTotal), cols).forEach((l) => b.line(l));
     }
     b.line(rule);
-    if (!vm.showTransportIncludedNote) pair('Subtotal', money(vm.subtotal), cols).forEach((l) => b.line(l));
+    if (vm.subtotalLine !== null) pair('Subtotal', money(vm.subtotalLine), cols).forEach((l) => b.line(l));
     if (vm.showTransportLine) pair('Delivery', money(vm.transportAmount), cols).forEach((l) => b.line(l));
     if (vm.showTransportIncludedNote) b.align('center').line('Delivery included').align('left');
+    if (vm.discount > 0) pair('Discount', `-${money(vm.discount)}`, cols).forEach((l) => b.line(l));
 
     b.bold(true);
     pair('TOTAL', money(vm.total), cols).forEach((l) => b.line(l));
