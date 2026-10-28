@@ -506,6 +506,10 @@ model Document {
 
   @@index([status])
   @@index([createdAt])
+  @@index([type, status, createdAt])
+  @@index([customerId])
+  @@index([status, paidAt])
+  @@index([sourceDocumentId])
 }
 
 // One row per payment taken against a sale, so a cash + M-Pesa sale keeps both
@@ -578,6 +582,7 @@ model DocumentItem {
   returnItems ReturnItem[]
 
   @@index([documentId])
+  @@index([productId])
 }
 
 model Return {

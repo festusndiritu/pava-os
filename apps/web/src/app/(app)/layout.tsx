@@ -30,8 +30,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (!loading && !user) router.replace('/login');
   }, [loading, user, router]);
 
-  // Nothing renders for a logged-out/loading visitor — the effect above is already sending them to /login.
-  if (loading || !user) return null;
+  // While the session loads, show the shell outline instead of a blank screen. A logged-out visitor
+  // renders nothing — the effect above is already sending them to /login.
+  if (loading) {
+    return (
+      <div className="flex min-h-screen" style={{ backgroundColor: 'var(--color-bg)' }} aria-busy="true" aria-label="Loading">
+        <div className="hidden w-60 shrink-0 border-r md:block" style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }} />
+        <div className="flex-1 p-6">
+          <div className="h-6 w-40 animate-pulse rounded" style={{ backgroundColor: 'var(--color-border)' }} />
+        </div>
+      </div>
+    );
+  }
+  if (!user) return null;
 
   // The sidebar only ever links to what hasPermission() allows, but a typed URL, a stale bookmark,
   // or the browser's back/forward can still land the user on a page their nav never showed them.

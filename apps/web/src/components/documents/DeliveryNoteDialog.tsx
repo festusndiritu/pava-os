@@ -6,7 +6,6 @@ import type { SaleDocument } from '../../lib/documents-api';
 import { settingsApi, type BusinessSettings } from '../../lib/settings-api';
 import { buildDeliveryNoteViewModel } from '../../lib/document-view-model';
 import { shareNotice } from '../../lib/pdf';
-import { shareViewModelAsPdf } from '../../lib/pdf/document-pdf';
 import { printReceipt } from '../../lib/print-receipt';
 import { useMediaQuery } from '../../lib/use-media-query';
 import { PhoneInput } from '../ui/inputs';
@@ -32,6 +31,7 @@ export function DeliveryNoteDialog({ doc, onClose }: { doc: SaleDocument; onClos
   async function handleShare() {
     setSharing(true);
     try {
+      const { shareViewModelAsPdf } = await import('../../lib/pdf/document-pdf');
       const result = await shareViewModelAsPdf(vm);
       toast.success(shareNotice(result, 'delivery note'));
     } catch {

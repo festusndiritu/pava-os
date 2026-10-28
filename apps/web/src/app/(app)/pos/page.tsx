@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   Maximize2,
@@ -56,13 +57,10 @@ const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(-
 
 export default function PosPage() {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<Product[]>([]);
   const [highlighted, setHighlighted] = useState(0);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  const [categories, setCategories] = useState<Category[]>([]);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const [browseProducts, setBrowseProducts] = useState<Product[]>([]);
 
   const [cart, setCart] = useState<CartLine[]>([]);
   const [transport, setTransport] = useState<TransportSettings | null>(null);
@@ -94,7 +92,10 @@ export default function PosPage() {
   const [returnOpen, setReturnOpen] = useState(false);
   const [heldCount, setHeldCount] = useState(0);
   // Bumped after anything that moves stock, so the product grid refetches instead of showing old counts.
-  const [stockTick, setStockTick] = useState(0);
+  const queryClient = useQueryClient();
+  // One call refreshes every product list on the till (browse + search) after stock changes.
+  const refreshStock = useCallback(() => queryClient.invalidateQueries({ queryKey: ['pos-products'] }), [queryClient]);
+  const [debouncedQuery, setDebouncedQuery] = useState('');
 
   // Focus mode hides the app topbar (via the data-pos-focus attribute on <html>) AND requests real
   // browser fullscreen — the button was previously only doing the former while claiming to be
@@ -143,41 +144,36 @@ export default function PosPage() {
   }, []);
 
   useEffect(() => {
-    productsApi.categories().then(setCategories);
     refreshHeldCount();
   }, [refreshHeldCount]);
 
-  useEffect(() => {
-    // `stale` drops a slow response that arrives after a newer request was made — otherwise tapping
-    // through categories quickly can end on the wrong list.
-    let stale = false;
-    productsApi.list({ categoryId: activeCategory || undefined }).then((r) => {
-      if (!stale) setBrowseProducts(r.slice(0, 60));
-    });
-    return () => {
-      stale = true;
-    };
-  }, [activeCategory, stockTick]);
+  const { data: categories = [] } = useQuery<Category[]>({
+    queryKey: ['categories'],
+    queryFn: () => productsApi.categories(),
+    staleTime: 10 * 60_000,
+  });
+
+  const { data: browseProducts = [] } = useQuery<Product[]>({
+    queryKey: ['pos-products', 'browse', activeCategory],
+    queryFn: () => productsApi.list({ categoryId: activeCategory || undefined, limit: 60 }),
+    placeholderData: keepPreviousData,
+  });
 
   useEffect(() => {
-    if (query.trim().length < 1) {
-      setResults([]);
-      setHighlighted(0);
-      return;
-    }
-    let stale = false;
-    const t = setTimeout(() => {
-      productsApi.list({ search: query }).then((r) => {
-        if (stale) return;
-        setResults(r.slice(0, 24));
-        setHighlighted(0);
-      });
-    }, 250);
-    return () => {
-      stale = true;
-      clearTimeout(t);
-    };
-  }, [query, stockTick]);
+    const t = setTimeout(() => setDebouncedQuery(query.trim()), 250);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  const { data: results = [] } = useQuery<Product[]>({
+    queryKey: ['pos-products', 'search', debouncedQuery],
+    queryFn: () => productsApi.list({ search: debouncedQuery, limit: 24 }),
+    enabled: debouncedQuery.length > 0,
+    placeholderData: keepPreviousData,
+  });
+
+  useEffect(() => {
+    setHighlighted(0);
+  }, [debouncedQuery]);
 
   useEffect(() => {
     if (customerMode !== 'existing' || customerQuery.trim().length < 1) {
@@ -232,7 +228,7 @@ export default function PosPage() {
       if (chosen) {
         addToCart(chosen);
         setQuery('');
-        setResults([]);
+        setDebouncedQuery('');
         setHighlighted(0);
         searchRef.current?.focus();
       }
@@ -357,13 +353,13 @@ export default function PosPage() {
       setReceipt(sale);
       clearCounter();
       refreshHeldCount();
-      setStockTick((t) => t + 1);
+      refreshStock();
     } catch (err) {
       const detected = err instanceof ApiError ? readStockShortfalls(err.details) : null;
       if (detected) {
         toast.error('Stock changed while you were selling — check where each item comes from');
         await refreshCartStock();
-        setStockTick((t) => t + 1);
+        refreshStock();
         setFulfilmentOpen(true);
       } else toast.error(err instanceof ApiError ? err.message : "Couldn't complete sale");
     } finally {
@@ -952,7 +948,7 @@ export default function PosPage() {
           onClose={() => setReturnOpen(false)}
           onCompleted={(result) => {
             toast.success(`Return ${result.returnNumber} recorded`);
-            setStockTick((t) => t + 1);
+            refreshStock();
           }}
         />
       )}

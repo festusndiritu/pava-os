@@ -14,7 +14,6 @@ import { ThermalDocument } from './ThermalDocument';
 import { shareNotice } from '../../lib/pdf';
 import { printReceipt } from '../../lib/print-receipt';
 import { ApiError } from '../../lib/api';
-import { shareDocumentAsPdf } from '../../lib/pdf/document-pdf';
 import { FulfilmentDialog, defaultStockQty, type FulfilmentLine } from './FulfilmentDialog';
 import { DeliveryNoteDialog } from './DeliveryNoteDialog';
 import { useMediaQuery } from '../../lib/use-media-query';
@@ -170,6 +169,7 @@ export function DocumentDetailDrawer({
     if (!doc) return;
     setSharing(true);
     try {
+      const { shareDocumentAsPdf } = await import('../../lib/pdf/document-pdf');
       const result = await shareDocumentAsPdf(doc, settings);
       toast.success(shareNotice(result, docNumber ?? docTypeLabel(doc.type)));
     } catch {

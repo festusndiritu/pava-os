@@ -7,7 +7,6 @@ import { settingsApi, type BusinessSettings } from '../../lib/settings-api';
 import { buildPosReceiptViewModel } from '../../lib/document-view-model';
 import { shareNotice } from '../../lib/pdf';
 import { getAutoPrint, getPrintMode, printReceipt } from '../../lib/print-receipt';
-import { shareViewModelAsPdf } from '../../lib/pdf/document-pdf';
 import { ThermalDocument } from '../documents/ThermalDocument';
 import { Modal } from '../ui/Modal';
 import { useMediaQuery } from '../../lib/use-media-query';
@@ -55,6 +54,8 @@ export function ReceiptDialog({
   async function handleShare() {
     setSharing(true);
     try {
+      // Loaded on demand — the PDF renderer is heavy and most receipts are never exported.
+      const { shareViewModelAsPdf } = await import('../../lib/pdf/document-pdf');
       const result = await shareViewModelAsPdf(vm);
       toast.success(shareNotice(result, vm.number));
     } catch {
