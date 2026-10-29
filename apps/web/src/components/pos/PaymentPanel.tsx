@@ -73,6 +73,7 @@ export function PaymentPanel({
   creditAvailable = 0,
   onNeedCustomer,
   disabled,
+  hideModes,
 }: {
   draft: PaymentDraft;
   onChange: (next: PaymentDraft) => void;
@@ -82,6 +83,8 @@ export function PaymentPanel({
   /** Asked for when change is to be kept as credit but nobody is on the sale yet. */
   onNeedCustomer?: () => void;
   disabled?: boolean;
+  /** The payment type was already chosen (the till's Cash / Split buttons), so don't offer it again. */
+  hideModes?: boolean;
 }) {
   const r = resolvePayment(draft, total, hasCustomer, creditAvailable);
   const set = (patch: Partial<PaymentDraft>) => onChange({ ...draft, ...patch });
@@ -114,27 +117,29 @@ export function PaymentPanel({
         </p>
       )}
 
-      <div className="grid grid-cols-3 gap-2">
-        {MODES.map((m) => {
-          const active = !disabled && draft.mode === m.value;
-          return (
-            <button
-              key={m.value}
-              type="button"
-              onClick={() => set({ mode: m.value })}
-              className="min-h-11 rounded-md border px-1 text-sm font-medium leading-tight"
-              style={{
-                borderColor: active ? 'var(--color-accent)' : 'var(--color-border)',
-                backgroundColor: active ? 'var(--color-accent-soft)' : 'transparent',
-                color: active ? 'var(--color-accent)' : 'var(--color-ink-600)',
-              }}
-            >
-              {m.label}
-              <span className="block text-[11px] font-normal opacity-70">{m.hint}</span>
-            </button>
-          );
-        })}
-      </div>
+      {!hideModes && (
+        <div className="grid grid-cols-3 gap-2">
+          {MODES.map((m) => {
+            const active = !disabled && draft.mode === m.value;
+            return (
+              <button
+                key={m.value}
+                type="button"
+                onClick={() => set({ mode: m.value })}
+                className="min-h-11 rounded-md border px-1 text-sm font-medium leading-tight"
+                style={{
+                  borderColor: active ? 'var(--color-accent)' : 'var(--color-border)',
+                  backgroundColor: active ? 'var(--color-accent-soft)' : 'transparent',
+                  color: active ? 'var(--color-accent)' : 'var(--color-ink-600)',
+                }}
+              >
+                {m.label}
+                <span className="block text-[11px] font-normal opacity-70">{m.hint}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {!disabled && draft.mode !== 'MPESA' && (
         <div className="flex flex-col gap-2">
@@ -215,6 +220,60 @@ export function PaymentPanel({
         </p>
       )}
     </div>
+  );
+}
+
+/** Cash and split payments: how much was handed over, and what to do with any change. */
+export function PaymentDialog({
+  draft,
+  onChange,
+  total,
+  hasCustomer,
+  creditAvailable,
+  onNeedCustomer,
+  onCancel,
+  onDone,
+}: {
+  draft: PaymentDraft;
+  onChange: (next: PaymentDraft) => void;
+  total: number;
+  hasCustomer: boolean;
+  creditAvailable: number;
+  onNeedCustomer: () => void;
+  onCancel: () => void;
+  onDone: () => void;
+}) {
+  const r = resolvePayment(draft, total, hasCustomer, creditAvailable);
+  const title = draft.mode === 'SPLIT' ? 'Split payment' : 'Cash payment';
+  return (
+    <Modal onClose={onCancel} placement="center" dismissOnBackdrop={false} label={title} className="max-w-sm p-5">
+      <h3 className="text-base font-semibold" style={{ color: 'var(--color-ink-900)' }}>
+        {title}
+      </h3>
+      <div className="mt-2 flex items-baseline justify-between text-sm" style={{ color: 'var(--color-ink-600)' }}>
+        <span>To collect</span>
+        <span className="data-num text-lg font-semibold" style={{ color: 'var(--color-ink-900)' }}>
+          {money(r.due)}
+        </span>
+      </div>
+      <div className="mt-4">
+        <PaymentPanel draft={draft} onChange={onChange} total={total} hasCustomer={hasCustomer} creditAvailable={creditAvailable} onNeedCustomer={onNeedCustomer} hideModes />
+      </div>
+      <div className="mt-5 flex gap-2">
+        <button type="button" onClick={onCancel} className="min-h-12 flex-1 rounded-md border px-4 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={onDone}
+          disabled={!!r.problem}
+          className="min-h-12 flex-1 rounded-md px-4 text-sm font-semibold text-white disabled:opacity-50"
+          style={{ backgroundColor: 'var(--color-accent)' }}
+        >
+          {r.problem ?? 'Done'}
+        </button>
+      </div>
+    </Modal>
   );
 }
 

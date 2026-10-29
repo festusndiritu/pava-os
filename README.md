@@ -38,6 +38,8 @@ convenience scripts that run in both.
    cd apps/api && bun install
    cd apps/web && bun install
    ```
+   The web app uses `@tanstack/react-query` for server data on the POS; `bun install`
+   in `apps/web` picks it up.
 4. **Migrate and seed the database** (from the repo root):
    ```
    bun run prisma:migrate
@@ -59,6 +61,63 @@ Run from the repo root unless noted:
 
 - `bun run prisma:migrate` / `prisma:generate` / `prisma:seed` — database
   setup, proxied into `apps/api`.
+
+## What the till and back office do (worth knowing before changing them)
+
+**POS (desktop).** Products are a narrow list of compact rows (staff search
+far more than they browse) and the cart takes the rest of the screen:
+customer picker on top, the lines, then Fulfilment, the total and
+*Complete sale*. A bar under the product list holds the rest:
+
+- **M-Pesa** selects that payment type straight away.
+- **Cash** and **Split** open a dialog: how much was received and, when it
+  is more than the total, whether to give the change back (only out of cash)
+  or keep it on the customer's account as credit.
+- **Pay later**, **Transport**, **Hold cart**, **Recent sales** (the last 15
+  sales, opening the usual document view for reprinting).
+- **Make quote** saves the cart as a quote — no stock taken, nothing paid.
+  Shown only to people with the Quotes or Invoices permission.
+
+On a phone the cart is still one full-screen sheet.
+
+**Backorders on invoice edits.** Approving an edit request that adds units
+beyond what is on the shelf no longer just refuses. The admin sees what is
+short and chooses, per line, how much comes from the shop; the rest is
+marked as sourced elsewhere (optionally naming the source). A line can't be
+set below what it had already taken from the shelf, and asking for more than
+the shelf holds is refused again. What was sourced elsewhere is kept in the
+audit log.
+
+**Adding stock without a cost.** In *Adjust stock*, the unit cost is
+optional. Left blank it uses the product's last cost, or is stored as
+"no cost recorded" (those units are flagged on the product and inventory
+pages, and profit on them looks higher than it really is because their cost
+counts as zero). Receiving stock from a supplier still requires a cost.
+
+**Customer credit held by the shop.** Money a customer leaves with the shop
+(an overpayment, or change they didn't take) is a negative balance on their
+account, recorded with how it arrived (e.g. "Excess left with the shop
+(M-Pesa 120)"). An admin can *Release credit* from the customer screen,
+either **given to the customer** (cash or M-Pesa) or **cleared and kept by the
+owner**, always with a note. It is a ledger entry (`CREDIT_RELEASED`) plus an
+audit-log record; it is never a sale or shop income. The dashboard's
+*Held for customers* card shows the total held, how many customers, and how
+long the oldest has been held.
+
+## Performance notes
+
+- POS product browsing, search and categories use TanStack Query
+  (`QueryClientProvider` in `app/providers.tsx`). Anything that changes stock
+  invalidates the `['pos-products']` queries so the till refreshes. Other
+  lists use the existing `useServerTable` hook.
+- The PDF renderer is loaded on demand (`await import('lib/pdf/document-pdf')`)
+  rather than bundled into every screen.
+- Calls that only need the newest few rows pass a `limit` (POS product
+  lists, the returns dialog's sale search) instead of downloading everything
+  and trimming it in the browser.
+- Migration `performance_indexes` adds indexes for document lists
+  (type/status/date), customer, paid date, source document, and items by
+  product.
 
 ## Conventions worth knowing before you touch the code
 
@@ -96,5 +155,9 @@ Run from the repo root unless noted:
 ## Known gaps
 
 - No automated tests yet.
+- A stock batch's unit cost can't be corrected after the stock is received or
+  adjusted in, so units added without a cost stay uncosted.
+- Dashboard and analytics sums over long date ranges load every sale in the
+  range into memory; fine at current volume, worth moving into SQL if it grows.
 - API hardening (rate limiting, `helmet`, a stricter CORS policy than
   `origin: true`) hasn't been done.

@@ -32,7 +32,7 @@ import { documentsApi, type SaleDocument } from '../../../lib/documents-api';
 import { thicknessLabel } from '../../../lib/shape-config';
 import { TransportDialog, type TransportSettings } from '../../../components/pos/TransportDialog';
 import { ReceiptDialog } from '../../../components/pos/ReceiptDialog';
-import { PaymentPanel, QuickCustomerDialog, emptyPayment, resolvePayment, type PaymentDraft } from '../../../components/pos/PaymentPanel';
+import { PaymentDialog, PaymentPanel, QuickCustomerDialog, emptyPayment, resolvePayment, type PaymentDraft } from '../../../components/pos/PaymentPanel';
 import { ProductIcon } from '../../../components/pos/ProductIcon';
 import { SuspendOrderDialog, SuspendedOrdersDialog } from '../../../components/pos/SuspendedOrders';
 import { ReturnDialog } from '../../../components/pos/ReturnDialog';
@@ -97,9 +97,9 @@ export default function PosPage() {
   const canQuote = hasPermission('QUOTES') || hasPermission('INVOICES');
   const [recentOpen, setRecentOpen] = useState(false);
   const [recentDetailId, setRecentDetailId] = useState<string | null>(null);
-  // Desktop payment popover (opens above the action bar) and the bar it closes on an outside click.
+  // Cash / Split open a dialog; the draft before it opened is kept so Cancel can put it back.
   const [payOpen, setPayOpen] = useState(false);
-  const payBarRef = useRef<HTMLDivElement>(null);
+  const [payBackup, setPayBackup] = useState<{ payment: PaymentDraft; settleLater: boolean } | null>(null);
   const [heldOpen, setHeldOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
   const [heldCount, setHeldCount] = useState(0);
@@ -378,20 +378,6 @@ export default function PosPage() {
       setSubmitting(false);
     }
   }
-
-  useEffect(() => {
-    if (!payOpen) return;
-    const away = (e: MouseEvent) => {
-      if (payBarRef.current && !payBarRef.current.contains(e.target as Node)) setPayOpen(false);
-    };
-    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setPayOpen(false);
-    document.addEventListener('mousedown', away);
-    document.addEventListener('keydown', esc);
-    return () => {
-      document.removeEventListener('mousedown', away);
-      document.removeEventListener('keydown', esc);
-    };
-  }, [payOpen]);
 
   // Saves what is in the cart as a quote (no stock taken, nothing paid) and clears the till.
   async function makeQuote() {
@@ -820,16 +806,22 @@ export default function PosPage() {
 
   const payProblem = !settleLater && cart.length > 0 && !!paying.problem;
 
-  // Desktop action bar under the product grid: payment, transport, hold, quote and recent sales.
+  const openPayDialog = (mode: 'CASH' | 'SPLIT') => {
+    if (cart.length === 0) return;
+    setPayBackup({ payment, settleLater });
+    setPayment((p) => ({ ...p, mode }));
+    setSettleLater(false);
+    setPayOpen(true);
+  };
+  const tenderText = paying.tenders?.map((t) => `${t.method === 'MPESA' ? 'M-Pesa' : 'Cash'} ${money(t.amount)}`).join(' + ') ?? '';
+  const paySummary = payProblem ? paying.problem : [tenderText, paying.over > 0 ? `change ${money(paying.over)}` : ''].filter(Boolean).join(' · ');
+  const barButton = 'flex min-h-12 items-center gap-2 rounded-md border px-4 text-[15px] font-medium disabled:opacity-50';
+
+  // Desktop action bar under the product list: payment type, transport, hold, quote, recent sales.
   const actionBar = (
-    <div ref={payBarRef} className="relative hidden shrink-0 border-t lg:block" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
-      {payOpen && (
-        <div className="absolute bottom-full left-3 z-20 mb-2 w-[min(26rem,calc(100%-1.5rem))] rounded-lg border p-3 shadow-lg" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
-          <div className="flex flex-col gap-3">{paymentBlock}</div>
-        </div>
-      )}
-      <div className="flex flex-wrap items-center gap-2 p-2.5">
-        <div className="flex items-center gap-1.5" role="group" aria-label="Payment">
+    <div className="hidden shrink-0 border-t lg:block" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+      <div className="flex flex-wrap items-center gap-2.5 p-3.5">
+        <div className="flex flex-wrap items-center gap-2.5" role="group" aria-label="Payment">
           {([
             { value: 'MPESA', label: 'M-Pesa' },
             { value: 'CASH', label: 'Cash' },
@@ -842,12 +834,12 @@ export default function PosPage() {
                 type="button"
                 aria-pressed={active}
                 onClick={() => {
-                  setPayment((p) => ({ ...p, mode: m.value }));
-                  setSettleLater(false);
-                  // Cash and split need an amount typed in; M-Pesa doesn't.
-                  setPayOpen(m.value !== 'MPESA');
+                  if (m.value === 'MPESA') {
+                    setPayment((p) => ({ ...p, mode: 'MPESA' }));
+                    setSettleLater(false);
+                  } else openPayDialog(m.value);
                 }}
-                className="min-h-11 rounded-md border px-3 text-sm font-medium"
+                className={barButton}
                 style={{
                   borderColor: active ? 'var(--color-accent)' : 'var(--color-border)',
                   backgroundColor: active ? 'var(--color-accent-soft)' : 'transparent',
@@ -861,11 +853,8 @@ export default function PosPage() {
           <button
             type="button"
             aria-pressed={settleLater}
-            onClick={() => {
-              setSettleLater((v) => !v);
-              setPayOpen(false);
-            }}
-            className="min-h-11 rounded-md border px-3 text-sm font-medium"
+            onClick={() => setSettleLater((v) => !v)}
+            className={barButton}
             style={{
               borderColor: settleLater ? 'var(--color-status-warn)' : 'var(--color-border)',
               backgroundColor: settleLater ? 'var(--color-status-warnSoft)' : 'transparent',
@@ -874,51 +863,35 @@ export default function PosPage() {
           >
             Pay later
           </button>
-          {(payProblem || (!settleLater && paying.over > 0)) && (
-            <button type="button" onClick={() => setPayOpen(true)} className="min-h-11 px-1 text-xs font-medium underline" style={{ color: payProblem ? 'var(--color-status-warn)' : 'var(--color-ink-600)' }}>
-              {payProblem ? paying.problem : `Change ${money(paying.over)}`}
+          {!settleLater && payment.mode !== 'MPESA' && paySummary && (
+            <button type="button" onClick={() => openPayDialog(payment.mode as 'CASH' | 'SPLIT')} className="min-h-12 px-1 text-sm font-medium underline" style={{ color: payProblem ? 'var(--color-status-warn)' : 'var(--color-ink-600)' }}>
+              {paySummary}
             </button>
           )}
         </div>
-        <button
-          type="button"
-          onClick={() => setTransportOpen(true)}
-          className="flex min-h-11 items-center gap-1.5 rounded-md border px-3 text-sm font-medium"
-          style={{ borderColor: 'var(--color-border)', color: transport ? 'var(--color-accent)' : 'var(--color-ink-900)' }}
-        >
-          <Truck size={15} strokeWidth={2} />
+        <button type="button" onClick={() => setTransportOpen(true)} className={barButton} style={{ borderColor: 'var(--color-border)', color: transport ? 'var(--color-accent)' : 'var(--color-ink-900)' }}>
+          <Truck size={17} strokeWidth={2} />
           Transport{transport ? ` · ${money(transport.amount)}` : ''}
         </button>
-        <button
-          type="button"
-          onClick={() => setSuspendOpen(true)}
-          disabled={cart.length === 0}
-          className="flex min-h-11 items-center gap-1.5 rounded-md border px-3 text-sm font-medium disabled:opacity-50"
-          style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}
-        >
-          <PauseCircle size={15} strokeWidth={2} />
+        <button type="button" onClick={() => setSuspendOpen(true)} disabled={cart.length === 0} className={barButton} style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
+          <PauseCircle size={17} strokeWidth={2} />
           Hold cart
         </button>
         {canQuote && (
-        <button
-          type="button"
-          onClick={makeQuote}
-          disabled={cart.length === 0 || submitting}
-          title="Save these items as a quote instead of a sale"
-          className="flex min-h-11 items-center gap-1.5 rounded-md border px-3 text-sm font-medium disabled:opacity-50"
-          style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}
-        >
-          <FileText size={15} strokeWidth={2} />
-          Make quote
-        </button>
+          <button
+            type="button"
+            onClick={makeQuote}
+            disabled={cart.length === 0 || submitting}
+            title="Save these items as a quote instead of a sale"
+            className={barButton}
+            style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}
+          >
+            <FileText size={17} strokeWidth={2} />
+            Make quote
+          </button>
         )}
-        <button
-          type="button"
-          onClick={() => setRecentOpen(true)}
-          className="ml-auto flex min-h-11 items-center gap-1.5 rounded-md border px-3 text-sm font-medium"
-          style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}
-        >
-          <History size={15} strokeWidth={2} />
+        <button type="button" onClick={() => setRecentOpen(true)} className={`${barButton} ml-auto`} style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
+          <History size={17} strokeWidth={2} />
           Recent sales
         </button>
       </div>
@@ -1145,6 +1118,25 @@ export default function PosPage() {
           busy={submitting}
           onCancel={() => setSuspendOpen(false)}
           onConfirm={suspendCurrent}
+        />
+      )}
+
+      {payOpen && cart.length > 0 && (
+        <PaymentDialog
+          draft={payment}
+          onChange={setPayment}
+          total={Math.max(0, estimatedTotal)}
+          hasCustomer={hasCustomer}
+          creditAvailable={creditAvailable}
+          onNeedCustomer={() => setQuickCustomerOpen(true)}
+          onCancel={() => {
+            if (payBackup) {
+              setPayment(payBackup.payment);
+              setSettleLater(payBackup.settleLater);
+            }
+            setPayOpen(false);
+          }}
+          onDone={() => setPayOpen(false)}
         />
       )}
 
