@@ -161,7 +161,7 @@ export const documentsApi = {
   requestEdit: (id: string, data: EditRequestInput) => api.post<EditRequest>(`/documents/${id}/edit-requests`, data),
   editRequestsFor: (id: string) => api.get<EditRequest[]>(`/documents/${id}/edit-requests`),
   listEditRequests: (status?: EditRequestStatus) => api.get<EditRequest[]>(`/documents/edit-requests${status ? `?status=${status}` : ''}`),
-  approveEdit: (requestId: string, opts: { note?: string; settlement?: 'CASH' | 'MPESA' | 'CREDIT' } = {}) =>
+  approveEdit: (requestId: string, opts: { note?: string; settlement?: 'CASH' | 'MPESA' | 'CREDIT'; allowShortfall?: boolean; supplierSource?: string; fulfilment?: { index: number; stockQty: number }[] } = {}) =>
     api.post<SaleDocument>(`/documents/edit-requests/${requestId}/approve`, opts),
   rejectEdit: (requestId: string, opts: { note?: string } = {}) => api.post<EditRequest>(`/documents/edit-requests/${requestId}/reject`, opts),
   cancel: (id: string) => api.post<SaleDocument>(`/documents/${id}/cancel`),

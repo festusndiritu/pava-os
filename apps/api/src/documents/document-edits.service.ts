@@ -177,11 +177,15 @@ export class DocumentEditsService {
     }
 
     const oldById = new Map(doc.items.map((i) => [i.id, i]));
+    // Lowest from-shop quantity each line can drop to when stock is short: what it already took.
+    const floors: number[] = [];
     const nextLines = priced.lines.map((line, idx) => {
+      floors[idx] = 0;
       const old = changes.items[idx].itemId ? oldById.get(changes.items[idx].itemId!) : undefined;
       if (!line.productId) return { ...line, stockQty: null as number | null, supplierSource: null as string | null };
       if (!old) return { ...line, stockQty: line.qty, supplierSource: null };
       const oldStock = old.stockQty ?? old.qty;
+      floors[idx] = Math.min(oldStock, line.qty);
       const delta = line.qty - old.qty;
       // More units come from the shop; fewer units drop the externally supplied part first, so the
       // shop's own stock isn't over-returned.
@@ -189,22 +193,88 @@ export class DocumentEditsService {
       return { ...line, stockQty, supplierSource: stockQty < line.qty ? old.supplierSource : null };
     });
 
-    const net = new Map<string, number>();
-    for (const old of doc.items) if (old.productId) net.set(old.productId, (net.get(old.productId) || 0) - (old.stockQty ?? old.qty));
-    for (const l of nextLines) if (l.productId) net.set(l.productId, (net.get(l.productId) || 0) + (l.stockQty ?? 0));
+    const netStock = () => {
+      const net = new Map<string, number>();
+      for (const old of doc.items) if (old.productId) net.set(old.productId, (net.get(old.productId) || 0) - (old.stockQty ?? old.qty));
+      for (const l of nextLines) if (l.productId) net.set(l.productId, (net.get(l.productId) || 0) + (l.stockQty ?? 0));
+      return net;
+    };
 
-    const needed = [...net.entries()].filter(([, q]) => q > 0).map(([productId, qty]) => ({ productId, qty }));
-    if (needed.length > 0) {
-      const missing = await this.documents.findShortfalls(needed);
+    // Takes the shortfall off the lines that grew (last line first), never below what they already took.
+    const cutPlan = (missing: { productId: string; shortfall: number }[]) => {
+      const out = nextLines.map((l) => l.stockQty);
+      for (const m of missing) {
+        let left = m.shortfall;
+        for (let i = nextLines.length - 1; i >= 0 && left > 0; i--) {
+          const q = out[i];
+          if (nextLines[i].productId !== m.productId || q == null) continue;
+          const cut = Math.min(left, q - floors[i]);
+          if (cut <= 0) continue;
+          out[i] = q - cut;
+          left -= cut;
+        }
+      }
+      return out;
+    };
+    const stockShortfalls = async () => {
+      const need = [...netStock().entries()].filter(([, q]) => q > 0).map(([productId, qty]) => ({ productId, qty }));
+      return need.length > 0 ? this.documents.findShortfalls(need) : [];
+    };
+    const refuse = (missing: Awaited<ReturnType<typeof stockShortfalls>>): never => {
+      const suggested = cutPlan(missing);
+      const short = new Set(missing.map((m) => m.productId));
+      throw new BadRequestException({
+        statusCode: 400,
+        code: 'INSUFFICIENT_STOCK',
+        message: `Not enough stock for this edit: ${missing.map((m) => `${m.name} (need ${m.requested}, have ${m.available})`).join(', ')}`,
+        shortfalls: missing,
+        // Lines the admin can split between the shelf and elsewhere, with the least each can take from the shelf.
+        editLines: nextLines.flatMap((l, i) =>
+          l.productId && short.has(l.productId) && l.stockQty != null ? [{ index: i, name: l.description, qty: l.qty, min: floors[i], suggested: suggested[i] ?? l.stockQty }] : [],
+        ),
+      });
+    };
+
+    let missing = await stockShortfalls();
+    if (missing.length > 0 && !input.allowShortfall) refuse(missing);
+
+    const sourcedElsewhere: { name: string; fromElsewhere: number }[] = [];
+    if (input.allowShortfall) {
+      const touched = new Set<number>();
+      const chosen = input.fulfilment ?? [];
+      for (const c of chosen) {
+        const l = nextLines[c.index];
+        if (!l || !l.productId || l.stockQty == null) throw new BadRequestException('Unknown line in the from-shop choices');
+        if (c.stockQty < floors[c.index] || c.stockQty > l.qty) {
+          throw new BadRequestException(`${l.description}: from-shop quantity must be between ${floors[c.index]} and ${l.qty}`);
+        }
+        l.stockQty = c.stockQty;
+        touched.add(c.index);
+      }
+      missing = await stockShortfalls();
       if (missing.length > 0) {
-        throw new BadRequestException({
-          statusCode: 400,
-          code: 'INSUFFICIENT_STOCK',
-          message: `Not enough stock for this edit: ${missing.map((m) => `${m.name} (need ${m.requested}, have ${m.available})`).join(', ')}`,
-          shortfalls: missing,
+        // The admin asked for more from the shelf than it holds: show the shelf again.
+        if (chosen.length > 0) refuse(missing);
+        cutPlan(missing).forEach((q, i) => {
+          if (q != null && q !== nextLines[i].stockQty) {
+            nextLines[i].stockQty = q;
+            touched.add(i);
+          }
         });
       }
+      const source = input.supplierSource?.trim();
+      for (const i of touched) {
+        const l = nextLines[i];
+        if (l.stockQty == null) continue;
+        if (l.stockQty < l.qty) {
+          l.supplierSource = source || l.supplierSource || 'Backorder';
+          sourcedElsewhere.push({ name: l.description, fromElsewhere: l.qty - l.stockQty });
+        } else {
+          l.supplierSource = null;
+        }
+      }
     }
+    const net = netStock();
 
     const deliveryNotesIssued = await this.prisma.document.count({ where: { sourceDocumentId: doc.id, type: DocumentType.DELIVERY_NOTE } });
     const before = { total: doc.total, transportAmount: doc.transportAmount, items: doc.items.map((i) => ({ description: i.description, qty: i.qty, unitPrice: i.unitPrice })) };
@@ -265,7 +335,7 @@ export class DocumentEditsService {
       action: 'document.edit_approved',
       entityType: 'Document',
       entityId: doc.id,
-      metadata: { requestId, requestedById: req.requestedById, reason: req.reason, before, total: priced.total, difference: diff, settlement, deliveryNotesIssued },
+      metadata: { requestId, requestedById: req.requestedById, reason: req.reason, before, total: priced.total, difference: diff, settlement, deliveryNotesIssued, sourcedElsewhere },
     });
     await this.afterDecision(req, actorId, true, input.note);
 

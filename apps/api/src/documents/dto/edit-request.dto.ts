@@ -61,6 +61,17 @@ export class CreateEditRequestDto {
   foldTransportIntoPrices?: boolean;
 }
 
+// How much of one line leaves the shop's own shelf when an edit is approved beyond recorded stock.
+export class EditFulfilmentDto {
+  @IsInt()
+  @Min(0)
+  index!: number;
+
+  @IsInt()
+  @Min(0)
+  stockQty!: number;
+}
+
 export class DecideEditRequestDto {
   @IsOptional()
   @IsString()
@@ -72,4 +83,22 @@ export class DecideEditRequestDto {
   @IsOptional()
   @IsIn(['CASH', 'MPESA', 'CREDIT'] as const)
   settlement?: 'CASH' | 'MPESA' | 'CREDIT';
+
+  // Approve even when the shelf can't cover the added units; the part not taken from the shelf is
+  // marked as sourced elsewhere (a backorder), like invoicing beyond stock. `fulfilment` says how
+  // much of each line comes from the shop; without it, whatever the shelf holds is taken.
+  @IsOptional()
+  @IsBoolean()
+  allowShortfall?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EditFulfilmentDto)
+  fulfilment?: EditFulfilmentDto[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  supplierSource?: string;
 }

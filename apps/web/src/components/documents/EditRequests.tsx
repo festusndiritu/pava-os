@@ -8,6 +8,7 @@ import { ProductPicker } from '../products/ProductPicker';
 import { toast } from '../ui/Toast';
 import { ApiError } from '../../lib/api';
 import { documentsApi, type EditRequest, type SaleDocument } from '../../lib/documents-api';
+import { readStockShortfalls, type StockShortfall } from '../../lib/pos-api';
 import { money } from '../../lib/format';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
@@ -174,6 +175,11 @@ export function EditRequestCard({
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
   const [settlement, setSettlement] = useState<'CASH' | 'MPESA' | 'CREDIT'>('CASH');
+  const [shortfalls, setShortfalls] = useState<StockShortfall[] | null>(null);
+  const [source, setSource] = useState('');
+  // Lines the admin can split between the shelf and elsewhere, and how much each takes from the shelf.
+  const [lines, setLines] = useState<{ index: number; name: string; qty: number; min: number; suggested: number }[]>([]);
+  const [fromShop, setFromShop] = useState<Record<number, number>>({});
   const diff = request.proposedTotal - request.previousTotal;
   const status = STATUS_STYLE[request.status];
   const doc = request.document;
@@ -182,7 +188,13 @@ export function EditRequestCard({
     setBusy(true);
     try {
       if (approve) {
-        await documentsApi.approveEdit(request.id, { note: note.trim() || undefined, settlement: paid && diff !== 0 ? settlement : undefined });
+        await documentsApi.approveEdit(request.id, {
+          note: note.trim() || undefined,
+          settlement: paid && diff !== 0 ? settlement : undefined,
+          allowShortfall: shortfalls ? true : undefined,
+          supplierSource: shortfalls ? source.trim() || undefined : undefined,
+          fulfilment: shortfalls && lines.length > 0 ? lines.map((l) => ({ index: l.index, stockQty: fromShop[l.index] ?? l.suggested })) : undefined,
+        });
         toast.success('Edit approved and applied');
       } else {
         await documentsApi.rejectEdit(request.id, { note: note.trim() || undefined });
@@ -190,7 +202,14 @@ export function EditRequestCard({
       }
       onDecided();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Couldn't record the decision");
+      // Shelf can't cover the added units: let the admin approve anyway and source the rest elsewhere.
+      const short = err instanceof ApiError ? readStockShortfalls(err.details) : null;
+      if (approve && short) {
+        const editLines = (err instanceof ApiError && Array.isArray(err.details?.editLines) ? err.details.editLines : []) as typeof lines;
+        setShortfalls(short);
+        setLines(editLines);
+        setFromShop(Object.fromEntries(editLines.map((l) => [l.index, l.suggested])));
+      } else toast.error(err instanceof ApiError ? err.message : "Couldn't record the decision");
     } finally {
       setBusy(false);
     }
@@ -265,13 +284,47 @@ export function EditRequestCard({
               ))}
             </div>
           )}
+          {shortfalls && (
+            <div className="flex flex-col gap-2 rounded-md border p-2 text-xs" style={{ borderColor: 'var(--color-status-warn)', color: 'var(--color-ink-900)' }}>
+              <p>
+                Not enough stock: {shortfalls.map((s) => `${s.name} (need ${s.requested}, have ${s.available})`).join(', ')}. Choose how much comes from the shop shelf; the rest is marked as sourced elsewhere.
+              </p>
+              {lines.map((l) => {
+                const value = fromShop[l.index] ?? l.suggested;
+                return (
+                  <div key={l.index} className="flex flex-wrap items-center gap-2">
+                    <span className="min-w-0 flex-1">
+                      {l.name} · {l.qty} in total
+                    </span>
+                    <label className="flex items-center gap-1">
+                      From shop
+                      <NumericInput
+                        value={String(value)}
+                        onChange={(v) => setFromShop((f) => ({ ...f, [l.index]: Math.min(l.qty, Math.max(l.min, Number(v) || 0)) }))}
+                        min={l.min}
+                        max={l.qty}
+                        aria-label={`${l.name} from shop`}
+                        className="data-num min-h-9 w-20 rounded-md border px-2 text-right text-sm"
+                        style={inputStyle}
+                      />
+                    </label>
+                    <button type="button" onClick={() => setFromShop((f) => ({ ...f, [l.index]: l.min }))} className="min-h-9 rounded-md border px-2 font-medium" style={{ borderColor: 'var(--color-border)' }}>
+                      None from shop
+                    </button>
+                    <span style={muted}>{l.qty - value} from elsewhere</span>
+                  </div>
+                );
+              })}
+              <input value={source} onChange={(e) => setSource(e.target.value)} placeholder="Sourced from (optional)" maxLength={120} className="min-h-9 rounded-md border px-2 text-sm" style={inputStyle} />
+            </div>
+          )}
           <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional)" maxLength={500} className="min-h-9 rounded-md border px-2 text-sm" style={inputStyle} />
           <div className="flex gap-2">
             <button type="button" disabled={busy} onClick={() => decide(false)} className="flex min-h-9 flex-1 items-center justify-center gap-1 rounded-md border px-3 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-status-bad)' }}>
               <X size={14} /> Reject
             </button>
             <button type="button" disabled={busy} onClick={() => decide(true)} className="flex min-h-9 flex-1 items-center justify-center gap-1 rounded-md px-3 text-sm font-semibold text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
-              <Check size={14} /> Approve
+              <Check size={14} /> {shortfalls ? 'Approve anyway' : 'Approve'}
             </button>
           </div>
         </div>
