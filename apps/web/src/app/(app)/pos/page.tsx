@@ -17,7 +17,6 @@ import {
   Truck,
   Warehouse,
   X,
-  CreditCard,
   FileText,
   History,
 } from 'lucide-react';
@@ -42,6 +41,7 @@ import { DocumentDetailDrawer } from '../../../components/documents/DocumentDeta
 import { FulfilmentDialog, defaultStockQty, type FulfilmentLine } from '../../../components/documents/FulfilmentDialog';
 import { DeliveryNoteDialog } from '../../../components/documents/DeliveryNoteDialog';
 import { ApiError } from '../../../lib/api';
+import { useAuth } from '../../../lib/auth-context';
 import { CommittedNumberInput } from '../../../components/ui/inputs';
 import { toast } from '../../../components/ui/Toast';
 import { money } from '../../../lib/format';
@@ -93,6 +93,8 @@ export default function PosPage() {
 
   const [focusMode, setFocusMode] = useState(false);
   const [suspendOpen, setSuspendOpen] = useState(false);
+  const { hasPermission } = useAuth();
+  const canQuote = hasPermission('QUOTES') || hasPermission('INVOICES');
   const [recentOpen, setRecentOpen] = useState(false);
   const [recentDetailId, setRecentDetailId] = useState<string | null>(null);
   // Desktop payment popover (opens above the action bar) and the bar it closes on an outside click.
@@ -816,9 +818,7 @@ export default function PosPage() {
     </div>
   );
 
-  const payModeLabel = payment.mode === 'MPESA' ? 'M-Pesa' : payment.mode === 'CASH' ? 'Cash' : 'Split';
   const payProblem = !settleLater && cart.length > 0 && !!paying.problem;
-  const payLabel = settleLater ? 'Pay later' : payProblem ? paying.problem : `${payModeLabel}${paying.over > 0 ? ` · change ${money(paying.over)}` : ''}`;
 
   // Desktop action bar under the product grid: payment, transport, hold, quote and recent sales.
   const actionBar = (
@@ -829,19 +829,57 @@ export default function PosPage() {
         </div>
       )}
       <div className="flex flex-wrap items-center gap-2 p-2.5">
-        <button
-          type="button"
-          onClick={() => setPayOpen((v) => !v)}
-          aria-expanded={payOpen}
-          className="flex min-h-11 items-center gap-1.5 rounded-md border px-3 text-sm font-medium"
-          style={{
-            borderColor: payProblem ? 'var(--color-status-warn)' : settleLater ? 'var(--color-status-warn)' : 'var(--color-border)',
-            color: payProblem || settleLater ? 'var(--color-status-warn)' : 'var(--color-ink-900)',
-          }}
-        >
-          <CreditCard size={15} strokeWidth={2} />
-          {payLabel}
-        </button>
+        <div className="flex items-center gap-1.5" role="group" aria-label="Payment">
+          {([
+            { value: 'MPESA', label: 'M-Pesa' },
+            { value: 'CASH', label: 'Cash' },
+            { value: 'SPLIT', label: 'Split' },
+          ] as const).map((m) => {
+            const active = !settleLater && payment.mode === m.value;
+            return (
+              <button
+                key={m.value}
+                type="button"
+                aria-pressed={active}
+                onClick={() => {
+                  setPayment((p) => ({ ...p, mode: m.value }));
+                  setSettleLater(false);
+                  // Cash and split need an amount typed in; M-Pesa doesn't.
+                  setPayOpen(m.value !== 'MPESA');
+                }}
+                className="min-h-11 rounded-md border px-3 text-sm font-medium"
+                style={{
+                  borderColor: active ? 'var(--color-accent)' : 'var(--color-border)',
+                  backgroundColor: active ? 'var(--color-accent-soft)' : 'transparent',
+                  color: active ? 'var(--color-accent)' : 'var(--color-ink-900)',
+                }}
+              >
+                {m.label}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            aria-pressed={settleLater}
+            onClick={() => {
+              setSettleLater((v) => !v);
+              setPayOpen(false);
+            }}
+            className="min-h-11 rounded-md border px-3 text-sm font-medium"
+            style={{
+              borderColor: settleLater ? 'var(--color-status-warn)' : 'var(--color-border)',
+              backgroundColor: settleLater ? 'var(--color-status-warnSoft)' : 'transparent',
+              color: settleLater ? 'var(--color-status-warn)' : 'var(--color-ink-900)',
+            }}
+          >
+            Pay later
+          </button>
+          {(payProblem || (!settleLater && paying.over > 0)) && (
+            <button type="button" onClick={() => setPayOpen(true)} className="min-h-11 px-1 text-xs font-medium underline" style={{ color: payProblem ? 'var(--color-status-warn)' : 'var(--color-ink-600)' }}>
+              {payProblem ? paying.problem : `Change ${money(paying.over)}`}
+            </button>
+          )}
+        </div>
         <button
           type="button"
           onClick={() => setTransportOpen(true)}
@@ -861,6 +899,7 @@ export default function PosPage() {
           <PauseCircle size={15} strokeWidth={2} />
           Hold cart
         </button>
+        {canQuote && (
         <button
           type="button"
           onClick={makeQuote}
@@ -872,6 +911,7 @@ export default function PosPage() {
           <FileText size={15} strokeWidth={2} />
           Make quote
         </button>
+        )}
         <button
           type="button"
           onClick={() => setRecentOpen(true)}

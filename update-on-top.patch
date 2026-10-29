@@ -1,0 +1,187 @@
+diff --git a/apps/api/src/dashboard/dashboard.service.ts b/apps/api/src/dashboard/dashboard.service.ts
+--- a/apps/api/src/dashboard/dashboard.service.ts
++++ b/apps/api/src/dashboard/dashboard.service.ts
+@@ -234,7 +234,7 @@
+     }
+ 
+     if (canSeeCredit) {
+-      const [aggregate, topDebtors, held] = await Promise.all([
++      const [aggregate, topDebtors, held, heldDeposits] = await Promise.all([
+         this.prisma.customer.aggregate({
+           where: {
+             isCredit: true,
+@@ -259,9 +259,24 @@
+           _sum: { creditBalance: true },
+           _count: true,
+         }),
++
++        // Latest time each of those customers left money with the shop.
++        this.prisma.customerLedgerEntry.groupBy({
++          by: ['customerId'],
++          where: { type: 'CHANGE_DEPOSIT', customer: { creditBalance: { lt: 0 } } },
++          _max: { createdAt: true },
++        }),
+       ]);
+ 
+-      result.heldCredit = { total: -(held._sum.creditBalance || 0), customerCount: held._count };
++      const oldest = heldDeposits.reduce((min: number | null, g: any) => {
++        const t = g._max.createdAt ? new Date(g._max.createdAt).getTime() : null;
++        return t !== null && (min === null || t < min) ? t : min;
++      }, null);
++      result.heldCredit = {
++        total: -(held._sum.creditBalance || 0),
++        customerCount: held._count,
++        oldestDays: oldest === null ? null : Math.floor((Date.now() - oldest) / 86_400_000),
++      };
+ 
+       result.outstandingCredit = {
+         total: aggregate._sum.creditBalance || 0,
+diff --git a/apps/web/src/app/(app)/dashboard/page.tsx b/apps/web/src/app/(app)/dashboard/page.tsx
+--- a/apps/web/src/app/(app)/dashboard/page.tsx
++++ b/apps/web/src/app/(app)/dashboard/page.tsx
+@@ -258,7 +258,7 @@
+             <StatCard
+               label="Held for customers"
+               value={money(data.heldCredit.total)}
+-              sub={`${data.heldCredit.customerCount} ${plural(data.heldCredit.customerCount, 'customer')} — not shop money`}
++              sub={`${data.heldCredit.customerCount} ${plural(data.heldCredit.customerCount, 'customer')}${data.heldCredit.oldestDays != null ? ` · longest held ${data.heldCredit.oldestDays}d` : ''} — not shop money`}
+               icon={Wallet}
+               tone="warn"
+               href={hasPermission('CUSTOMERS') ? '/customers' : undefined}
+diff --git a/apps/web/src/app/(app)/pos/page.tsx b/apps/web/src/app/(app)/pos/page.tsx
+--- a/apps/web/src/app/(app)/pos/page.tsx
++++ b/apps/web/src/app/(app)/pos/page.tsx
+@@ -17,7 +17,6 @@
+   Truck,
+   Warehouse,
+   X,
+-  CreditCard,
+   FileText,
+   History,
+ } from 'lucide-react';
+@@ -42,6 +41,7 @@
+ import { FulfilmentDialog, defaultStockQty, type FulfilmentLine } from '../../../components/documents/FulfilmentDialog';
+ import { DeliveryNoteDialog } from '../../../components/documents/DeliveryNoteDialog';
+ import { ApiError } from '../../../lib/api';
++import { useAuth } from '../../../lib/auth-context';
+ import { CommittedNumberInput } from '../../../components/ui/inputs';
+ import { toast } from '../../../components/ui/Toast';
+ import { money } from '../../../lib/format';
+@@ -93,6 +93,8 @@
+ 
+   const [focusMode, setFocusMode] = useState(false);
+   const [suspendOpen, setSuspendOpen] = useState(false);
++  const { hasPermission } = useAuth();
++  const canQuote = hasPermission('QUOTES') || hasPermission('INVOICES');
+   const [recentOpen, setRecentOpen] = useState(false);
+   const [recentDetailId, setRecentDetailId] = useState<string | null>(null);
+   // Desktop payment popover (opens above the action bar) and the bar it closes on an outside click.
+@@ -816,9 +818,7 @@
+     </div>
+   );
+ 
+-  const payModeLabel = payment.mode === 'MPESA' ? 'M-Pesa' : payment.mode === 'CASH' ? 'Cash' : 'Split';
+   const payProblem = !settleLater && cart.length > 0 && !!paying.problem;
+-  const payLabel = settleLater ? 'Pay later' : payProblem ? paying.problem : `${payModeLabel}${paying.over > 0 ? ` · change ${money(paying.over)}` : ''}`;
+ 
+   // Desktop action bar under the product grid: payment, transport, hold, quote and recent sales.
+   const actionBar = (
+@@ -829,19 +829,57 @@
+         </div>
+       )}
+       <div className="flex flex-wrap items-center gap-2 p-2.5">
+-        <button
+-          type="button"
+-          onClick={() => setPayOpen((v) => !v)}
+-          aria-expanded={payOpen}
+-          className="flex min-h-11 items-center gap-1.5 rounded-md border px-3 text-sm font-medium"
+-          style={{
+-            borderColor: payProblem ? 'var(--color-status-warn)' : settleLater ? 'var(--color-status-warn)' : 'var(--color-border)',
+-            color: payProblem || settleLater ? 'var(--color-status-warn)' : 'var(--color-ink-900)',
+-          }}
+-        >
+-          <CreditCard size={15} strokeWidth={2} />
+-          {payLabel}
+-        </button>
++        <div className="flex items-center gap-1.5" role="group" aria-label="Payment">
++          {([
++            { value: 'MPESA', label: 'M-Pesa' },
++            { value: 'CASH', label: 'Cash' },
++            { value: 'SPLIT', label: 'Split' },
++          ] as const).map((m) => {
++            const active = !settleLater && payment.mode === m.value;
++            return (
++              <button
++                key={m.value}
++                type="button"
++                aria-pressed={active}
++                onClick={() => {
++                  setPayment((p) => ({ ...p, mode: m.value }));
++                  setSettleLater(false);
++                  // Cash and split need an amount typed in; M-Pesa doesn't.
++                  setPayOpen(m.value !== 'MPESA');
++                }}
++                className="min-h-11 rounded-md border px-3 text-sm font-medium"
++                style={{
++                  borderColor: active ? 'var(--color-accent)' : 'var(--color-border)',
++                  backgroundColor: active ? 'var(--color-accent-soft)' : 'transparent',
++                  color: active ? 'var(--color-accent)' : 'var(--color-ink-900)',
++                }}
++              >
++                {m.label}
++              </button>
++            );
++          })}
++          <button
++            type="button"
++            aria-pressed={settleLater}
++            onClick={() => {
++              setSettleLater((v) => !v);
++              setPayOpen(false);
++            }}
++            className="min-h-11 rounded-md border px-3 text-sm font-medium"
++            style={{
++              borderColor: settleLater ? 'var(--color-status-warn)' : 'var(--color-border)',
++              backgroundColor: settleLater ? 'var(--color-status-warnSoft)' : 'transparent',
++              color: settleLater ? 'var(--color-status-warn)' : 'var(--color-ink-900)',
++            }}
++          >
++            Pay later
++          </button>
++          {(payProblem || (!settleLater && paying.over > 0)) && (
++            <button type="button" onClick={() => setPayOpen(true)} className="min-h-11 px-1 text-xs font-medium underline" style={{ color: payProblem ? 'var(--color-status-warn)' : 'var(--color-ink-600)' }}>
++              {payProblem ? paying.problem : `Change ${money(paying.over)}`}
++            </button>
++          )}
++        </div>
+         <button
+           type="button"
+           onClick={() => setTransportOpen(true)}
+@@ -861,6 +899,7 @@
+           <PauseCircle size={15} strokeWidth={2} />
+           Hold cart
+         </button>
++        {canQuote && (
+         <button
+           type="button"
+           onClick={makeQuote}
+@@ -872,6 +911,7 @@
+           <FileText size={15} strokeWidth={2} />
+           Make quote
+         </button>
++        )}
+         <button
+           type="button"
+           onClick={() => setRecentOpen(true)}
+diff --git a/apps/web/src/lib/dashboard-api.ts b/apps/web/src/lib/dashboard-api.ts
+--- a/apps/web/src/lib/dashboard-api.ts
++++ b/apps/web/src/lib/dashboard-api.ts
+@@ -54,7 +54,7 @@
+   outOfStockCount?: number;
+ 
+   // Money the shop is holding for customers (change they left with it).
+-  heldCredit?: { total: number; customerCount: number };
++  heldCredit?: { total: number; customerCount: number; oldestDays?: number | null };
+ 
+   outstandingCredit?: {
+     total: number;

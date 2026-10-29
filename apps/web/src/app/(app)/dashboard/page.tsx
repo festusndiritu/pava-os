@@ -258,7 +258,7 @@ export default function DashboardPage() {
             <StatCard
               label="Held for customers"
               value={money(data.heldCredit.total)}
-              sub={`${data.heldCredit.customerCount} ${plural(data.heldCredit.customerCount, 'customer')} — not shop money`}
+              sub={`${data.heldCredit.customerCount} ${plural(data.heldCredit.customerCount, 'customer')}${data.heldCredit.oldestDays != null ? ` · longest held ${data.heldCredit.oldestDays}d` : ''} — not shop money`}
               icon={Wallet}
               tone="warn"
               href={hasPermission('CUSTOMERS') ? '/customers' : undefined}

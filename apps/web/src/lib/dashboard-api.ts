@@ -54,7 +54,7 @@ export interface DashboardSummary {
   outOfStockCount?: number;
 
   // Money the shop is holding for customers (change they left with it).
-  heldCredit?: { total: number; customerCount: number };
+  heldCredit?: { total: number; customerCount: number; oldestDays?: number | null };
 
   outstandingCredit?: {
     total: number;

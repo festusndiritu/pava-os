@@ -234,7 +234,7 @@ export class DashboardService {
     }
 
     if (canSeeCredit) {
-      const [aggregate, topDebtors, held] = await Promise.all([
+      const [aggregate, topDebtors, held, heldDeposits] = await Promise.all([
         this.prisma.customer.aggregate({
           where: {
             isCredit: true,
@@ -259,9 +259,24 @@ export class DashboardService {
           _sum: { creditBalance: true },
           _count: true,
         }),
+
+        // Latest time each of those customers left money with the shop.
+        this.prisma.customerLedgerEntry.groupBy({
+          by: ['customerId'],
+          where: { type: 'CHANGE_DEPOSIT', customer: { creditBalance: { lt: 0 } } },
+          _max: { createdAt: true },
+        }),
       ]);
 
-      result.heldCredit = { total: -(held._sum.creditBalance || 0), customerCount: held._count };
+      const oldest = heldDeposits.reduce((min: number | null, g: any) => {
+        const t = g._max.createdAt ? new Date(g._max.createdAt).getTime() : null;
+        return t !== null && (min === null || t < min) ? t : min;
+      }, null);
+      result.heldCredit = {
+        total: -(held._sum.creditBalance || 0),
+        customerCount: held._count,
+        oldestDays: oldest === null ? null : Math.floor((Date.now() - oldest) / 86_400_000),
+      };
 
       result.outstandingCredit = {
         total: aggregate._sum.creditBalance || 0,
