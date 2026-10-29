@@ -274,46 +274,47 @@ export function QuoteFormDrawer({
         </div>
 
         {lines.length > 0 && (
+          // Stacked rows rather than a table: five columns never fit a phone, which pushed the remove button off-screen.
           <div className="overflow-hidden rounded-md border" style={{ borderColor: 'var(--color-border)' }}>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-left" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)' }}>
-                  <th className="px-3 py-2 font-medium" style={{ color: 'var(--color-ink-600)' }}>Product</th>
-                  <th className="px-3 py-2 font-medium" style={{ color: 'var(--color-ink-600)' }}>Qty</th>
-                  <th className="px-3 py-2 font-medium" style={{ color: 'var(--color-ink-600)' }}>Unit price</th>
-                  <th className="px-3 py-2 text-right font-medium" style={{ color: 'var(--color-ink-600)' }}>Total</th>
-                  <th className="w-8" />
-                </tr>
-              </thead>
-              <tbody>
-                {lines.map((line, i) => (
-                  <tr key={line.product.id} className="border-b last:border-0" style={{ borderColor: 'var(--color-border)' }}>
-                    <td className="px-3 py-2" style={{ color: 'var(--color-ink-900)' }}>{line.product.displayName ?? line.product.name}</td>
-                    <td className="px-3 py-2">
-                      <NumericInput min={1} aria-label="Quantity" value={line.qty} onChange={(v) => setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, qty: v } : l)))} className="w-16 rounded border px-2 py-1 text-sm data-num" style={inputStyle} />
-                    </td>
-                    <td className="px-3 py-2">
-                      <NumericInput
-                        aria-label="Unit price"
-                        value={line.unitPrice}
-                        onChange={(v) => setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, unitPrice: v } : l)))}
-                        className="w-24 rounded border px-2 py-1 text-sm data-num"
-                        style={inputStyle}
-                        title="Final negotiated price."
-                      />
-                    </td>
-                    <td className="px-3 py-2 text-right data-num" style={{ color: 'var(--color-ink-900)' }}>
-                      KSh {fmtNumber((toNumber(line.qty) ?? 0) * (toNumber(line.unitPrice) ?? 0))}
-                    </td>
-                    <td className="px-3 py-2">
-                      <button type="button" onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))} style={{ color: 'var(--color-status-bad)' }}>
-                        <Trash2 size={14} strokeWidth={2} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            {lines.map((line, i) => (
+              <div key={line.product.id} className="flex flex-col gap-2 border-b px-3 py-3 last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="min-w-0 text-sm font-medium" style={{ color: 'var(--color-ink-900)' }}>
+                    {line.product.displayName ?? line.product.name}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))}
+                    aria-label={`Remove ${line.product.displayName ?? line.product.name}`}
+                    title="Remove line"
+                    className="-mr-1 -mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-md"
+                    style={{ color: 'var(--color-status-bad)' }}
+                  >
+                    <Trash2 size={16} strokeWidth={2} />
+                  </button>
+                </div>
+                <div className="flex flex-wrap items-end gap-3">
+                  <label className="flex flex-col gap-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>
+                    Qty
+                    <NumericInput min={1} aria-label="Quantity" value={line.qty} onChange={(v) => setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, qty: v } : l)))} className="min-h-10 w-20 rounded border px-2 text-sm data-num" style={inputStyle} />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>
+                    Unit price
+                    <NumericInput
+                      aria-label="Unit price"
+                      value={line.unitPrice}
+                      onChange={(v) => setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, unitPrice: v } : l)))}
+                      className="min-h-10 w-28 rounded border px-2 text-sm data-num"
+                      style={inputStyle}
+                      title="Final negotiated price."
+                    />
+                  </label>
+                  <p className="ml-auto pb-2 text-sm font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>
+                    KSh {fmtNumber((toNumber(line.qty) ?? 0) * (toNumber(line.unitPrice) ?? 0))}
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 

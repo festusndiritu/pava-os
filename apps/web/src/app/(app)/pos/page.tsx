@@ -17,6 +17,9 @@ import {
   Truck,
   Warehouse,
   X,
+  CreditCard,
+  FileText,
+  History,
 } from 'lucide-react';
 import { productsApi, type Category, type Product } from '../../../lib/products-api';
 import { customersApi, type Customer } from '../../../lib/customers-api';
@@ -34,6 +37,8 @@ import { PaymentPanel, QuickCustomerDialog, emptyPayment, resolvePayment, type P
 import { ProductIcon } from '../../../components/pos/ProductIcon';
 import { SuspendOrderDialog, SuspendedOrdersDialog } from '../../../components/pos/SuspendedOrders';
 import { ReturnDialog } from '../../../components/pos/ReturnDialog';
+import { RecentSalesDialog } from '../../../components/pos/RecentSalesDialog';
+import { DocumentDetailDrawer } from '../../../components/documents/DocumentDetailDrawer';
 import { FulfilmentDialog, defaultStockQty, type FulfilmentLine } from '../../../components/documents/FulfilmentDialog';
 import { DeliveryNoteDialog } from '../../../components/documents/DeliveryNoteDialog';
 import { ApiError } from '../../../lib/api';
@@ -88,6 +93,11 @@ export default function PosPage() {
 
   const [focusMode, setFocusMode] = useState(false);
   const [suspendOpen, setSuspendOpen] = useState(false);
+  const [recentOpen, setRecentOpen] = useState(false);
+  const [recentDetailId, setRecentDetailId] = useState<string | null>(null);
+  // Desktop payment popover (opens above the action bar) and the bar it closes on an outside click.
+  const [payOpen, setPayOpen] = useState(false);
+  const payBarRef = useRef<HTMLDivElement>(null);
   const [heldOpen, setHeldOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
   const [heldCount, setHeldCount] = useState(0);
@@ -367,6 +377,46 @@ export default function PosPage() {
     }
   }
 
+  useEffect(() => {
+    if (!payOpen) return;
+    const away = (e: MouseEvent) => {
+      if (payBarRef.current && !payBarRef.current.contains(e.target as Node)) setPayOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setPayOpen(false);
+    document.addEventListener('mousedown', away);
+    document.addEventListener('keydown', esc);
+    return () => {
+      document.removeEventListener('mousedown', away);
+      document.removeEventListener('keydown', esc);
+    };
+  }, [payOpen]);
+
+  // Saves what is in the cart as a quote (no stock taken, nothing paid) and clears the till.
+  async function makeQuote() {
+    if (cart.length === 0) return;
+    setSubmitting(true);
+    try {
+      const quote = await documentsApi.create({
+        customerId: customerMode === 'existing' ? selectedCustomer?.id : undefined,
+        customerName: customerMode === 'walkin' ? walkinName || undefined : undefined,
+        items: cart.map((l) => ({ productId: l.product.id, qty: l.qty, unitPrice: l.unitPrice })),
+        transportAmount: transport?.amount || undefined,
+        transportAllocation: transport?.allocation,
+        transportApplyTo: transport?.applyTo,
+        foldTransportIntoPrices: transport?.fold ?? true,
+      });
+      // A held order that became a quote shouldn't stay on hold as well.
+      if (resumedFromId) await posApi.discardSuspended(resumedFromId).catch(() => {});
+      toast.success(`Quote ${quote.quoteNumber ?? ''} created — find it under Quotes`);
+      clearCounter();
+      refreshHeldCount();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Couldn't create the quote");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   async function suspendCurrent(label: string) {
     setSubmitting(true);
     try {
@@ -439,44 +489,71 @@ export default function PosPage() {
     }
   }
 
-  const cartContent = (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: 'var(--color-border)' }}>
-        <div className="flex items-center gap-2">
-          <p className="text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>
-            Current sale
-          </p>
-          {cart.length > 0 && (
-            <span className="data-num rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: 'var(--color-accent-soft)', color: 'var(--color-accent)' }}>
-              {cart.length}
-            </span>
-          )}
-          {resumedFromId && (
-            <span className="rounded px-1.5 py-0.5 text-[11px] font-medium" style={{ backgroundColor: 'var(--color-status-warnSoft)', color: 'var(--color-status-warn)' }}>
-              Resumed
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-1">
-          {cart.length > 0 && (
+  // Pieces of the cart, shared by the phone cart (one scrolling sheet) and the desktop layout.
+  const customerPicker = (down: boolean) => (
+    <>
+        <div>
+          <div className="flex gap-1.5">
             <button
               type="button"
-              onClick={() => setSuspendOpen(true)}
-              title="Suspend this order"
-              aria-label="Suspend this order"
-              className="flex h-9 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium"
-              style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}
+              onClick={() => setCustomerMode('walkin')}
+              className="min-h-10 flex-1 rounded-md border px-2 text-xs font-medium"
+              style={{ borderColor: customerMode === 'walkin' ? 'var(--color-accent)' : 'var(--color-border)', color: customerMode === 'walkin' ? 'var(--color-accent)' : 'var(--color-ink-600)' }}
             >
-              <PauseCircle size={14} strokeWidth={2} />
-              Hold
+              Walk-in
             </button>
+            <button
+              type="button"
+              onClick={() => setCustomerMode('existing')}
+              className="min-h-10 flex-1 rounded-md border px-2 text-xs font-medium"
+              style={{ borderColor: customerMode === 'existing' ? 'var(--color-accent)' : 'var(--color-border)', color: customerMode === 'existing' ? 'var(--color-accent)' : 'var(--color-ink-600)' }}
+            >
+              Existing customer
+            </button>
+          </div>
+          {customerMode === 'walkin' ? (
+            <input value={walkinName} onChange={(e) => setWalkinName(e.target.value)} placeholder="Customer name (optional)" className="mt-2 min-h-10 w-full rounded-md border px-3 text-sm" style={inputStyle} />
+          ) : (
+            <div className="relative mt-2">
+              {selectedCustomer ? (
+                <div className="flex min-h-10 items-center justify-between rounded-md border px-3 text-sm" style={inputStyle}>
+                  <span className="truncate">{selectedCustomer.businessName || selectedCustomer.name}</span>
+                  <button type="button" onClick={() => chooseCustomer(null)} aria-label="Clear customer" style={{ color: 'var(--color-ink-600)' }}>
+                    <X size={14} strokeWidth={2} />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <input value={customerQuery} onChange={(e) => setCustomerQuery(e.target.value)} placeholder="Search customers…" className="min-h-10 w-full rounded-md border px-3 text-sm" style={inputStyle} />
+                  {customerResults.length > 0 && (
+                    <div className={`absolute left-0 right-0 z-10 max-h-44 overflow-y-auto rounded-md border ${down ? 'top-full mt-1' : 'bottom-full mb-1'}`} style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
+                      {customerResults.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => {
+                            chooseCustomer(c);
+                            setCustomerQuery('');
+                            setCustomerResults([]);
+                          }}
+                          className="block w-full px-3 py-2.5 text-left text-sm hover:bg-[var(--color-bg)]"
+                          style={{ color: 'var(--color-ink-900)' }}
+                        >
+                          {c.businessName || c.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           )}
-          <button type="button" onClick={() => setMobileCartOpen(false)} aria-label="Close cart" className="flex h-9 w-9 items-center justify-center rounded-md lg:hidden" style={{ color: 'var(--color-ink-600)' }}>
-            <X size={17} strokeWidth={2} />
-          </button>
         </div>
-      </div>
 
+    </>
+  );
+  const cartLines = (
+    <>
       <div className="flex-1 overflow-y-auto px-4 py-2">
         {cart.length === 0 && (
           <div className="py-12 text-center">
@@ -552,65 +629,10 @@ export default function PosPage() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 border-t px-4 py-3" style={{ borderColor: 'var(--color-border)', paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
-        <div>
-          <div className="flex gap-1.5">
-            <button
-              type="button"
-              onClick={() => setCustomerMode('walkin')}
-              className="min-h-10 flex-1 rounded-md border px-2 text-xs font-medium"
-              style={{ borderColor: customerMode === 'walkin' ? 'var(--color-accent)' : 'var(--color-border)', color: customerMode === 'walkin' ? 'var(--color-accent)' : 'var(--color-ink-600)' }}
-            >
-              Walk-in
-            </button>
-            <button
-              type="button"
-              onClick={() => setCustomerMode('existing')}
-              className="min-h-10 flex-1 rounded-md border px-2 text-xs font-medium"
-              style={{ borderColor: customerMode === 'existing' ? 'var(--color-accent)' : 'var(--color-border)', color: customerMode === 'existing' ? 'var(--color-accent)' : 'var(--color-ink-600)' }}
-            >
-              Existing customer
-            </button>
-          </div>
-          {customerMode === 'walkin' ? (
-            <input value={walkinName} onChange={(e) => setWalkinName(e.target.value)} placeholder="Customer name (optional)" className="mt-2 min-h-10 w-full rounded-md border px-3 text-sm" style={inputStyle} />
-          ) : (
-            <div className="relative mt-2">
-              {selectedCustomer ? (
-                <div className="flex min-h-10 items-center justify-between rounded-md border px-3 text-sm" style={inputStyle}>
-                  <span className="truncate">{selectedCustomer.businessName || selectedCustomer.name}</span>
-                  <button type="button" onClick={() => chooseCustomer(null)} aria-label="Clear customer" style={{ color: 'var(--color-ink-600)' }}>
-                    <X size={14} strokeWidth={2} />
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <input value={customerQuery} onChange={(e) => setCustomerQuery(e.target.value)} placeholder="Search customers…" className="min-h-10 w-full rounded-md border px-3 text-sm" style={inputStyle} />
-                  {customerResults.length > 0 && (
-                    <div className="absolute left-0 right-0 bottom-full z-10 mb-1 max-h-44 overflow-y-auto rounded-md border" style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
-                      {customerResults.map((c) => (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onClick={() => {
-                            chooseCustomer(c);
-                            setCustomerQuery('');
-                            setCustomerResults([]);
-                          }}
-                          className="block w-full px-3 py-2.5 text-left text-sm hover:bg-[var(--color-bg)]"
-                          style={{ color: 'var(--color-ink-900)' }}
-                        >
-                          {c.businessName || c.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-        </div>
-
+    </>
+  );
+  const fulfilButton = (
+    <>
         <button
           type="button"
           onClick={() => setFulfilmentOpen(true)}
@@ -633,6 +655,10 @@ export default function PosPage() {
           </span>
         </button>
 
+    </>
+  );
+  const transportButton = (
+    <>
         <button
           type="button"
           onClick={() => setTransportOpen(true)}
@@ -646,6 +672,10 @@ export default function PosPage() {
           <span className="data-num">{transport ? money(transport.amount) : '+ Add'}</span>
         </button>
 
+    </>
+  );
+  const paymentBlock = (
+    <>
         <PaymentPanel
           draft={payment}
           onChange={(next) => {
@@ -673,6 +703,10 @@ export default function PosPage() {
           <span className="ml-1 text-[11px] font-normal opacity-70">Release goods, pay later</span>
         </button>
 
+    </>
+  );
+  const totalsAndComplete = (
+    <>
         <div className="flex items-baseline justify-between">
           <span className="text-sm" style={{ color: 'var(--color-ink-600)' }}>
             Estimated total
@@ -696,6 +730,156 @@ export default function PosPage() {
           style={{ backgroundColor: 'var(--color-accent)' }}
         >
           {submitting ? 'Completing sale…' : `${settleLater ? 'Release goods' : 'Complete sale'} · ${money(Math.max(0, estimatedTotal))}`}
+        </button>
+    </>
+  );
+
+  const cartContent = (
+    <div className="flex h-full flex-col">
+      <div className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: 'var(--color-border)' }}>
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>
+            Current sale
+          </p>
+          {cart.length > 0 && (
+            <span className="data-num rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: 'var(--color-accent-soft)', color: 'var(--color-accent)' }}>
+              {cart.length}
+            </span>
+          )}
+          {resumedFromId && (
+            <span className="rounded px-1.5 py-0.5 text-[11px] font-medium" style={{ backgroundColor: 'var(--color-status-warnSoft)', color: 'var(--color-status-warn)' }}>
+              Resumed
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          {cart.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setSuspendOpen(true)}
+              title="Suspend this order"
+              aria-label="Suspend this order"
+              className="flex h-9 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium"
+              style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}
+            >
+              <PauseCircle size={14} strokeWidth={2} />
+              Hold
+            </button>
+          )}
+          <button type="button" onClick={() => setMobileCartOpen(false)} aria-label="Close cart" className="flex h-9 w-9 items-center justify-center rounded-md lg:hidden" style={{ color: 'var(--color-ink-600)' }}>
+            <X size={17} strokeWidth={2} />
+          </button>
+        </div>
+      </div>
+
+      {cartLines}
+
+      <div className="flex flex-col gap-3 border-t px-4 py-3" style={{ borderColor: 'var(--color-border)', paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
+        {customerPicker(false)}
+
+        {fulfilButton}
+
+        {transportButton}
+
+        {paymentBlock}
+
+        {totalsAndComplete}
+      </div>
+    </div>
+  );
+
+  const desktopCart = (
+    <div className="flex h-full flex-col">
+      <div className="flex items-center gap-2 border-b px-4 py-3" style={{ borderColor: 'var(--color-border)' }}>
+        <p className="text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>
+          Current sale
+        </p>
+        {cart.length > 0 && (
+          <span className="data-num rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: 'var(--color-accent-soft)', color: 'var(--color-accent)' }}>
+            {cart.length}
+          </span>
+        )}
+        {resumedFromId && (
+          <span className="rounded px-1.5 py-0.5 text-[11px] font-medium" style={{ backgroundColor: 'var(--color-status-warnSoft)', color: 'var(--color-status-warn)' }}>
+            Resumed
+          </span>
+        )}
+      </div>
+      <div className="border-b px-4 py-3" style={{ borderColor: 'var(--color-border)' }}>
+        {customerPicker(true)}
+      </div>
+      {cartLines}
+      <div className="flex flex-col gap-3 border-t px-4 py-3" style={{ borderColor: 'var(--color-border)' }}>
+        {fulfilButton}
+        {totalsAndComplete}
+      </div>
+    </div>
+  );
+
+  const payModeLabel = payment.mode === 'MPESA' ? 'M-Pesa' : payment.mode === 'CASH' ? 'Cash' : 'Split';
+  const payProblem = !settleLater && cart.length > 0 && !!paying.problem;
+  const payLabel = settleLater ? 'Pay later' : payProblem ? paying.problem : `${payModeLabel}${paying.over > 0 ? ` · change ${money(paying.over)}` : ''}`;
+
+  // Desktop action bar under the product grid: payment, transport, hold, quote and recent sales.
+  const actionBar = (
+    <div ref={payBarRef} className="relative hidden shrink-0 border-t lg:block" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+      {payOpen && (
+        <div className="absolute bottom-full left-3 z-20 mb-2 w-[min(26rem,calc(100%-1.5rem))] rounded-lg border p-3 shadow-lg" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+          <div className="flex flex-col gap-3">{paymentBlock}</div>
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-2 p-2.5">
+        <button
+          type="button"
+          onClick={() => setPayOpen((v) => !v)}
+          aria-expanded={payOpen}
+          className="flex min-h-11 items-center gap-1.5 rounded-md border px-3 text-sm font-medium"
+          style={{
+            borderColor: payProblem ? 'var(--color-status-warn)' : settleLater ? 'var(--color-status-warn)' : 'var(--color-border)',
+            color: payProblem || settleLater ? 'var(--color-status-warn)' : 'var(--color-ink-900)',
+          }}
+        >
+          <CreditCard size={15} strokeWidth={2} />
+          {payLabel}
+        </button>
+        <button
+          type="button"
+          onClick={() => setTransportOpen(true)}
+          className="flex min-h-11 items-center gap-1.5 rounded-md border px-3 text-sm font-medium"
+          style={{ borderColor: 'var(--color-border)', color: transport ? 'var(--color-accent)' : 'var(--color-ink-900)' }}
+        >
+          <Truck size={15} strokeWidth={2} />
+          Transport{transport ? ` · ${money(transport.amount)}` : ''}
+        </button>
+        <button
+          type="button"
+          onClick={() => setSuspendOpen(true)}
+          disabled={cart.length === 0}
+          className="flex min-h-11 items-center gap-1.5 rounded-md border px-3 text-sm font-medium disabled:opacity-50"
+          style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}
+        >
+          <PauseCircle size={15} strokeWidth={2} />
+          Hold cart
+        </button>
+        <button
+          type="button"
+          onClick={makeQuote}
+          disabled={cart.length === 0 || submitting}
+          title="Save these items as a quote instead of a sale"
+          className="flex min-h-11 items-center gap-1.5 rounded-md border px-3 text-sm font-medium disabled:opacity-50"
+          style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}
+        >
+          <FileText size={15} strokeWidth={2} />
+          Make quote
+        </button>
+        <button
+          type="button"
+          onClick={() => setRecentOpen(true)}
+          className="ml-auto flex min-h-11 items-center gap-1.5 rounded-md border px-3 text-sm font-medium"
+          style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}
+        >
+          <History size={15} strokeWidth={2} />
+          Recent sales
         </button>
       </div>
     </div>
@@ -815,8 +999,8 @@ export default function PosPage() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-3" style={{ paddingBottom: cart.length > 0 ? '5rem' : undefined }}>
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+          <div className={`flex-1 overflow-y-auto p-3 ${cart.length > 0 ? 'pb-20 lg:pb-3' : ''}`}>
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               {visibleProducts.map((p, i) => {
                 const gauge = thicknessLabel(p.shape, p.thicknessMm);
                 const isHighlighted = query.trim().length > 0 && i === highlighted;
@@ -872,10 +1056,11 @@ export default function PosPage() {
               </p>
             )}
           </div>
+          {actionBar}
         </div>
 
-        <div className="hidden w-[26rem] shrink-0 border-l lg:block 2xl:w-[28rem]" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
-          {cartContent}
+        <div className="hidden w-[30rem] shrink-0 border-l lg:block xl:w-[34rem] 2xl:w-[38rem]" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+          {desktopCart}
         </div>
       </div>
 
@@ -940,6 +1125,17 @@ export default function PosPage() {
           }}
         />
       )}
+
+      {recentOpen && (
+        <RecentSalesDialog
+          onClose={() => setRecentOpen(false)}
+          onPick={(id) => {
+            setRecentOpen(false);
+            setRecentDetailId(id);
+          }}
+        />
+      )}
+      <DocumentDetailDrawer documentId={recentDetailId} onClose={() => setRecentDetailId(null)} onChanged={refreshStock} />
 
       {heldOpen && <SuspendedOrdersDialog onClose={() => setHeldOpen(false)} onResume={resumeOrder} onChanged={refreshHeldCount} />}
 
