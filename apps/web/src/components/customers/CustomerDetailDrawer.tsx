@@ -24,6 +24,7 @@ const ENTRY_LABEL: Record<CustomerLedgerEntry['type'], string> = {
   WRITE_OFF: 'Write-off',
   CHANGE_DEPOSIT: 'Left as credit',
   CREDIT_APPLIED: 'Credit used',
+  CREDIT_RELEASED: 'Credit released',
 };
 
 export function CustomerDetailDrawer({
@@ -40,7 +41,7 @@ export function CustomerDetailDrawer({
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [ledger, setLedger] = useState<CustomerLedgerEntry[]>([]);
   const [loading, setLoading] = useState(false);
-  const [action, setAction] = useState<'payment' | 'adjustment' | null>(null);
+  const [action, setAction] = useState<'payment' | 'adjustment' | 'release' | null>(null);
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [confirmHardDelete, setConfirmHardDelete] = useState(false);
@@ -177,6 +178,11 @@ export function CustomerDetailDrawer({
                 <p className="mt-0.5 text-lg font-semibold data-num" style={{ color: 'var(--color-status-ok)' }}>
                   {money(-customer.creditBalance)}
                 </p>
+                {isAdmin && customer.active && (
+                  <button type="button" onClick={() => setAction('release')} className="mt-2 min-h-9 rounded-md border px-3 text-xs font-medium" style={{ borderColor: 'var(--color-status-ok)', color: 'var(--color-status-ok)' }}>
+                    Release credit
+                  </button>
+                )}
               </div>
             )}
             {customer.isCredit && (
@@ -241,7 +247,19 @@ export function CustomerDetailDrawer({
         )}
       </Drawer>
 
-      {action && customer && (
+      {action === 'release' && customer && (
+        <ReleaseCreditDialog
+          customer={customer}
+          onClose={() => setAction(null)}
+          onDone={() => {
+            setAction(null);
+            load();
+            onChanged();
+          }}
+        />
+      )}
+
+      {action && action !== 'release' && customer && (
         <LedgerActionDialog
           customer={customer}
           mode={action}
@@ -368,6 +386,80 @@ function LedgerActionDialog({
             </button>
           </div>
         </div>
+    </Modal>
+  );
+}
+// Paying out or clearing credit the shop is holding. Admin only; always with a note of what happened.
+function ReleaseCreditDialog({ customer, onClose, onDone }: { customer: Customer; onClose: () => void; onDone: () => void }) {
+  const held = -customer.creditBalance;
+  const [amount, setAmount] = useState(String(held));
+  const [outcome, setOutcome] = useState<'GIVEN' | 'KEPT'>('GIVEN');
+  const [method, setMethod] = useState<'CASH' | 'MPESA'>('CASH');
+  const [note, setNote] = useState('');
+  const [saving, setSaving] = useState(false);
+  const value = toNumber(amount);
+  const problem = !value ? 'Enter an amount' : value > held ? `Only ${money(held)} is held` : note.trim().length < 3 ? 'Write what happened' : null;
+  const border = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
+
+  async function submit() {
+    if (problem) {
+      toast.error(problem);
+      return;
+    }
+    setSaving(true);
+    try {
+      await customersApi.releaseCredit(customer.id, { amount: value, outcome, method: outcome === 'GIVEN' ? method : undefined, note: note.trim() });
+      toast.success('Credit released');
+      onDone();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Couldn't release the credit");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal onClose={onClose} placement="center" dismissOnBackdrop={false} label="Release held credit" className="max-w-sm p-5">
+      <h3 className="text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>
+        Release credit — {customer.name}
+      </h3>
+      <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>
+        Held for them: {money(held)}. This is not a sale and does not count as shop income.
+      </p>
+      <div className="mt-4 flex flex-col gap-3">
+        <Select
+          aria-label="What happens to it"
+          value={outcome}
+          onChange={(v) => setOutcome(v as 'GIVEN' | 'KEPT')}
+          options={[
+            { value: 'GIVEN', label: 'Given to the customer' },
+            { value: 'KEPT', label: 'Cleared — kept by me' },
+          ]}
+          style={border}
+        />
+        {outcome === 'GIVEN' && (
+          <Select
+            aria-label="How it was given"
+            value={method}
+            onChange={(v) => setMethod(v as 'CASH' | 'MPESA')}
+            options={[
+              { value: 'CASH', label: 'Cash' },
+              { value: 'MPESA', label: 'M-Pesa' },
+            ]}
+            style={border}
+          />
+        )}
+        <NumericInput value={amount} onChange={setAmount} placeholder="Amount" aria-label="Amount to release" className="w-full rounded-md border px-3 py-2 text-sm data-num" style={border} />
+        <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} placeholder="What happened (required)" aria-label="What happened" className="w-full rounded-md border px-3 py-2 text-sm" style={border} />
+        <div className="mt-1 flex gap-2">
+          <button type="button" onClick={onClose} className="flex-1 rounded-md border px-4 py-2 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
+            Cancel
+          </button>
+          <button type="button" onClick={submit} disabled={saving} className="flex-1 rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
+            {saving ? 'Saving…' : 'Release'}
+          </button>
+        </div>
+      </div>
     </Modal>
   );
 }

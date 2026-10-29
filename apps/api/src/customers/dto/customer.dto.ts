@@ -1,4 +1,4 @@
-import { IsBoolean, IsIn, IsOptional, IsString, Length, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString, Length, MaxLength, Min, MinLength } from 'class-validator';
 import { IsMoney } from '../../common/validation/money.validator.js';
 import { OptionalKenyanPhone } from '../../common/validation/phone.validator.js';
 
@@ -97,4 +97,24 @@ export class AdjustBalanceDto {
   @IsOptional()
   @IsString()
   note?: string;
+}
+
+// Held credit (what the shop keeps for a customer) being paid out or cleared. Never a sale.
+export class ReleaseCreditDto {
+  @IsMoney()
+  @Min(1)
+  amount!: number;
+
+  // GIVEN: handed to the customer. KEPT: cleared from their balance, kept by the owner.
+  @IsIn(['GIVEN', 'KEPT'] as const)
+  outcome!: 'GIVEN' | 'KEPT';
+
+  @IsOptional()
+  @IsIn(['CASH', 'MPESA'] as const)
+  method?: 'CASH' | 'MPESA';
+
+  @IsString()
+  @MinLength(3)
+  @MaxLength(500)
+  note!: string;
 }

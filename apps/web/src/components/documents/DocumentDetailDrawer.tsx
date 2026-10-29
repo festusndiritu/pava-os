@@ -455,6 +455,11 @@ export function DocumentDetailDrawer({
             )}
             {!!doc.changeGiven && <p>Change given: {money(doc.changeGiven)}</p>}
             {!!doc.changeToCredit && <p>Change kept as customer credit: {money(doc.changeToCredit)}</p>}
+            {(!!doc.changeGiven || !!doc.changeToCredit) && doc.payments && (
+              <p>
+                Received in full: {money(doc.payments.filter((p) => p.method !== 'STORE_CREDIT').reduce((sum, p) => sum + p.amount, 0) + (doc.changeGiven || 0) + (doc.changeToCredit || 0))} (sale {money(doc.total)})
+              </p>
+            )}
           </div>
 
           {editRequests.length > 0 && (

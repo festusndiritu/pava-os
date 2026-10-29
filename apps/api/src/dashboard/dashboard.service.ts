@@ -234,7 +234,7 @@ export class DashboardService {
     }
 
     if (canSeeCredit) {
-      const [aggregate, topDebtors] = await Promise.all([
+      const [aggregate, topDebtors, held] = await Promise.all([
         this.prisma.customer.aggregate({
           where: {
             isCredit: true,
@@ -252,7 +252,16 @@ export class DashboardService {
           orderBy: { creditBalance: 'desc' },
           take: 5,
         }),
+
+        // Money the shop is holding for customers (change left with it): negative balances.
+        this.prisma.customer.aggregate({
+          where: { creditBalance: { lt: 0 } },
+          _sum: { creditBalance: true },
+          _count: true,
+        }),
       ]);
+
+      result.heldCredit = { total: -(held._sum.creditBalance || 0), customerCount: held._count };
 
       result.outstandingCredit = {
         total: aggregate._sum.creditBalance || 0,

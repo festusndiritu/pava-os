@@ -1,7 +1,7 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuditService } from '../audit/audit.service.js';
-import { LedgerEntryType } from '../../generated/prisma/client.js';
+import { LedgerEntryType, Role } from '../../generated/prisma/client.js';
 import { normalizePhoneSearch } from '../common/validation/phone.validator.js';
 import { nullsLast, parseSort, type SortDir } from '../common/paging.js';
 
@@ -148,6 +148,46 @@ export class CustomersService {
       this.prisma.customer.update({ where: { id: customerId }, data: { creditBalance: { decrement: amount } } }),
     ]);
     await this.audit.log({ actorId: createdById, action: 'customer.payment_recorded', entityType: 'Customer', entityId: customerId, metadata: { amount } });
+    return entry;
+  }
+
+  // Paying out or clearing credit the shop is holding for a customer. Admin only, always with a
+  // note, and recorded on the ledger and in the audit log — it never touches sales figures.
+  async releaseCredit(
+    customerId: string,
+    input: { amount: number; outcome: 'GIVEN' | 'KEPT'; method?: 'CASH' | 'MPESA'; note: string },
+    actorId: string,
+    actorRole: Role,
+  ) {
+    if (actorRole !== Role.ADMIN) throw new ForbiddenException('Only an admin can release held credit');
+    if (!Number.isInteger(input.amount) || input.amount <= 0) throw new BadRequestException('Enter a whole amount above zero');
+    if (input.outcome === 'GIVEN' && !input.method) throw new BadRequestException('Choose whether it was given by cash or M-Pesa');
+    await this.findOne(customerId);
+
+    const how =
+      input.outcome === 'GIVEN'
+        ? `Given back to the customer${input.method ? ` by ${input.method === 'MPESA' ? 'M-Pesa' : 'cash'}` : ''}`
+        : 'Cleared from held credit and kept by the owner';
+    const note = `${how} — ${input.note.trim()}`;
+
+    const entry = await this.prisma.$transaction(async (tx) => {
+      // Held credit is a negative balance; this only goes through while that much is still held.
+      const moved = await tx.customer.updateMany({
+        where: { id: customerId, creditBalance: { lte: -input.amount } },
+        data: { creditBalance: { increment: input.amount } },
+      });
+      if (moved.count === 0) throw new BadRequestException('This customer does not have that much credit held');
+      return tx.customerLedgerEntry.create({
+        data: { customerId, type: LedgerEntryType.CREDIT_RELEASED, amount: input.amount, note, createdById: actorId },
+      });
+    });
+    await this.audit.log({
+      actorId,
+      action: 'customer.credit_released',
+      entityType: 'Customer',
+      entityId: customerId,
+      metadata: { amount: input.amount, outcome: input.outcome, method: input.method, note: input.note },
+    });
     return entry;
   }
 

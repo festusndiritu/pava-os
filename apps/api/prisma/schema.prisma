@@ -372,6 +372,9 @@ enum LedgerEntryType {
   CHANGE_DEPOSIT
   // Held credit spent on a later sale. Positive: it shrinks what the shop holds.
   CREDIT_APPLIED
+  // Held credit the admin released: given back to the customer, or cleared to the owner. Positive:
+  // it shrinks what the shop holds. Never counted as a sale.
+  CREDIT_RELEASED
 }
 
 model Customer {

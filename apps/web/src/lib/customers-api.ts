@@ -17,7 +17,7 @@ export interface Customer {
   updatedAt: string;
 }
 
-export type LedgerEntryType = 'INVOICE' | 'PAYMENT' | 'ADJUSTMENT' | 'OPENING' | 'REFUND' | 'WRITE_OFF' | 'CHANGE_DEPOSIT' | 'CREDIT_APPLIED';
+export type LedgerEntryType = 'INVOICE' | 'PAYMENT' | 'ADJUSTMENT' | 'OPENING' | 'REFUND' | 'WRITE_OFF' | 'CHANGE_DEPOSIT' | 'CREDIT_APPLIED' | 'CREDIT_RELEASED';
 
 export interface CustomerLedgerEntry {
   id: string;
@@ -54,6 +54,8 @@ export const customersApi = {
   recordPayment: (id: string, amount: number, note?: string) => api.post(`/customers/${id}/payments`, { amount, note }),
   adjustBalance: (id: string, amount: number, type: 'ADJUSTMENT' | 'OPENING' | 'REFUND' | 'WRITE_OFF', note?: string) =>
     api.post(`/customers/${id}/adjustments`, { amount, type, note }),
+  releaseCredit: (id: string, data: { amount: number; outcome: 'GIVEN' | 'KEPT'; method?: 'CASH' | 'MPESA'; note: string }) =>
+    api.post(`/customers/${id}/release-credit`, data),
   archive: (id: string) => api.delete<Customer>(`/customers/${id}`),
   restore: (id: string) => api.post<Customer>(`/customers/${id}/restore`),
   // Only succeeds on an already-archived customer with no sales/ledger/ lead history — the backend

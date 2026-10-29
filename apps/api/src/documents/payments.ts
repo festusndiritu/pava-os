@@ -9,6 +9,8 @@ export type SettledPayments = {
   changeGiven: number;
   changeToCredit: number;
   creditApplied: number;
+  // Where any excess came from, e.g. "M-Pesa 120" — kept with the credit it creates, for audit.
+  surplusDetail: string;
 };
 
 /** Turns what the customer handed over into what is stored against the bill. */
@@ -51,12 +53,14 @@ export function settlePayments(
 
   // Take the surplus off cash first, then (only when it is being left as credit) off whatever else was paid.
   let remaining = surplus;
+  const surplusParts: string[] = [];
   const rows: { method: PaymentMethod; amount: number }[] = [];
   for (const method of ['CASH', 'MPESA'] as const) {
     const gross = byMethod.get(method);
     if (!gross) continue;
     const take = Math.min(remaining, gross);
     remaining -= take;
+    if (take > 0) surplusParts.push(`${method === 'MPESA' ? 'M-Pesa' : 'Cash'} ${take}`);
     if (gross - take > 0) rows.push({ method: method as PaymentMethod, amount: gross - take });
   }
 
@@ -68,5 +72,6 @@ export function settlePayments(
     changeGiven: changeAction === 'GIVE' ? surplus : 0,
     changeToCredit: changeAction === 'CREDIT' ? surplus : 0,
     creditApplied: credit,
+    surplusDetail: surplusParts.join(' + '),
   };
 }

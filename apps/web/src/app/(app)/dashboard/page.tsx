@@ -9,6 +9,7 @@ import {
   Receipt,
   ShoppingCart,
   TrendingUp,
+  Wallet,
 } from 'lucide-react';
 import { useAuth } from '../../../lib/auth-context';
 import { ApiError } from '../../../lib/api';
@@ -41,6 +42,7 @@ const STAT_GRID: Record<number, string> = {
   2: 'grid-cols-1 min-[420px]:grid-cols-2',
   3: 'grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-3',
   4: 'grid-cols-1 min-[420px]:grid-cols-2 xl:grid-cols-4',
+  5: 'grid-cols-1 min-[420px]:grid-cols-2 xl:grid-cols-5',
 };
 
 /** Refetch when the tab regains focus, but only if the data is older than this. */
@@ -113,7 +115,8 @@ export default function DashboardPage() {
   const outOfStockCount = data?.outOfStockCount ?? 0;
   const lowStockShown = data?.lowStock?.length ?? 0;
 
-  const statCount = (data?.sales ? 3 : 0) + (data?.lowStock ? 1 : 0);
+  const showHeld = !!data?.heldCredit && data.heldCredit.total > 0;
+  const statCount = (data?.sales ? 3 : 0) + (data?.lowStock ? 1 : 0) + (showHeld ? 1 : 0);
   const salesHref = hasPermission('INVOICES') ? '/invoices' : undefined;
 
   const loading = !data && !error;
@@ -248,6 +251,17 @@ export default function DashboardPage() {
               icon={Boxes}
               tone={outOfStockCount > 0 ? 'bad' : lowStockCount > 0 ? 'warn' : 'ok'}
               href={hasPermission('INVENTORY') ? '/inventory?filter=low' : undefined}
+            />
+          )}
+
+          {showHeld && data.heldCredit && (
+            <StatCard
+              label="Held for customers"
+              value={money(data.heldCredit.total)}
+              sub={`${data.heldCredit.customerCount} ${plural(data.heldCredit.customerCount, 'customer')} — not shop money`}
+              icon={Wallet}
+              tone="warn"
+              href={hasPermission('CUSTOMERS') ? '/customers' : undefined}
             />
           )}
         </div>

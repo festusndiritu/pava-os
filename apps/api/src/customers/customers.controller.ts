@@ -6,7 +6,7 @@ import { Permissions } from '../auth/permissions.decorator.js';
 import { RolesGuard } from '../auth/roles.guard.js';
 import { Roles } from '../auth/roles.decorator.js';
 import { Module, Role } from '../../generated/prisma/client.js';
-import { AdjustBalanceDto, CreateCustomerDto, RecordPaymentDto, UpdateCustomerDto } from './dto/customer.dto.js';
+import { AdjustBalanceDto, CreateCustomerDto, RecordPaymentDto, ReleaseCreditDto, UpdateCustomerDto } from './dto/customer.dto.js';
 import { parsePaging, sendTotal } from '../common/paging.js';
 
 @UseGuards(JwtAuthGuard)
@@ -73,6 +73,13 @@ export class CustomersController {
   @Post(':id/adjustments')
   adjustBalance(@Param('id') id: string, @Body() body: AdjustBalanceDto, @Req() req: any) {
     return this.customers.adjustBalance(id, body.amount, body.type, body.note, req.user.sub);
+  }
+
+  @UseGuards(PermissionsGuard)
+  @Permissions(Module.CUSTOMERS)
+  @Post(':id/release-credit')
+  releaseCredit(@Param('id') id: string, @Body() body: ReleaseCreditDto, @Req() req: any) {
+    return this.customers.releaseCredit(id, body, req.user.sub, req.user.role);
   }
 
   @UseGuards(PermissionsGuard)

@@ -260,10 +260,10 @@ export class DocumentsService {
   }
 
   // Change the customer left with the shop.
-  private async depositChange(tx: any, customerId: string, amount: number, documentId: string, actorId: string) {
+  private async depositChange(tx: any, customerId: string, amount: number, documentId: string, actorId: string, detail?: string) {
     if (amount <= 0) return;
     await tx.customerLedgerEntry.create({
-      data: { customerId, type: LedgerEntryType.CHANGE_DEPOSIT, amount: -amount, documentId, note: 'Change left with the shop', createdById: actorId },
+      data: { customerId, type: LedgerEntryType.CHANGE_DEPOSIT, amount: -amount, documentId, note: detail ? `Excess left with the shop (${detail})` : 'Change left with the shop', createdById: actorId },
     });
     await tx.customer.update({ where: { id: customerId }, data: { creditBalance: { decrement: amount } } });
   }
@@ -709,7 +709,7 @@ export class DocumentsService {
         await tx.customer.update({ where: { id: doc.customerId }, data: { creditBalance: { decrement: doc.total } } });
       }
 
-      if (settled && doc.customerId) await this.depositChange(tx, doc.customerId, settled.changeToCredit, id, actorId);
+      if (settled && doc.customerId) await this.depositChange(tx, doc.customerId, settled.changeToCredit, id, actorId, settled.surplusDetail);
 
       return updated;
     });
@@ -900,7 +900,7 @@ export class DocumentsService {
 
       if (settled && input.customerId) {
         await this.spendCredit(tx, input.customerId, settled.creditApplied, created.id, actorId);
-        await this.depositChange(tx, input.customerId, settled.changeToCredit, created.id, actorId);
+        await this.depositChange(tx, input.customerId, settled.changeToCredit, created.id, actorId, settled.surplusDetail);
       }
 
       if (input.suspendedFromId) {
