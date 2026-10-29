@@ -31,8 +31,8 @@ export function ReturnDialog({ onClose, onCompleted }: { onClose: () => void; on
       try {
         const term = query.trim();
         const [paid, invoiced] = await Promise.all([
-          documentsApi.list({ status: 'PAID', search: term || undefined }),
-          documentsApi.list({ status: 'INVOICED', search: term || undefined }),
+          documentsApi.list({ status: 'PAID', search: term || undefined, limit: 20 }),
+          documentsApi.list({ status: 'INVOICED', search: term || undefined, limit: 20 }),
         ]);
         setResults(
           [...paid, ...invoiced]
