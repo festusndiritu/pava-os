@@ -283,7 +283,9 @@ export default function PosPage() {
 
   function chooseCustomer(c: Customer | null) {
     setSelectedCustomer(c);
-    setPayment((p) => ({ ...p, useCredit: !!c && c.creditBalance < 0 }));
+    // Held credit is never spent on its own: the cashier switches it on in the payment panel. The owner
+    // may want it kept for something else (or paid out), so a new customer always starts with it off.
+    setPayment((p) => ({ ...p, useCredit: false }));
   }
 
   // How much of a line leaves the shop: the operator's decision if there is one (never more than is
@@ -505,7 +507,14 @@ export default function PosPage() {
             <div className="relative mt-2">
               {selectedCustomer ? (
                 <div className="flex min-h-10 items-center justify-between rounded-md border px-3 text-sm" style={inputStyle}>
-                  <span className="truncate">{selectedCustomer.businessName || selectedCustomer.name}</span>
+                  <span className="truncate">
+                    {selectedCustomer.businessName || selectedCustomer.name}
+                    {creditAvailable > 0 && (
+                      <span className="data-num ml-2 text-xs" style={{ color: 'var(--color-status-ok)' }}>
+                        {money(creditAvailable)} held
+                      </span>
+                    )}
+                  </span>
                   <button type="button" onClick={() => chooseCustomer(null)} aria-label="Clear customer" style={{ color: 'var(--color-ink-600)' }}>
                     <X size={14} strokeWidth={2} />
                   </button>
