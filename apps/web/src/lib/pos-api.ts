@@ -39,6 +39,10 @@ export interface PosSaleInput {
   payments?: PaymentLine[];
   changeAction?: 'GIVE' | 'CREDIT';
   creditApplied?: number;
+  /** An earlier unpaid balance the customer is settling together with this sale. */
+  balanceCollected?: number;
+  /** Paid less than the bill: the rest is left owing on the customer's account. */
+  leaveBalance?: boolean;
   allowNegativeStock?: boolean; // legacy: sell beyond shelf stock as a backorder. The till now splits fulfilment instead.
   suspendedFromId?: string;
   notes?: string;
@@ -161,6 +165,8 @@ export interface PosSaleResult {
   changeGiven?: number;
   changeToCredit?: number;
   creditApplied?: number;
+  balanceCollected?: number;
+  balanceLeft?: number;
   payments?: { id: string; method: PosPaymentMethod | 'STORE_CREDIT'; amount: number }[];
   customerName: string | null;
   customer: { name: string; businessName: string | null } | null;

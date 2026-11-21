@@ -223,7 +223,7 @@ export function DocumentDetailDrawer({
                     <button
                       type="button"
                       disabled={busy || !!settling.problem}
-                      onClick={() => runAction(() => documentsApi.markPaid(doc.id, { paymentMethod: settling.method, payments: settling.tenders, changeAction: settling.changeAction, discount: settleDiscount > 0 ? doc.discount + settleDiscount : undefined }))}
+                      onClick={() => runAction(() => documentsApi.markPaid(doc.id, { paymentMethod: settling.method, payments: settling.tenders, changeAction: settling.changeAction, leaveBalance: settling.balanceLeft > 0 || undefined, discount: settleDiscount > 0 ? doc.discount + settleDiscount : undefined }))}
                       className="min-h-10 rounded-md px-3 text-sm font-semibold text-white disabled:opacity-60"
                       style={{ backgroundColor: 'var(--color-accent)' }}
                     >
@@ -448,6 +448,11 @@ export function DocumentDetailDrawer({
           )}
 
           <div className="flex flex-col gap-0.5 text-xs" style={{ color: 'var(--color-ink-600)' }}>
+            {doc.type === 'QUOTE' && doc.status === 'QUOTED' && doc.validUntil && (
+              <p style={new Date(doc.validUntil).getTime() < Date.now() ? { color: 'var(--color-status-warn)' } : undefined}>
+                {new Date(doc.validUntil).getTime() < Date.now() ? 'Expired' : 'Valid until'}: {new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(doc.validUntil))}
+              </p>
+            )}
             {doc.invoicedAt && <p>Invoiced: {fmtDate(doc.invoicedAt)}</p>}
             {doc.paidAt && <p>Paid: {fmtDate(doc.paidAt)}</p>}
             {doc.payments && doc.payments.length > 1 && (
@@ -455,9 +460,12 @@ export function DocumentDetailDrawer({
             )}
             {!!doc.changeGiven && <p>Change given: {money(doc.changeGiven)}</p>}
             {!!doc.changeToCredit && <p>Change kept as customer credit: {money(doc.changeToCredit)}</p>}
+            {!!doc.balanceLeft && <p style={{ color: 'var(--color-status-warn)' }}>Left owing on account: {money(doc.balanceLeft)}</p>}
+            {!!doc.balanceCollected && <p>Earlier balance settled with this sale: {money(doc.balanceCollected)}</p>}
             {(!!doc.changeGiven || !!doc.changeToCredit) && doc.payments && (
               <p>
-                Received in full: {money(doc.payments.filter((p) => p.method !== 'STORE_CREDIT').reduce((sum, p) => sum + p.amount, 0) + (doc.changeGiven || 0) + (doc.changeToCredit || 0))} (sale {money(doc.total)})
+                Received in full: {money(doc.payments.filter((p) => p.method !== 'STORE_CREDIT').reduce((sum, p) => sum + p.amount, 0) + (doc.changeGiven || 0) + (doc.changeToCredit || 0))} (sale {money(doc.total)}
+                {doc.balanceCollected ? ` + earlier balance ${money(doc.balanceCollected)}` : ''})
               </p>
             )}
           </div>

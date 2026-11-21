@@ -45,6 +45,10 @@ export interface SaleDocument {
   changeGiven?: number;
   changeToCredit?: number;
   creditApplied?: number;
+  /** An earlier unpaid balance settled together with this sale; received on top of `total`, not part of it. */
+  balanceCollected?: number;
+  /** Part of the bill the customer did not pay and left owing on their account. */
+  balanceLeft?: number;
   subtotal: number;
   discount: number;
   total: number;
@@ -58,6 +62,8 @@ export interface SaleDocument {
   deliveryPhone: string | null;
   invoicedAt: string | null;
   paidAt: string | null;
+  /** QUOTE only: the last day the quoted prices hold. Null on quotes issued before validity existed. */
+  validUntil: string | null;
   createdAt: string;
 }
 
@@ -154,7 +160,7 @@ export const documentsApi = {
   update: (id: string, data: CreateDocumentInput) => api.patch<SaleDocument>(`/documents/${id}`, data),
   convertToInvoice: (id: string, opts: { allowNegativeStock?: boolean; fulfilment?: { itemId: string; stockQty: number; supplierSource?: string }[] } = {}) =>
     api.post<SaleDocument>(`/documents/${id}/convert-to-invoice`, opts),
-  markPaid: (id: string, opts: { paymentMethod?: 'CASH' | 'MPESA'; payments?: PaymentLine[]; changeAction?: 'GIVE' | 'CREDIT'; discount?: number } = {}) =>
+  markPaid: (id: string, opts: { paymentMethod?: 'CASH' | 'MPESA'; payments?: PaymentLine[]; changeAction?: 'GIVE' | 'CREDIT'; discount?: number; leaveBalance?: boolean } = {}) =>
     api.post<SaleDocument>(`/documents/${id}/mark-paid`, opts),
   // Only a cancelled quote that was never invoiced can be deleted.
   deleteQuote: (id: string) => api.delete<{ id: string }>(`/documents/${id}`),

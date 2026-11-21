@@ -483,6 +483,11 @@ model Document {
   changeToCredit     Int            @default(0)
   // Part of the bill paid from the customer's held credit.
   creditApplied      Int            @default(0)
+  // An earlier unpaid balance the customer settled together with this sale. Money received, but not
+  // part of `total` — it was already counted as a sale when it was first billed.
+  balanceCollected   Int            @default(0)
+  // Part of the bill the customer did not pay and left owing on their account (money still to come).
+  balanceLeft        Int            @default(0)
   // Amount knocked off the whole bill after line prices were agreed; total is already net of it.
   discount           Int            @default(0)
   subtotal           Int            @default(0)
@@ -495,6 +500,9 @@ model Document {
   createdAt          DateTime       @default(now())
   invoicedAt         DateTime?
   paidAt             DateTime?
+  // QUOTE only: the last day the quoted prices hold. Fixed when the quote is issued, so changing the
+  // validity setting later does not move quotes already sent out.
+  validUntil         DateTime?
   sourceDocumentId String?
   sourceDocument   Document?  @relation("DeliveryNoteSource", fields: [sourceDocumentId], references: [id])
   deliveryNotes    Document[] @relation("DeliveryNoteSource")
@@ -757,6 +765,7 @@ model BusinessSetting {
   nextReturnSeq     Int      @default(1)
   roundingIncrement Int      @default(5)
   lowStockThreshold Int      @default(5)
+  quoteValidityDays Int      @default(10)
   documentFooter    String?
   paymentDetails    String?
   updatedAt         DateTime @updatedAt

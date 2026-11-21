@@ -26,6 +26,7 @@ export class SettingsService {
     returnPrefix: string;
     roundingIncrement: number;
     lowStockThreshold: number;
+    quoteValidityDays: number;
     documentFooter: string;
     paymentDetails: string;
   }>) {

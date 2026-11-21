@@ -45,6 +45,8 @@ export interface DocumentViewModel {
   title: string;
   number: string;
   createdAt: string;
+  /** QUOTE only: the last day the quoted prices hold. */
+  validUntil: string | null;
   isDeliveryNote: boolean;
   /** False only for a delivery note — every other type always shows prices. */
   showPrices: boolean;
@@ -73,6 +75,10 @@ export interface DocumentViewModel {
   paymentMethod: string | null;
   paymentLabel: string | null;
   changeNote: string | null;
+  /** Receipts only: an earlier unpaid balance received together with this sale (not part of the total). */
+  balanceNote: string | null;
+  /** Receipts only: part of the bill the customer left owing on their account. */
+  owingNote: string | null;
   /** INVOICED and not yet paid — "Unpaid" badge, "payable on collection" note. */
   isUnpaid: boolean;
 
@@ -99,6 +105,9 @@ export interface DocumentViewModelSource {
   payments?: { method: string; amount: number }[];
   changeGiven?: number;
   changeToCredit?: number;
+  balanceCollected?: number;
+  balanceLeft?: number;
+  validUntil?: string | null;
   notes: string | null;
 }
 
@@ -124,6 +133,7 @@ function buildFromSource(source: DocumentViewModelSource, settings: BusinessSett
     title: DOCUMENT_TITLES[source.type],
     number: source.number,
     createdAt: source.createdAt,
+    validUntil: source.type === 'QUOTE' ? (source.validUntil ?? null) : null,
     isDeliveryNote,
     showPrices: !isDeliveryNote,
 
@@ -156,6 +166,8 @@ function buildFromSource(source: DocumentViewModelSource, settings: BusinessSett
     paymentMethod: source.paymentMethod,
     paymentLabel,
     changeNote,
+    balanceNote: source.balanceCollected ? `Includes ${money(source.balanceCollected)} towards an earlier balance (not part of the total)` : null,
+    owingNote: source.balanceLeft ? `${money(source.balanceLeft)} left owing on account` : null,
     isUnpaid: source.status === 'INVOICED',
 
     notes: source.notes,
@@ -211,6 +223,10 @@ export function buildDocumentViewModel(doc: SaleDocument, settings: BusinessSett
       payments: doc.payments,
       changeGiven: doc.changeGiven,
       changeToCredit: doc.changeToCredit,
+      balanceCollected: doc.balanceCollected,
+      balanceLeft: doc.balanceLeft,
+      // Quotes issued before validity existed have no stored date: work it out from today's setting.
+      validUntil: doc.validUntil ?? (settings ? new Date(new Date(doc.createdAt).getTime() + settings.quoteValidityDays * 86_400_000).toISOString() : null),
       notes: doc.notes,
     },
     settings,
@@ -285,6 +301,8 @@ export function buildPosReceiptViewModel(sale: PosSaleResultLike, settings: Busi
       payments: sale.payments,
       changeGiven: sale.changeGiven,
       changeToCredit: sale.changeToCredit,
+      balanceCollected: sale.balanceCollected,
+      balanceLeft: sale.balanceLeft,
       notes: null,
     },
     settings,
@@ -307,6 +325,8 @@ export interface PosSaleResultLike {
   payments?: { method: string; amount: number }[];
   changeGiven?: number;
   changeToCredit?: number;
+  balanceCollected?: number;
+  balanceLeft?: number;
   customerName: string | null;
   customer: { name: string; businessName: string | null } | null;
   items: { id: string; description: string; qty: number; unitPrice: number; lineTotal: number }[];

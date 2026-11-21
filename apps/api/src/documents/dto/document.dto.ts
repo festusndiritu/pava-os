@@ -63,6 +63,11 @@ export class MarkPaidDto {
   @IsOptional()
   @IsIn(CHANGE_ACTIONS)
   changeAction?: (typeof CHANGE_ACTIONS)[number];
+
+  // The customer paid less than the invoice and the rest is left owing on their account.
+  @IsOptional()
+  @IsBoolean()
+  leaveBalance?: boolean;
 }
 
 export class DocumentItemDto {

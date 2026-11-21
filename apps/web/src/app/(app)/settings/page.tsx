@@ -36,6 +36,7 @@ export default function SettingsPage() {
   // Held as text while editing so the fields can be emptied and retyped.
   const [rounding, setRounding] = useState('');
   const [lowStock, setLowStock] = useState('');
+  const [validityDays, setValidityDays] = useState('');
 
   useEffect(() => {
     settingsApi.get().then((s) => {
@@ -43,6 +44,7 @@ export default function SettingsPage() {
       setForm(s);
       setRounding(String(s.roundingIncrement));
       setLowStock(String(s.lowStockThreshold));
+      setValidityDays(String(s.quoteValidityDays));
     });
   }, []);
 
@@ -60,12 +62,17 @@ export default function SettingsPage() {
     e.preventDefault();
     const roundingIncrement = toNumber(rounding);
     const lowStockThreshold = toNumber(lowStock);
+    const quoteValidityDays = toNumber(validityDays);
     if (roundingIncrement === null || roundingIncrement < 1) {
       toast.error('Rounding increment must be at least KSh 1');
       return;
     }
     if (lowStockThreshold === null) {
       toast.error('Enter a low-stock threshold');
+      return;
+    }
+    if (quoteValidityDays === null || quoteValidityDays < 1 || quoteValidityDays > 365) {
+      toast.error('Quote validity must be between 1 and 365 days');
       return;
     }
     setSaving(true);
@@ -80,6 +87,7 @@ export default function SettingsPage() {
         receiptPrefix: form.receiptPrefix,
         roundingIncrement,
         lowStockThreshold,
+        quoteValidityDays,
         documentFooter: form.documentFooter ?? undefined,
         paymentDetails: form.paymentDetails ?? undefined,
       });
@@ -87,6 +95,7 @@ export default function SettingsPage() {
       setForm(updated);
       setRounding(String(updated.roundingIncrement));
       setLowStock(String(updated.lowStockThreshold));
+      setValidityDays(String(updated.quoteValidityDays));
       toast.success('Settings saved');
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Couldn't save settings");
@@ -157,7 +166,7 @@ export default function SettingsPage() {
         </Section>
 
         <Section title="Commercial defaults">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div>
               <label htmlFor="settings-rounding-increment-ksh" className={labelClass} style={labelStyle}>Rounding increment (KSh)</label>
               <NumericInput id="settings-rounding-increment-ksh" min={1} required value={rounding} onChange={setRounding} className="w-full rounded-md border px-3 py-2 text-sm data-num outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
@@ -167,6 +176,11 @@ export default function SettingsPage() {
               <label htmlFor="settings-low-stock-threshold" className={labelClass} style={labelStyle}>Low-stock threshold</label>
               <NumericInput id="settings-low-stock-threshold" required value={lowStock} onChange={setLowStock} className="w-full rounded-md border px-3 py-2 text-sm data-num outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
               <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>Low-stock threshold</p>
+            </div>
+            <div>
+              <label htmlFor="settings-quote-validity-days" className={labelClass} style={labelStyle}>Quote validity (days)</label>
+              <NumericInput id="settings-quote-validity-days" min={1} required value={validityDays} onChange={setValidityDays} className="w-full rounded-md border px-3 py-2 text-sm data-num outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+              <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>New quotes hold their prices this long.</p>
             </div>
           </div>
         </Section>

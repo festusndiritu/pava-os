@@ -281,6 +281,30 @@ export class DocumentsService {
     });
   }
 
+  // Settles part (or all) of what a customer owed from earlier, as part of a sale. Only goes through
+  // while they still owe that much, so two tills can't both collect the same balance.
+  private async collectBalance(tx: any, customerId: string, amount: number, documentId: string, actorId: string) {
+    if (amount <= 0) return;
+    const taken = await tx.customer.updateMany({
+      where: { id: customerId, creditBalance: { gte: amount } },
+      data: { creditBalance: { decrement: amount } },
+    });
+    if (taken.count === 0) throw new BadRequestException('This customer does not owe that much any more — reopen the customer and try again');
+    await tx.customerLedgerEntry.create({
+      data: { customerId, type: LedgerEntryType.PAYMENT, amount: -amount, documentId, note: 'Earlier balance settled with a new sale', createdById: actorId },
+    });
+  }
+
+  // The part of a bill a customer didn't pay, left owing on their account. It is the same charge an
+  // invoice to a credit customer makes, so it shows up in their balance and ledger like any other debt.
+  private async leaveOwing(tx: any, customerId: string, amount: number, documentId: string, actorId: string) {
+    if (amount <= 0) return;
+    await tx.customerLedgerEntry.create({
+      data: { customerId, type: LedgerEntryType.INVOICE, amount, documentId, note: 'Unpaid part of a sale left on the account', createdById: actorId },
+    });
+    await tx.customer.update({ where: { id: customerId }, data: { creditBalance: { increment: amount } } });
+  }
+
   async priceQuoteInput(actorId: string, actorRole: Role, input: CreateDocumentInput) {
     if (!input.items || input.items.length === 0) {
       throw new BadRequestException('A document needs at least one item');
@@ -315,6 +339,13 @@ export class DocumentsService {
   async create(createdById: string, actorRole: Role, input: CreateDocumentInput) {
     const { lines, subtotalAtNegotiatedPrice, roundingAdjustmentTotal, total, discount, transportMode } = await this.priceQuoteInput(createdById, actorRole, input);
 
+    // Fixed now, from the setting as it stands today: changing the setting later never moves a quote
+    // that has already been given to a customer.
+    const { quoteValidityDays } = await this.settings.get();
+    const validUntil = new Date();
+    validUntil.setDate(validUntil.getDate() + quoteValidityDays);
+    validUntil.setHours(23, 59, 59, 999); // the whole of the last day counts
+
     const doc = await this.prisma.$transaction(async (tx) => {
       const quoteNumber = await this.settings.nextNumber('QUOTE', tx);
       return tx.document.create({
@@ -332,6 +363,7 @@ export class DocumentsService {
           total,
           notes: input.notes,
           quoteNumber,
+          validUntil,
           items: { create: lines },
         },
         include: { items: true, customer: true, createdBy: { select: { name: true } } },
@@ -629,7 +661,7 @@ export class DocumentsService {
     id: string,
     actorId: string,
     actorRole: Role,
-    input: { paymentMethod?: 'CASH' | 'MPESA'; payments?: TenderInput[]; changeAction?: 'GIVE' | 'CREDIT'; discount?: number } = {},
+    input: { paymentMethod?: 'CASH' | 'MPESA'; payments?: TenderInput[]; changeAction?: 'GIVE' | 'CREDIT'; discount?: number; leaveBalance?: boolean } = {},
   ) {
     let doc = await this.findOne(id);
     if (doc.status !== DocumentStatus.INVOICED) {
@@ -680,7 +712,9 @@ export class DocumentsService {
     // Older callers only say "paid"; with nothing stated, whatever was already recorded is kept and
     // no payment rows are written.
     const stated = !!(input.payments?.length || input.paymentMethod);
-    const settled = stated ? settlePayments(doc.total, input.payments, input.paymentMethod, input.changeAction, !!doc.customerId) : null;
+    if (input.leaveBalance && !stated) throw new BadRequestException('Enter what was paid before leaving a balance owing');
+    const settled = stated ? settlePayments(doc.total, input.payments, input.paymentMethod, input.changeAction, !!doc.customerId, 0, !!input.leaveBalance) : null;
+    const balanceLeft = settled?.shortfall ?? 0;
 
     return this.prisma.$transaction(async (tx) => {
       const receiptNumber = await this.settings.nextNumber('RECEIPT', tx);
@@ -696,6 +730,7 @@ export class DocumentsService {
                 paymentMethod: settled.paymentMethod,
                 changeGiven: settled.changeGiven,
                 changeToCredit: settled.changeToCredit,
+                balanceLeft,
                 payments: { create: settled.rows },
               }
             : {}),
@@ -703,10 +738,16 @@ export class DocumentsService {
       });
 
       if (doc.customerId && doc.customer?.isCredit) {
+        // A credit customer was already charged the whole invoice, so only what was paid comes off;
+        // the rest simply stays on their balance.
+        const paidOff = doc.total - balanceLeft;
         await tx.customerLedgerEntry.create({
-          data: { customerId: doc.customerId, type: LedgerEntryType.PAYMENT, amount: -doc.total, documentId: doc.id, note: 'Invoice paid in full', createdById: actorId },
+          data: { customerId: doc.customerId, type: LedgerEntryType.PAYMENT, amount: -paidOff, documentId: doc.id, note: balanceLeft > 0 ? 'Invoice part-paid — the rest left owing' : 'Invoice paid in full', createdById: actorId },
         });
-        await tx.customer.update({ where: { id: doc.customerId }, data: { creditBalance: { decrement: doc.total } } });
+        await tx.customer.update({ where: { id: doc.customerId }, data: { creditBalance: { decrement: paidOff } } });
+      } else if (doc.customerId) {
+        // Anyone else has not been charged yet, so the unpaid part is put on their account now.
+        await this.leaveOwing(tx, doc.customerId, balanceLeft, doc.id, actorId);
       }
 
       if (settled && doc.customerId) await this.depositChange(tx, doc.customerId, settled.changeToCredit, id, actorId, settled.surplusDetail);
@@ -809,9 +850,15 @@ export class DocumentsService {
     }
 
     // --- Customer --- The till settles in full, by M-Pesa Paybill or cash.
+    const balanceCollected = input.balanceCollected ?? 0;
     if (input.customerId) {
       const customer = await this.prisma.customer.findUnique({ where: { id: input.customerId } });
       if (!customer) throw new NotFoundException('Customer not found');
+      if (balanceCollected > customer.creditBalance) {
+        throw new BadRequestException(`This customer owes KSh ${Math.max(0, customer.creditBalance)}, which is less than the KSh ${balanceCollected} being added to this sale`);
+      }
+    } else if (balanceCollected > 0) {
+      throw new BadRequestException('Select a customer to add their earlier balance');
     }
 
     // --- Per-line pricing: negotiated price -> (+transport if folded) -> commercial rounding
@@ -850,9 +897,21 @@ export class DocumentsService {
     if (input.settleLater && input.creditApplied) {
       throw new BadRequestException('Credit can’t be used on a pay-later sale — settle it from the invoice instead');
     }
+    if (balanceCollected > 0 && input.settleLater) {
+      throw new BadRequestException('An earlier balance can’t be added to a pay-later sale — collect it when the sale is paid');
+    }
+    if (input.leaveBalance && input.settleLater) {
+      throw new BadRequestException('A pay-later sale is already left unpaid — leave a balance only when part of it was paid');
+    }
+    if (balanceCollected > 0 && input.creditApplied) {
+      throw new BadRequestException('A customer who owes money has no credit to spend');
+    }
+    // What the customer hands over covers the bill and the earlier balance together; only the bill
+    // is a sale.
     const settled = input.settleLater
       ? null
-      : settlePayments(total, input.payments, input.paymentMethod, input.changeAction, !!input.customerId, input.creditApplied);
+      : settlePayments(total + balanceCollected, input.payments, input.paymentMethod, input.changeAction, !!input.customerId, input.creditApplied, !!input.leaveBalance);
+    const balanceLeft = settled?.shortfall ?? 0;
     const settleLater = !!input.settleLater;
     const type = settleLater ? DocumentType.INVOICE : DocumentType.RECEIPT;
     const status = settleLater ? DocumentStatus.INVOICED : DocumentStatus.PAID;
@@ -875,6 +934,8 @@ export class DocumentsService {
           changeGiven: settled?.changeGiven ?? 0,
           changeToCredit: settled?.changeToCredit ?? 0,
           creditApplied: settled?.creditApplied ?? 0,
+          balanceCollected,
+          balanceLeft,
           payments: settled ? { create: settled.rows } : undefined,
           subtotal,
           discount,
@@ -901,6 +962,8 @@ export class DocumentsService {
       if (settled && input.customerId) {
         await this.spendCredit(tx, input.customerId, settled.creditApplied, created.id, actorId);
         await this.depositChange(tx, input.customerId, settled.changeToCredit, created.id, actorId, settled.surplusDetail);
+        await this.collectBalance(tx, input.customerId, balanceCollected, created.id, actorId);
+        await this.leaveOwing(tx, input.customerId, balanceLeft, created.id, actorId);
       }
 
       if (input.suspendedFromId) {
@@ -929,6 +992,8 @@ export class DocumentsService {
         changeGiven: settled?.changeGiven,
         changeToCredit: settled?.changeToCredit,
         creditApplied: settled?.creditApplied,
+        balanceCollected: balanceCollected || undefined,
+        balanceLeft: balanceLeft || undefined,
         itemCount: input.items.length,
       },
     });

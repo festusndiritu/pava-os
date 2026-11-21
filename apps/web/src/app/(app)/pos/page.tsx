@@ -83,6 +83,8 @@ export default function PosPage() {
   const [payment, setPayment] = useState<PaymentDraft>(emptyPayment);
   // PAVA's only credit: the customer takes the goods and settles the same day.
   const [settleLater, setSettleLater] = useState(false);
+  // An earlier unpaid balance the customer is settling together with this sale.
+  const [addBalance, setAddBalance] = useState(false);
   const [sourcing, setSourcing] = useState<Record<string, Sourcing>>({});
   const [fulfilmentOpen, setFulfilmentOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -271,6 +273,7 @@ export default function PosPage() {
     setSourcing({});
     setFulfilmentOpen(false);
     setSettleLater(false);
+    setAddBalance(false);
     setPayment(emptyPayment);
   }
 
@@ -279,13 +282,19 @@ export default function PosPage() {
   const estimatedTotal = subtotal + transportAmount;
   const hasCustomer = customerMode === 'existing' && !!selectedCustomer;
   const creditAvailable = hasCustomer ? Math.max(0, -(selectedCustomer?.creditBalance ?? 0)) : 0;
-  const paying = resolvePayment(payment, Math.max(0, estimatedTotal), hasCustomer, creditAvailable);
+  // What the customer still owes from earlier. Never added on its own: the cashier switches it on.
+  const balanceOwed = hasCustomer ? Math.max(0, selectedCustomer?.creditBalance ?? 0) : 0;
+  const balanceAdded = addBalance && !settleLater && cart.length > 0 ? balanceOwed : 0;
+  // The bill plus any earlier balance: what actually gets collected at the till.
+  const collectTotal = Math.max(0, estimatedTotal) + balanceAdded;
+  const paying = resolvePayment(payment, collectTotal, hasCustomer, creditAvailable);
 
   function chooseCustomer(c: Customer | null) {
     setSelectedCustomer(c);
+    setAddBalance(false);
     // Held credit is never spent on its own: the cashier switches it on in the payment panel. The owner
     // may want it kept for something else (or paid out), so a new customer always starts with it off.
-    setPayment((p) => ({ ...p, useCredit: false }));
+    setPayment((p) => ({ ...p, useCredit: false, leaveBalance: false }));
   }
 
   // How much of a line leaves the shop: the operator's decision if there is one (never more than is
@@ -361,6 +370,8 @@ export default function PosPage() {
         payments: settleLater ? undefined : paying.tenders,
         changeAction: settleLater ? undefined : paying.changeAction,
         creditApplied: settleLater || paying.creditApplied <= 0 ? undefined : paying.creditApplied,
+        balanceCollected: balanceAdded > 0 ? balanceAdded : undefined,
+        leaveBalance: !settleLater && paying.balanceLeft > 0 ? true : undefined,
         settleLater: settleLater || undefined,
         suspendedFromId: resumedFromId ?? undefined,
       });
@@ -512,6 +523,11 @@ export default function PosPage() {
                     {creditAvailable > 0 && (
                       <span className="data-num ml-2 text-xs" style={{ color: 'var(--color-status-ok)' }}>
                         {money(creditAvailable)} held
+                      </span>
+                    )}
+                    {balanceOwed > 0 && (
+                      <span className="data-num ml-2 text-xs" style={{ color: 'var(--color-status-warn)' }}>
+                        {money(balanceOwed)} owed
                       </span>
                     )}
                   </span>
@@ -679,7 +695,7 @@ export default function PosPage() {
             setPayment(next);
             setSettleLater(false);
           }}
-          total={Math.max(0, estimatedTotal)}
+          total={collectTotal}
           hasCustomer={hasCustomer}
           creditAvailable={creditAvailable}
           onNeedCustomer={() => setQuickCustomerOpen(true)}
@@ -712,6 +728,31 @@ export default function PosPage() {
             {money(Math.max(0, estimatedTotal))}
           </span>
         </div>
+        {!settleLater && balanceOwed > 0 && (
+          <button
+            type="button"
+            aria-pressed={addBalance}
+            onClick={() => setAddBalance((v) => !v)}
+            className="-mt-1 flex min-h-10 items-center justify-between gap-3 rounded-md border px-3 text-left text-sm"
+            style={{
+              borderColor: addBalance ? 'var(--color-status-warn)' : 'var(--color-border)',
+              backgroundColor: addBalance ? 'var(--color-status-warnSoft)' : 'transparent',
+              color: addBalance ? 'var(--color-status-warn)' : 'var(--color-ink-600)',
+            }}
+          >
+            <span>
+              Owes earlier
+              <span className="data-num ml-1.5 font-semibold">{money(balanceOwed)}</span>
+            </span>
+            <span className="data-num text-xs font-medium">{addBalance && balanceAdded > 0 ? `Added · collect ${money(collectTotal)}` : 'Add to this order'}</span>
+          </button>
+        )}
+        {!settleLater && paying.balanceLeft > 0 && (
+          <div className="-mt-2 flex items-baseline justify-between text-sm" style={{ color: 'var(--color-status-warn)' }}>
+            <span>Left owing {money(paying.balanceLeft)}</span>
+            <span className="data-num font-medium">To collect {money(paying.due - paying.balanceLeft)}</span>
+          </div>
+        )}
         {!settleLater && paying.creditApplied > 0 && (
           <div className="-mt-2 flex items-baseline justify-between text-sm" style={{ color: 'var(--color-status-ok)' }}>
             <span>Credit used {money(paying.creditApplied)}</span>
@@ -726,7 +767,7 @@ export default function PosPage() {
           className="min-h-12 rounded-md px-4 text-sm font-semibold text-white disabled:opacity-50"
           style={{ backgroundColor: 'var(--color-accent)' }}
         >
-          {submitting ? 'Completing sale…' : `${settleLater ? 'Release goods' : 'Complete sale'} · ${money(Math.max(0, estimatedTotal))}`}
+          {submitting ? 'Completing sale…' : `${settleLater ? 'Release goods' : 'Complete sale'} · ${money(settleLater ? Math.max(0, estimatedTotal) : collectTotal)}`}
         </button>
     </>
   );
@@ -1134,7 +1175,7 @@ export default function PosPage() {
         <PaymentDialog
           draft={payment}
           onChange={setPayment}
-          total={Math.max(0, estimatedTotal)}
+          total={collectTotal}
           hasCustomer={hasCustomer}
           creditAvailable={creditAvailable}
           onNeedCustomer={() => setQuickCustomerOpen(true)}

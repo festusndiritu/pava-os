@@ -122,6 +122,7 @@ export function PartiesRow({ vm }: { vm: DocumentViewModel }) {
       <View style={{ flex: 1 }}>
         <Field label="Date">
           <Text>{fmtDate(vm.createdAt)}</Text>
+          {vm.validUntil && <Text style={styles.muted}>Valid until {fmtDate(vm.validUntil)}</Text>}
         </Field>
       </View>
       <View style={{ flex: 1 }}>
@@ -212,6 +213,12 @@ export function TotalsBlock({ vm }: { vm: DocumentViewModel }) {
         )}
         {vm.type === 'RECEIPT' && vm.changeNote && (
           <Text style={{ marginTop: 2, textAlign: 'right', fontSize: 9, color: MUTED }}>{vm.changeNote}</Text>
+        )}
+        {vm.type === 'RECEIPT' && vm.balanceNote && (
+          <Text style={{ marginTop: 2, textAlign: 'right', fontSize: 9, color: MUTED }}>{vm.balanceNote}</Text>
+        )}
+        {vm.type === 'RECEIPT' && vm.owingNote && (
+          <Text style={{ marginTop: 2, textAlign: 'right', fontSize: 9, color: MUTED }}>{vm.owingNote}</Text>
         )}
         {vm.isUnpaid && <Text style={{ marginTop: 4, textAlign: 'right', fontSize: 9, color: MUTED }}>Payable on collection.</Text>}
       </View>

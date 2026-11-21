@@ -13,6 +13,10 @@ function fmtDateTime(iso: string) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));
 }
 
+function fmtDate(iso: string) {
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(iso));
+}
+
 // A receipt is paper.
 const INK = '#111827';
 const MUTED = '#4b5563';
@@ -65,6 +69,7 @@ export function ThermalDocument({
         <p style={{ marginTop: '6px', fontWeight: 700, letterSpacing: '0.12em' }}>{vm.title.toUpperCase()}</p>
         <p style={{ fontWeight: 600 }}>{vm.number}</p>
         <p style={{ color: MUTED }}>{fmtDateTime(vm.createdAt)}</p>
+        {vm.validUntil && <p style={{ color: MUTED }}>Valid until {fmtDate(vm.validUntil)}</p>}
         <p style={{ color: MUTED }}>{vm.isDeliveryNote ? `Deliver to: ${vm.customerName}` : vm.customerName}</p>
       </div>
 
@@ -135,6 +140,8 @@ function PricedBody({ vm }: { vm: DocumentViewModel }) {
         <p style={{ marginTop: '8px', textAlign: 'center' }}>Paid by {vm.paymentLabel}</p>
       )}
       {vm.type === 'RECEIPT' && vm.changeNote && <p style={{ textAlign: 'center' }}>{vm.changeNote}</p>}
+      {vm.type === 'RECEIPT' && vm.balanceNote && <p style={{ textAlign: 'center' }}>{vm.balanceNote}</p>}
+      {vm.type === 'RECEIPT' && vm.owingNote && <p style={{ textAlign: 'center', fontWeight: 700 }}>{vm.owingNote}</p>}
       {vm.type !== 'RECEIPT' && vm.letterhead.paymentDetails && (
         <p style={{ marginTop: '8px', textAlign: 'center', color: MUTED }}>How to pay: {vm.letterhead.paymentDetails}</p>
       )}

@@ -9,6 +9,8 @@ export type SettledPayments = {
   changeGiven: number;
   changeToCredit: number;
   creditApplied: number;
+  // Part of the bill the customer did not pay and is leaving owing on their account.
+  shortfall: number;
   // Where any excess came from, e.g. "M-Pesa 120" — kept with the credit it creates, for audit.
   surplusDetail: string;
 };
@@ -21,6 +23,7 @@ export function settlePayments(
   changeAction: 'GIVE' | 'CREDIT' = 'GIVE',
   hasCustomer: boolean,
   creditRequested = 0,
+  leaveBalance = false,
 ): SettledPayments {
   if (creditRequested > 0 && !hasCustomer) throw new BadRequestException('Select a customer to use their credit');
   const credit = Math.min(Math.max(0, creditRequested), total);
@@ -36,11 +39,19 @@ export function settlePayments(
   }
 
   const paid = [...byMethod.values()].reduce((a, b) => a + b, 0);
+  // Paying less than the bill is only allowed when the rest is knowingly left owing on a customer's
+  // account, and something was actually paid (paying nothing now is a pay-later sale).
+  let shortfall = 0;
   if (paid < due) {
-    throw new BadRequestException(`Payments add up to KSh ${paid}, which is short of the KSh ${due} still to pay`);
+    if (!leaveBalance) {
+      throw new BadRequestException(`Payments add up to KSh ${paid}, which is short of the KSh ${due} still to pay`);
+    }
+    if (!hasCustomer) throw new BadRequestException('Select a customer to leave a balance owing');
+    if (paid <= 0) throw new BadRequestException('Enter what was paid — or release the goods and settle later');
+    shortfall = due - paid;
   }
 
-  const surplus = paid - due;
+  const surplus = Math.max(0, paid - due);
   const cash = byMethod.get('CASH') || 0;
   if (surplus > 0) {
     if (changeAction === 'CREDIT' && !hasCustomer) {
@@ -72,6 +83,7 @@ export function settlePayments(
     changeGiven: changeAction === 'GIVE' ? surplus : 0,
     changeToCredit: changeAction === 'CREDIT' ? surplus : 0,
     creditApplied: credit,
+    shortfall,
     surplusDetail: surplusParts.join(' + '),
   };
 }

@@ -1,4 +1,4 @@
-import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { OptionalKenyanPhone } from '../../common/validation/phone.validator.js';
 
 export class UpdateSettingsDto {
@@ -38,6 +38,13 @@ export class UpdateSettingsDto {
   @IsInt()
   @Min(0)
   lowStockThreshold?: number;
+
+  // How many days a newly issued quote's prices hold for.
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  quoteValidityDays?: number;
 
   @IsOptional()
   @IsString()

@@ -18,9 +18,11 @@ export interface PaymentDraft {
   mpesa: string;
   changeAction: ChangeAction;
   useCredit: boolean;
+  /** Paid less than the bill: leave the rest owing on the customer's account. */
+  leaveBalance: boolean;
 }
 
-export const emptyPayment: PaymentDraft = { mode: 'MPESA', cash: '', mpesa: '', changeAction: 'GIVE', useCredit: false };
+export const emptyPayment: PaymentDraft = { mode: 'MPESA', cash: '', mpesa: '', changeAction: 'GIVE', useCredit: false, leaveBalance: false };
 
 const MODES: { value: PayMode; label: string; hint: string }[] = [
   { value: 'MPESA', label: 'M-Pesa', hint: 'Paybill' },
@@ -46,10 +48,12 @@ export function resolvePayment(draft: PaymentDraft, total: number, hasCustomer: 
   const over = Math.max(0, paid - due);
   const short = Math.max(0, due - paid);
   const cash = tenders?.find((t) => t.method === 'CASH')?.amount ?? 0;
+  // Only a real part-payment on a known customer can be left owing: paying nothing is a pay-later sale.
+  const balanceLeft = short > 0 && draft.leaveBalance && hasCustomer && paid > 0 ? short : 0;
 
   let problem: string | null = null;
   if (draft.mode === 'SPLIT' && !tenders?.length && due > 0) problem = 'Enter what was paid';
-  else if (short > 0) problem = `Short by ${money(short)}`;
+  else if (short > 0 && balanceLeft === 0) problem = `Short by ${money(short)}`;
   else if (over > 0 && draft.changeAction === 'CREDIT' && !hasCustomer) problem = 'Pick a customer to keep change on credit';
   else if (over > 0 && draft.changeAction === 'GIVE' && over > cash) problem = 'Change can only come out of cash';
 
@@ -61,6 +65,7 @@ export function resolvePayment(draft: PaymentDraft, total: number, hasCustomer: 
     due,
     over,
     short,
+    balanceLeft,
     problem,
   };
 }
@@ -215,9 +220,32 @@ export function PaymentPanel({
       )}
 
       {!disabled && r.short > 0 && (
-        <p className="text-xs" style={{ color: 'var(--color-status-warn)' }}>
-          {r.problem}
-        </p>
+        <div className="flex flex-col gap-1.5">
+          {hasCustomer && num(draft.cash) + num(draft.mpesa) > 0 ? (
+            <button
+              type="button"
+              aria-pressed={draft.leaveBalance}
+              onClick={() => set({ leaveBalance: !draft.leaveBalance })}
+              className="flex min-h-10 items-center justify-between gap-3 rounded-md border px-3 text-left text-sm"
+              style={{
+                borderColor: draft.leaveBalance ? 'var(--color-status-warn)' : 'var(--color-border)',
+                backgroundColor: draft.leaveBalance ? 'var(--color-status-warnSoft)' : 'transparent',
+                color: draft.leaveBalance ? 'var(--color-status-warn)' : 'var(--color-ink-600)',
+              }}
+            >
+              <span>
+                Short by
+                <span className="data-num ml-1.5 font-semibold">{money(r.short)}</span>
+              </span>
+              <span className="text-xs font-medium">{draft.leaveBalance ? 'Left owing' : 'Leave it owing'}</span>
+            </button>
+          ) : (
+            <p className="text-xs" style={{ color: 'var(--color-status-warn)' }}>
+              {r.problem}
+              {!hasCustomer && num(draft.cash) + num(draft.mpesa) > 0 ? ' — pick a customer to leave the rest owing' : ''}
+            </p>
+          )}
+        </div>
       )}
     </div>
   );

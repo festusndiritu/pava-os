@@ -18,6 +18,8 @@ export interface BusinessSettings {
   nextReturnSeq: number;
   roundingIncrement: number;
   lowStockThreshold: number;
+  /** How many days a newly issued quote's prices hold for. */
+  quoteValidityDays: number;
   documentFooter: string | null;
   paymentDetails: string | null;
   updatedAt: string;
@@ -26,7 +28,7 @@ export interface BusinessSettings {
 export type UpdateBusinessSettings = Partial<
   Pick<
     BusinessSettings,
-    'businessName' | 'address' | 'phone' | 'email' | 'quotePrefix' | 'invoicePrefix' | 'receiptPrefix' | 'roundingIncrement' | 'lowStockThreshold' | 'documentFooter' | 'paymentDetails'
+    'businessName' | 'address' | 'phone' | 'email' | 'quotePrefix' | 'invoicePrefix' | 'receiptPrefix' | 'roundingIncrement' | 'lowStockThreshold' | 'quoteValidityDays' | 'documentFooter' | 'paymentDetails'
   >
 >;
 

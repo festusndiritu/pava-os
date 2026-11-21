@@ -111,6 +111,18 @@ export class CreatePosSaleDto {
   @Min(1)
   creditApplied?: number;
 
+  // An earlier unpaid balance the customer is settling together with this sale. It is collected on
+  // top of the bill (not added to the sale total) and comes off what the customer owes.
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  balanceCollected?: number;
+
+  // The customer paid less than the bill and the rest is left owing on their account.
+  @IsOptional()
+  @IsBoolean()
+  leaveBalance?: boolean;
+
   @IsOptional()
   @IsBoolean()
   allowNegativeStock?: boolean;
