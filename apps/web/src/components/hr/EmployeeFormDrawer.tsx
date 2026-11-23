@@ -65,7 +65,7 @@ export function EmployeeFormDrawer({
         emergencyContactPhone: emergencyContactPhone || undefined,
         notes: notes || undefined,
       };
-      if (isEdit && employee) await hrApi.update(employee.id, payload);
+      if (isEdit && employee) await hrApi.update(employee.id, { ...payload, phone: phone || null, jobTitle: jobTitle || null, department: department || null, employmentStartDate: employmentStartDate || null, emergencyContactName: emergencyContactName || null, emergencyContactPhone: emergencyContactPhone || null, notes: notes || null });
       else await hrApi.create(payload);
       toast.success('Employee saved');
       onSaved();

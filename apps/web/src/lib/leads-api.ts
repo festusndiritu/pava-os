@@ -1,3 +1,4 @@
+import type { Clearable } from './clearable';
 import { api } from './api';
 
 export type LeadStage = 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'QUOTE_REQUIRED' | 'QUOTE_SENT' | 'NEGOTIATING' | 'WON' | 'LOST';
@@ -41,7 +42,7 @@ export const leadsApi = {
   list: (status?: 'active' | 'archived' | 'all') => api.get<Lead[]>(`/leads${status ? `?status=${status}` : ''}`),
   get: (id: string) => api.get<Lead>(`/leads/${id}`),
   create: (data: LeadInput) => api.post<Lead>('/leads', data),
-  update: (id: string, data: Partial<LeadInput>) => api.patch<Lead>(`/leads/${id}`, data),
+  update: (id: string, data: Clearable<LeadInput>) => api.patch<Lead>(`/leads/${id}`, data),
   convertToCustomer: (id: string) => api.post<{ lead: Lead; customer: { id: string; name: string } }>(`/leads/${id}/convert-to-customer`),
   archive: (id: string) => api.delete<Lead>(`/leads/${id}`),
   restore: (id: string) => api.post<Lead>(`/leads/${id}/restore`),

@@ -37,6 +37,9 @@ export default function SettingsPage() {
   const [rounding, setRounding] = useState('');
   const [lowStock, setLowStock] = useState('');
   const [validityDays, setValidityDays] = useState('');
+  const [leadDays, setLeadDays] = useState('');
+  const [coverDays, setCoverDays] = useState('');
+  const [serviceLevel, setServiceLevel] = useState('');
 
   useEffect(() => {
     settingsApi.get().then((s) => {
@@ -45,6 +48,9 @@ export default function SettingsPage() {
       setRounding(String(s.roundingIncrement));
       setLowStock(String(s.lowStockThreshold));
       setValidityDays(String(s.quoteValidityDays));
+      setLeadDays(String(s.leadTimeDays));
+      setCoverDays(String(s.coverDays));
+      setServiceLevel(String(s.serviceLevel));
     });
   }, []);
 
@@ -75,6 +81,21 @@ export default function SettingsPage() {
       toast.error('Quote validity must be between 1 and 365 days');
       return;
     }
+    const leadTimeDays = toNumber(leadDays);
+    const coverDaysValue = toNumber(coverDays);
+    const serviceLevelValue = toNumber(serviceLevel);
+    if (leadTimeDays === null || leadTimeDays < 0 || leadTimeDays > 60) {
+      toast.error('Restock time must be between 0 and 60 days');
+      return;
+    }
+    if (coverDaysValue === null || coverDaysValue < 1 || coverDaysValue > 180) {
+      toast.error('Days of stock to order must be between 1 and 180');
+      return;
+    }
+    if (serviceLevelValue === null || serviceLevelValue < 80 || serviceLevelValue > 99) {
+      toast.error('Service level must be between 80 and 99 percent');
+      return;
+    }
     setSaving(true);
     try {
       const updated = await settingsApi.update({
@@ -88,6 +109,9 @@ export default function SettingsPage() {
         roundingIncrement,
         lowStockThreshold,
         quoteValidityDays,
+        leadTimeDays,
+        coverDays: coverDaysValue,
+        serviceLevel: serviceLevelValue,
         documentFooter: form.documentFooter ?? undefined,
         paymentDetails: form.paymentDetails ?? undefined,
       });
@@ -96,6 +120,9 @@ export default function SettingsPage() {
       setRounding(String(updated.roundingIncrement));
       setLowStock(String(updated.lowStockThreshold));
       setValidityDays(String(updated.quoteValidityDays));
+      setLeadDays(String(updated.leadTimeDays));
+      setCoverDays(String(updated.coverDays));
+      setServiceLevel(String(updated.serviceLevel));
       toast.success('Settings saved');
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Couldn't save settings");
@@ -181,6 +208,26 @@ export default function SettingsPage() {
               <label htmlFor="settings-quote-validity-days" className={labelClass} style={labelStyle}>Quote validity (days)</label>
               <NumericInput id="settings-quote-validity-days" min={1} required value={validityDays} onChange={setValidityDays} className="w-full rounded-md border px-3 py-2 text-sm data-num outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
               <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>New quotes hold their prices this long.</p>
+            </div>
+          </div>
+        </Section>
+
+        <Section title="Reorder planning">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div>
+              <label htmlFor="settings-lead-time-days" className={labelClass} style={labelStyle}>Restock takes (days)</label>
+              <NumericInput id="settings-lead-time-days" required value={leadDays} onChange={setLeadDays} className="w-full rounded-md border px-3 py-2 text-sm data-num outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+              <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>Usual time from ordering to stock arriving. Set a longer time for single items (like cement) on the Reorder tab.</p>
+            </div>
+            <div>
+              <label htmlFor="settings-cover-days" className={labelClass} style={labelStyle}>Order covers (days)</label>
+              <NumericInput id="settings-cover-days" min={1} required value={coverDays} onChange={setCoverDays} className="w-full rounded-md border px-3 py-2 text-sm data-num outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+              <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>How many days of sales an order should last. Keep it low if space is tight.</p>
+            </div>
+            <div>
+              <label htmlFor="settings-service-level" className={labelClass} style={labelStyle}>Don&apos;t run out (%)</label>
+              <NumericInput id="settings-service-level" min={80} required value={serviceLevel} onChange={setServiceLevel} className="w-full rounded-md border px-3 py-2 text-sm data-num outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+              <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>Higher keeps a bigger safety buffer (80–99).</p>
             </div>
           </div>
         </Section>

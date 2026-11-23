@@ -57,7 +57,7 @@ export function LeadFormDrawer({ open, onClose, onSaved, lead }: { open: boolean
         notes: notes || undefined,
         followUpAt: followUpAt || (isEdit ? null : undefined),
       };
-      if (isEdit && lead) await leadsApi.update(lead.id, payload);
+      if (isEdit && lead) await leadsApi.update(lead.id, { ...payload, company: company || null, phone: phone || null, email: email || null, location: location || null, source: source || null, expectedValue: toNumber(expectedValue) ?? null, notes: notes || null });
       else await leadsApi.create(payload);
       toast.success('Lead saved');
       onSaved();

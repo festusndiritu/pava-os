@@ -27,6 +27,9 @@ export class SettingsService {
     roundingIncrement: number;
     lowStockThreshold: number;
     quoteValidityDays: number;
+    leadTimeDays: number;
+    coverDays: number;
+    serviceLevel: number;
     documentFooter: string;
     paymentDetails: string;
   }>) {

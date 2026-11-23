@@ -238,6 +238,8 @@ model Product {
   createdAt   DateTime    @default(now())
   stockQuantity Int  @default(0)
   lastCost      Int?
+  // Days a restock of this product takes, when it differs from the shop's usual (e.g. cement).
+  leadTimeDays  Int?
 
   shape       String?
   nominalSize String?
@@ -269,6 +271,8 @@ model ProductFamily {
   name     String    @unique
   aggregateLowStock Boolean @default(false)
   lowStockThreshold Int?
+  // Days a restock of this family takes, when it differs from the shop's usual.
+  leadTimeDays      Int?
   products Product[]
 }
 
@@ -766,6 +770,11 @@ model BusinessSetting {
   roundingIncrement Int      @default(5)
   lowStockThreshold Int      @default(5)
   quoteValidityDays Int      @default(10)
+  // Reorder planning: how long a restock normally takes, how many days of sales an order should
+  // cover (kept small — the yard is short of space), and how sure to be of not running out (%).
+  leadTimeDays      Int      @default(2)
+  coverDays         Int      @default(7)
+  serviceLevel      Int      @default(95)
   documentFooter    String?
   paymentDetails    String?
   updatedAt         DateTime @updatedAt
@@ -819,4 +828,21 @@ model FollowUpDigest {
   sentAt DateTime @default(now())
 
   @@id([userId, day])
+}
+
+// Which items are currently flagged for reorder, so each is announced once (and again only if it is
+// still short after a restock should have arrived) rather than on every check.
+model ReorderAlert {
+  id             String   @id @default(cuid())
+  entityType     String // 'product' | 'family'
+  entityId       String
+  firstAlertedAt DateTime @default(now())
+  lastNotifiedAt DateTime @default(now())
+
+  @@unique([entityType, entityId])
+}
+
+// One claim per day so the morning reorder summary goes out once, however many servers are running.
+model ReorderDigest {
+  day String @id
 }

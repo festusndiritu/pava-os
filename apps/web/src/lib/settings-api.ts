@@ -20,6 +20,10 @@ export interface BusinessSettings {
   lowStockThreshold: number;
   /** How many days a newly issued quote's prices hold for. */
   quoteValidityDays: number;
+  /** Reorder planning: days a restock usually takes, days of sales an order covers, and % sure of not running out. */
+  leadTimeDays: number;
+  coverDays: number;
+  serviceLevel: number;
   documentFooter: string | null;
   paymentDetails: string | null;
   updatedAt: string;
@@ -28,7 +32,7 @@ export interface BusinessSettings {
 export type UpdateBusinessSettings = Partial<
   Pick<
     BusinessSettings,
-    'businessName' | 'address' | 'phone' | 'email' | 'quotePrefix' | 'invoicePrefix' | 'receiptPrefix' | 'roundingIncrement' | 'lowStockThreshold' | 'quoteValidityDays' | 'documentFooter' | 'paymentDetails'
+    'businessName' | 'address' | 'phone' | 'email' | 'quotePrefix' | 'invoicePrefix' | 'receiptPrefix' | 'roundingIncrement' | 'lowStockThreshold' | 'quoteValidityDays' | 'leadTimeDays' | 'coverDays' | 'serviceLevel' | 'documentFooter' | 'paymentDetails'
   >
 >;
 

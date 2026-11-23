@@ -1,3 +1,4 @@
+import type { Clearable } from './clearable';
 import { api } from './api';
 
 export interface Contact {
@@ -41,7 +42,7 @@ export const contactsApi = {
     api.getPage<Contact>(`/contacts${query({ search, sort, limit: String(page.limit), offset: page.offset ? String(page.offset) : undefined })}`),
   get: (id: string) => api.get<Contact>(`/contacts/${id}`),
   create: (data: ContactInput) => api.post<Contact>('/contacts', data),
-  update: (id: string, data: Partial<ContactInput>) => api.patch<Contact>(`/contacts/${id}`, data),
+  update: (id: string, data: Clearable<ContactInput>) => api.patch<Contact>(`/contacts/${id}`, data),
   archive: (id: string) => api.delete<Contact>(`/contacts/${id}`),
   restore: (id: string) => api.post<Contact>(`/contacts/${id}/restore`),
   // Only succeeds on an already-archived contact — the backend enforces this; this just surfaces the result.

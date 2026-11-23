@@ -14,6 +14,12 @@ export class CreateProductFamilyDto {
   @IsInt()
   @Min(0)
   lowStockThreshold?: number;
+
+  // Days a restock takes when it differs from the shop's usual (null clears it).
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  leadTimeDays?: number | null;
 }
 
 export class UpdateProductFamilyDto {
@@ -30,6 +36,12 @@ export class UpdateProductFamilyDto {
   @IsInt()
   @Min(0)
   lowStockThreshold?: number;
+
+  // Days a restock takes when it differs from the shop's usual (null clears it).
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  leadTimeDays?: number | null;
 }
 
 const STOCK_STATUSES = ['IN_STOCK', 'SUPPLIER_ONLY', 'OUT_OF_STOCK'] as const;
@@ -105,6 +117,12 @@ export class CreateProductDto {
 }
 
 export class UpdateProductDto {
+  // Days a restock takes when it differs from the shop's usual (null clears it).
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  leadTimeDays?: number | null;
+
   @IsOptional()
   @IsString()
   @Length(1, 160)

@@ -46,6 +46,26 @@ export class UpdateSettingsDto {
   @Max(365)
   quoteValidityDays?: number;
 
+  // Reorder planning: how long a restock normally takes, how many days of sales an order covers,
+  // and how sure to be of not running out (percent).
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(60)
+  leadTimeDays?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(180)
+  coverDays?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(80)
+  @Max(99)
+  serviceLevel?: number;
+
   @IsOptional()
   @IsString()
   documentFooter?: string;

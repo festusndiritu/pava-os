@@ -82,7 +82,7 @@ export class ContactsService {
     const { followUpAt, ...rest } = data;
     return this.prisma.contact.update({
       where: { id },
-      data: { ...rest, ...(followUpAt ? { followUpAt: new Date(followUpAt) } : {}) },
+      data: { ...rest, ...(followUpAt ? { followUpAt: new Date(followUpAt) } : followUpAt === null ? { followUpAt: null } : {}) },
     });
   }
 

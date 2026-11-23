@@ -5,12 +5,16 @@ import { Permissions } from '../auth/permissions.decorator.js';
 import { Module } from '../../generated/prisma/client.js';
 import { parsePaging, sendTotal } from '../common/paging.js';
 import { InventoryService } from './inventory.service.js';
+import { ReorderService } from './reorder.service.js';
 import { AdjustInventoryDto, OpeningBalanceDto, ReceiveInventoryDto } from './dto/inventory.dto.js';
 
 @UseGuards(JwtAuthGuard)
 @Controller('inventory')
 export class InventoryController {
-  constructor(private inventory: InventoryService) {}
+  constructor(
+    private inventory: InventoryService,
+    private reorder: ReorderService,
+  ) {}
 
   @UseGuards(PermissionsGuard)
   @Permissions(Module.INVENTORY)
@@ -41,6 +45,14 @@ export class InventoryController {
     });
     sendTotal(res, total);
     return rows;
+  }
+
+  // What to reorder, how many, and of which brand. Declared before receipts/:id like the others here.
+  @UseGuards(PermissionsGuard)
+  @Permissions(Module.INVENTORY)
+  @Get('reorder')
+  reorderPlan(@Query('all') all?: string) {
+    return this.reorder.plan({ all: all === '1' || all === 'true' });
   }
 
   // Declared before receipts/:id so "summary" is never read as an id.

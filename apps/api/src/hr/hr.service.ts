@@ -76,7 +76,8 @@ export class HrService {
         emergencyContactPhone: dto.emergencyContactPhone,
         jobTitle: dto.jobTitle,
         department: dto.department,
-        employmentStartDate: dto.employmentStartDate ? new Date(dto.employmentStartDate) : undefined,
+        // null clears the date; leaving it out keeps it.
+        employmentStartDate: (dto.employmentStartDate as string | null | undefined) === null ? null : dto.employmentStartDate ? new Date(dto.employmentStartDate) : undefined,
         employmentStatus: dto.employmentStatus as EmploymentStatus | undefined,
         baseSalary: dto.baseSalary,
         notes: dto.notes,

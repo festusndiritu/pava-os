@@ -2,10 +2,11 @@
 
 import { useEffect, useState, type KeyboardEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { Boxes, ClipboardList, Plus, Search, X } from 'lucide-react';
+import { Boxes, ClipboardList, PackagePlus, Plus, Search, X } from 'lucide-react';
 import { inventoryApi, type InventoryReceipt, type InventorySummary, type Product, type ReceiptKind, type StockFilter } from '../../../lib/products-api';
 import { ReceiveInventoryDrawer } from '../../../components/inventory/ReceiveInventoryDrawer';
 import { StockLevelsTable } from '../../../components/inventory/StockLevelsTable';
+import { ReorderTab } from '../../../components/inventory/ReorderTab';
 import { ProductDetailDrawer } from '../../../components/products/ProductDetailDrawer';
 import { DataTable, type Column } from '../../../components/ui/DataTable';
 import { useAuth } from '../../../lib/auth-context';
@@ -17,9 +18,10 @@ function fmtDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(iso));
 }
 
-type TabKey = 'levels' | 'receipts';
+type TabKey = 'levels' | 'reorder' | 'receipts';
 const TABS: { key: TabKey; label: string; icon: typeof Boxes }[] = [
   { key: 'levels', label: 'Stock levels', icon: Boxes },
+  { key: 'reorder', label: 'Reorder', icon: PackagePlus },
   { key: 'receipts', label: 'Receipts', icon: ClipboardList },
 ];
 
@@ -80,7 +82,9 @@ export default function InventoryPage() {
   const router = useRouter();
 
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('filter') === 'low') setStock('restock');
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('filter') === 'low') setStock('restock');
+    if (params.get('tab') === 'reorder') setTab('reorder');
   }, []);
 
   // The header numbers. If they can't load, the page still works without them.
@@ -299,6 +303,12 @@ export default function InventoryPage() {
               reloadReceipts();
             }}
           />
+        </div>
+      )}
+
+      {tab === 'reorder' && (
+        <div role="tabpanel" id="inventory-panel-reorder" aria-labelledby="inventory-tab-reorder" className="mt-4">
+          <ReorderTab />
         </div>
       )}
 

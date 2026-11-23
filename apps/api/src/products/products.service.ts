@@ -53,6 +53,7 @@ interface ProductInput {
   gauge?: number;
   material?: string;
   familyId?: string;
+  leadTimeDays?: number | null;
   aliases?: string[];
 }
 
@@ -259,11 +260,11 @@ export class ProductsService {
     return this.prisma.productFamily.findMany({ orderBy: { name: 'asc' } });
   }
 
-  createFamily(data: { name: string; aggregateLowStock?: boolean; lowStockThreshold?: number }) {
+  createFamily(data: { name: string; aggregateLowStock?: boolean; lowStockThreshold?: number; leadTimeDays?: number }) {
     return this.prisma.productFamily.create({ data });
   }
 
-  async updateFamily(id: string, data: { name?: string; aggregateLowStock?: boolean; lowStockThreshold?: number | null }) {
+  async updateFamily(id: string, data: { name?: string; aggregateLowStock?: boolean; lowStockThreshold?: number | null; leadTimeDays?: number | null }) {
     const family = await this.prisma.productFamily.findUnique({ where: { id } });
     if (!family) throw new NotFoundException('Product family not found');
     return this.prisma.productFamily.update({ where: { id }, data });

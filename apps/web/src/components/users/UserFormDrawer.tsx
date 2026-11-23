@@ -56,7 +56,7 @@ export function UserFormDrawer({
     setSaving(true);
     try {
       if (isEdit && user) {
-        await usersApi.update(user.id, { name, avatar, phone: phone || undefined, permissions, maxDiscountPercent: discount, canViewCost, canInvoiceWithoutStock, active });
+        await usersApi.update(user.id, { name, avatar, phone: phone || null, permissions, maxDiscountPercent: discount, canViewCost, canInvoiceWithoutStock, active });
       } else {
         if (!/^\d{4}$/.test(pin)) {
           toast.error('PIN must be 4 digits');

@@ -62,7 +62,7 @@ export function CustomerFormDrawer({
         isCredit,
         creditLimit: toNumber(creditLimit) ?? undefined,
       };
-      if (isEdit && customer) await customersApi.update(customer.id, payload);
+      if (isEdit && customer) await customersApi.update(customer.id, { ...payload, businessName: businessName || null, phone: phone || null, altPhone: altPhone || null, location: location || null, address: address || null, notes: notes || null, creditLimit: toNumber(creditLimit) ?? null });
       else await customersApi.create(payload);
       toast.success('Customer saved');
       onSaved();

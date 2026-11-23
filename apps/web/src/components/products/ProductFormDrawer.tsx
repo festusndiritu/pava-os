@@ -224,7 +224,23 @@ export function ProductFormDrawer({
         ...(isEdit ? { active } : {}),
       };
       if (isEdit && product) {
-        await productsApi.update(product.id, payload);
+        // Editing: an emptied field (e.g. brand set back to "—") must be sent as null. Leaving it
+        // out would make the server keep the old value, so a wrong brand could never be removed.
+        await productsApi.update(product.id, {
+          ...payload,
+          displayName: displayName || null,
+          spec: spec || null,
+          brandId: brandId || null,
+          categoryId: categoryId || null,
+          shape: shape || null,
+          nominalSize: nominalSize || null,
+          widthMm: toNumber(widthMm) ?? null,
+          heightMm: toNumber(heightMm) ?? null,
+          thicknessMm: thicknessMm ?? null,
+          gauge: gaugeOption?.gauge ?? null,
+          material: material || null,
+          familyId: familyId || null,
+        });
       } else {
         const created = await productsApi.create(payload);
         if (qty && cost) {

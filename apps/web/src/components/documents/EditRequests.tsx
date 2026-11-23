@@ -1,5 +1,6 @@
 'use client';
 
+import { lineLabel } from '../../lib/line-label';
 import { useEffect, useMemo, useState } from 'react';
 import { Check, Plus, X } from 'lucide-react';
 import { Modal } from '../ui/Modal';
@@ -119,7 +120,7 @@ export function EditRequestDialog({ doc, onClose, onSent }: { doc: SaleDocument;
         </p>
         <ProductPicker
           onSelect={(p) =>
-            setLines((prev) => [...prev, { key: `new-${p.id}-${prev.length}`, productId: p.id, description: p.displayName ?? p.name, qty: '1', unitPrice: String(p.basePrice) }])
+            setLines((prev) => [...prev, { key: `new-${p.id}-${prev.length}`, productId: p.id, description: lineLabel(p), qty: '1', unitPrice: String(p.basePrice) }])
           }
         />
       </div>

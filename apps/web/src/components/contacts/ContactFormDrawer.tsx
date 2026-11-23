@@ -49,7 +49,7 @@ export function ContactFormDrawer({ open, onClose, onSaved, contact }: { open: b
         tags: tags ? tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
         followUpAt: followUpAt || undefined,
       };
-      if (isEdit && contact) await contactsApi.update(contact.id, payload);
+      if (isEdit && contact) await contactsApi.update(contact.id, { ...payload, company: company || null, role: role || null, phone: phone || null, altPhone: altPhone || null, notes: notes || null, followUpAt: followUpAt || null });
       else await contactsApi.create(payload);
       toast.success('Contact saved');
       onSaved();

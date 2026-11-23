@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { DocumentStatus, Module, Role } from '../../generated/prisma/client.js';
 import { SettingsService } from '../settings/settings.service.js';
+import { ReorderService } from '../inventory/reorder.service.js';
 
 function has(role: Role, permissions: string[], allowed: Module[]) {
   return role === Role.ADMIN || allowed.some((m) => permissions.includes(m));
@@ -63,6 +64,7 @@ export class DashboardService {
   constructor(
     private prisma: PrismaService,
     private settings: SettingsService,
+    private reorder: ReorderService,
   ) {}
 
   async summary(role: Role, permissions: string[]) {
@@ -357,111 +359,19 @@ export class DashboardService {
     return result;
   }
 
+  // Items that have hit their reorder point — worked out from how each one actually sells (see
+  // ReorderService), not from one fixed number for everything.
   async lowStockItems() {
-    const { lowStockThreshold: globalThreshold } =
-      await this.settings.get();
-
-    const products = await this.prisma.product.findMany({
-      where: {
-        active: true,
-      },
-      select: {
-        id: true,
-        name: true,
-        displayName: true,
-        stockQuantity: true,
-        unit: {
-          select: {
-            symbol: true,
-          },
-        },
-        family: {
-          select: {
-            id: true,
-            name: true,
-            aggregateLowStock: true,
-            lowStockThreshold: true,
-          },
-        },
-      },
-    });
-
-    type Row = {
-      id: string;
-      name: string;
-      stockQuantity: number;
-      unit: string;
-      threshold: number;
-      kind: 'product' | 'family';
-    };
-
-    const rows: Row[] = [];
-
-    const familyGroups = new Map<
-      string,
-      {
-        name: string;
-        threshold: number;
-        unit: string;
-        stockQuantity: number;
-      }
-    >();
-
-    for (const p of products) {
-      if (p.family?.aggregateLowStock) {
-        const threshold =
-          p.family.lowStockThreshold ?? globalThreshold;
-
-        const existing = familyGroups.get(p.family.id);
-
-        if (existing) {
-          existing.stockQuantity += p.stockQuantity;
-        } else {
-          familyGroups.set(p.family.id, {
-            name: p.family.name,
-            threshold,
-            unit: p.unit.symbol,
-            stockQuantity: p.stockQuantity,
-          });
-        }
-
-        continue;
-      }
-
-      if (p.stockQuantity <= globalThreshold) {
-        rows.push({
-          id: p.id,
-          name: p.displayName ?? p.name,
-          stockQuantity: p.stockQuantity,
-          unit: p.unit.symbol,
-          threshold: globalThreshold,
-          kind: 'product',
-        });
-      }
-    }
-
-    for (const [familyId, group] of familyGroups) {
-      if (group.stockQuantity <= group.threshold) {
-        rows.push({
-          id: familyId,
-          name: group.name,
-          stockQuantity: group.stockQuantity,
-          unit: group.unit,
-          threshold: group.threshold,
-          kind: 'family',
-        });
-      }
-    }
-
-    rows.sort(
-      (a, b) =>
-        (b.threshold - b.stockQuantity) -
-        (a.threshold - a.stockQuantity),
-    );
-
-    return {
-      total: rows.length,
-      items: rows,
-    };
+    const plan = await this.reorder.plan();
+    const rows = plan.items.map((i) => ({
+      id: i.id,
+      name: i.name,
+      stockQuantity: i.onHand,
+      unit: i.unit,
+      threshold: i.reorderPoint,
+      suggestedQty: i.suggestedQty,
+      kind: i.kind,
+    }));
+    return { total: rows.length, items: rows };
   }
 }

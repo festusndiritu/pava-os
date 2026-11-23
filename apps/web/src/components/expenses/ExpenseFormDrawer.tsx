@@ -68,7 +68,7 @@ export function ExpenseFormDrawer({
         status,
         notes: notes || undefined,
       };
-      if (isEdit && expense) await expensesApi.update(expense.id, payload);
+      if (isEdit && expense) await expensesApi.update(expense.id, { ...payload, description: description || null, vendor: vendor || null, paymentMethod: paymentMethod || null, reference: reference || null, notes: notes || null });
       else await expensesApi.create(payload);
       toast.success('Expense saved');
       onSaved();

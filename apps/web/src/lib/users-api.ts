@@ -33,7 +33,8 @@ export interface CreateStaffInput {
 export interface UpdateStaffInput {
   name?: string;
   avatar?: string;
-  phone?: string;
+  /** null clears the number. */
+  phone?: string | null;
   permissions?: ModuleKey[];
   maxDiscountPercent?: number;
   canViewCost?: boolean;

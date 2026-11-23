@@ -32,6 +32,8 @@ export interface ProductFamily {
   name: string;
   aggregateLowStock: boolean;
   lowStockThreshold: number | null;
+  /** Days a restock takes when it differs from the shop's usual. */
+  leadTimeDays: number | null;
 }
 
 export type StockStatus = 'IN_STOCK' | 'SUPPLIER_ONLY' | 'OUT_OF_STOCK';
@@ -43,6 +45,7 @@ export interface Product {
   spec: string | null;
   brandId: string | null;
   brand: Brand | null;
+  leadTimeDays?: number | null;
   categoryId: string | null;
   category: Category | null;
   unitId: string;
@@ -201,7 +204,7 @@ export const productsApi = {
   families: () => api.get<ProductFamily[]>('/products/families'),
   createFamily: (data: { name: string; aggregateLowStock?: boolean; lowStockThreshold?: number }) =>
     api.post<ProductFamily>('/products/families', data),
-  updateFamily: (id: string, data: { name?: string; aggregateLowStock?: boolean; lowStockThreshold?: number | null }) =>
+  updateFamily: (id: string, data: { name?: string; aggregateLowStock?: boolean; lowStockThreshold?: number | null; leadTimeDays?: number | null }) =>
     api.patch<ProductFamily>(`/products/families/${id}`, data),
 };
 

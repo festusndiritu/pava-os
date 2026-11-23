@@ -1,3 +1,4 @@
+import { lineLabel } from './line-label.js';
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { DocumentStatus, DocumentType, LedgerEntryType, Role, TransportMode } from '../../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -68,7 +69,7 @@ export class DocumentsService {
   // directly, not a list price with a discount subtracted from it (brief step 4, rule #1).
   private priceDocumentLines(
     items: { productId?: string | null; description?: string; qty: number; unitPrice: number }[],
-    productMap: Map<string, { name: string; displayName: string | null; basePrice: number }>,
+    productMap: Map<string, { name: string; displayName: string | null; basePrice: number; brand?: { name: string } | null }>,
     transport: {
       amount: number;
       fold: boolean;
@@ -142,7 +143,7 @@ export class DocumentsService {
 
       return {
         productId: line.productId ?? null,
-        description: line.description || product?.displayName || product?.name || 'Item',
+        description: line.description || (product ? lineLabel(product) : 'Item'),
         qty: line.qty,
         basePrice: listPrice,
         unitPrice: finalUnitPrice,
@@ -311,7 +312,7 @@ export class DocumentsService {
     }
 
     const productIds = [...new Set(input.items.map((i) => i.productId).filter((id): id is string => !!id))];
-    const products = productIds.length ? await this.prisma.product.findMany({ where: { id: { in: productIds } } }) : [];
+    const products = productIds.length ? await this.prisma.product.findMany({ where: { id: { in: productIds } }, include: { brand: true } }) : [];
     const productMap = new Map(products.map((p) => [p.id, p]));
     for (const id of productIds) {
       if (!productMap.has(id)) throw new NotFoundException(`Product ${id} not found`);
@@ -824,7 +825,7 @@ export class DocumentsService {
   // The POS checkout path (brief §14-17, §27, §59).
   async posSale(actorId: string, actorRole: Role, input: CreatePosSaleDto) {
     const productIds = [...new Set(input.items.map((i) => i.productId))];
-    const products = await this.prisma.product.findMany({ where: { id: { in: productIds } } });
+    const products = await this.prisma.product.findMany({ where: { id: { in: productIds } }, include: { brand: true } });
     const productMap = new Map(products.map((p) => [p.id, p]));
     for (const id of productIds) {
       if (!productMap.has(id)) throw new NotFoundException(`Product ${id} not found`);
@@ -841,7 +842,7 @@ export class DocumentsService {
     const allowNegative = !!input.allowNegativeStock && canOverrideStock;
     // Only the part leaving the shop's own stock has to be on the shelf.
     const fulfilment = this.resolveFulfilment(
-      input.items.map((i) => ({ productId: i.productId, qty: i.qty, description: productMap.get(i.productId)?.displayName ?? productMap.get(i.productId)?.name })),
+      input.items.map((i) => ({ productId: i.productId, qty: i.qty, description: productMap.get(i.productId) ? lineLabel(productMap.get(i.productId)!) : undefined })),
       input.items,
     );
     if (!allowNegative) {
@@ -1052,7 +1053,7 @@ export class DocumentsService {
     }
 
     const productIds = [...new Set(input.items.map((i) => i.productId))];
-    const products = await this.prisma.product.findMany({ where: { id: { in: productIds } } });
+    const products = await this.prisma.product.findMany({ where: { id: { in: productIds } }, include: { brand: true } });
     const productMap = new Map(products.map((p) => [p.id, p]));
     for (const id of productIds) {
       if (!productMap.has(id)) throw new NotFoundException(`Product ${id} not found`);
@@ -1078,7 +1079,7 @@ export class DocumentsService {
             const product = productMap.get(i.productId)!;
             return {
               productId: i.productId,
-              description: product.displayName ?? product.name,
+              description: lineLabel(product),
               qty: i.qty,
               basePrice: product.basePrice,
               unitPrice: i.unitPrice,
