@@ -260,7 +260,7 @@ export class ProductsService {
     return this.prisma.productFamily.findMany({ orderBy: { name: 'asc' } });
   }
 
-  createFamily(data: { name: string; aggregateLowStock?: boolean; lowStockThreshold?: number; leadTimeDays?: number }) {
+  createFamily(data: { name: string; aggregateLowStock?: boolean; lowStockThreshold?: number; leadTimeDays?: number | null }) {
     return this.prisma.productFamily.create({ data });
   }
 
