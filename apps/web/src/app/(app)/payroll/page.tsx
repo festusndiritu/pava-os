@@ -104,7 +104,7 @@ function RunsTab() {
         <button
           type="button"
           onClick={() => setFormOpen(true)}
-          className="flex min-h-10 items-center gap-1.5 rounded-md px-3.5 text-sm font-medium text-white"
+          className="flex min-h-10 items-center gap-1.5 rounded-md px-3.5 text-sm font-medium text-on-accent"
           style={{ backgroundColor: 'var(--color-accent)' }}
         >
           <Plus size={15} strokeWidth={2} />

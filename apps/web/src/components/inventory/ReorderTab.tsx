@@ -89,11 +89,11 @@ function ItemCard({ item, onSaved }: { item: ReorderItem; onSaved: () => void })
           <p className="flex flex-wrap items-center gap-2 text-sm font-medium" style={{ color: 'var(--color-ink-900)' }}>
             {item.name}
             {item.kind === 'family' && (
-              <span className="text-[11px] font-normal" style={{ color: 'var(--color-ink-600)' }}>
+              <span className="text-xs font-normal" style={{ color: 'var(--color-ink-600)' }}>
                 all brands
               </span>
             )}
-            <span className="rounded px-1.5 py-0.5 text-[11px] font-semibold" style={{ backgroundColor: tone.bg, color: tone.fg }}>
+            <span className="rounded px-1.5 py-0.5 text-xs font-semibold" style={{ backgroundColor: tone.bg, color: tone.fg }}>
               {item.status === 'out' ? 'Out' : 'Reorder'}
             </span>
           </p>
@@ -105,7 +105,7 @@ function ItemCard({ item, onSaved }: { item: ReorderItem; onSaved: () => void })
         </div>
         {item.suggestedQty > 0 && (
           <p className="shrink-0 text-right">
-            <span className="block text-[11px] uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.04em' }}>
+            <span className="block text-xs uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.04em' }}>
               Order
             </span>
             <span className="text-lg font-semibold data-num" style={{ color: 'var(--color-ink-900)' }}>

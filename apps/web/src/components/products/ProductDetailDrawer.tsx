@@ -72,7 +72,7 @@ function Tabs({ value, onChange }: { value: TabKey; onChange: (k: TabKey) => voi
 function Detail({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[11px] uppercase" style={{ color: 'var(--color-ink-600)' }}>
+      <dt className="text-xs uppercase" style={{ color: 'var(--color-ink-600)' }}>
         {label}
       </dt>
       <dd className="mt-0.5 truncate text-sm" title={value} style={{ color: 'var(--color-ink-900)' }}>
@@ -269,7 +269,7 @@ export function ProductDetailDrawer({
                   </button>
                 )}
                 {canAdjust && onReceive && (
-                  <button type="button" onClick={() => onReceive(product)} className="min-h-11 flex-1 rounded-md px-3 text-sm font-medium text-white" style={{ backgroundColor: 'var(--color-accent)' }}>
+                  <button type="button" onClick={() => onReceive(product)} className="min-h-11 flex-1 rounded-md px-3 text-sm font-medium text-on-accent" style={{ backgroundColor: 'var(--color-accent)' }}>
                     Receive stock
                   </button>
                 )}
@@ -315,7 +315,7 @@ export function ProductDetailDrawer({
           <div className="flex flex-col gap-5">
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-md border p-3" style={{ borderColor: 'var(--color-border)' }}>
-                <p className="text-[11px] uppercase" style={{ color: 'var(--color-ink-600)' }}>
+                <p className="text-xs uppercase" style={{ color: 'var(--color-ink-600)' }}>
                   Stock
                 </p>
                 <p className="mt-0.5 text-lg font-semibold data-num" style={{ color: 'var(--color-ink-900)' }}>
@@ -326,7 +326,7 @@ export function ProductDetailDrawer({
                 </div>
               </div>
               <div className="rounded-md border p-3" style={{ borderColor: 'var(--color-border)' }}>
-                <p className="text-[11px] uppercase" style={{ color: 'var(--color-ink-600)' }}>
+                <p className="text-xs uppercase" style={{ color: 'var(--color-ink-600)' }}>
                   Selling price
                 </p>
                 <p className="mt-0.5 text-lg font-semibold data-num" style={{ color: 'var(--color-ink-900)' }}>
@@ -339,7 +339,7 @@ export function ProductDetailDrawer({
               {showCost && (
                 <>
                   <div className="rounded-md border p-3" style={{ borderColor: 'var(--color-border)' }}>
-                    <p className="text-[11px] uppercase" style={{ color: 'var(--color-ink-600)' }}>
+                    <p className="text-xs uppercase" style={{ color: 'var(--color-ink-600)' }}>
                       Inventory value
                     </p>
                     <p className="mt-0.5 text-lg font-semibold data-num" style={{ color: 'var(--color-ink-900)' }}>
@@ -352,7 +352,7 @@ export function ProductDetailDrawer({
                     )}
                   </div>
                   <div className="rounded-md border p-3" style={{ borderColor: 'var(--color-border)' }}>
-                    <p className="text-[11px] uppercase" style={{ color: 'var(--color-ink-600)' }}>
+                    <p className="text-xs uppercase" style={{ color: 'var(--color-ink-600)' }}>
                       Last cost
                     </p>
                     <p className="mt-0.5 text-lg font-semibold data-num" style={{ color: 'var(--color-ink-900)' }}>

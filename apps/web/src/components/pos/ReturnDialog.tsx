@@ -107,7 +107,7 @@ export function ReturnDialog({ onClose, onCompleted }: { onClose: () => void; on
                   : 'Search by receipt number or customer'}
             </p>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md" style={{ color: 'var(--color-ink-600)' }}>
+          <button type="button" onClick={onClose} aria-label="Close" className="flex icon-btn shrink-0 items-center justify-center rounded-md" style={{ color: 'var(--color-ink-600)' }}>
             <X size={17} strokeWidth={2} />
           </button>
         </div>
@@ -278,7 +278,7 @@ export function ReturnDialog({ onClose, onCompleted }: { onClose: () => void; on
 
         <div className="border-t px-5 py-4" style={{ borderColor: 'var(--color-border)', paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
           {done ? (
-            <button type="button" onClick={onClose} className="min-h-11 w-full rounded-md px-4 text-sm font-semibold text-white" style={{ backgroundColor: 'var(--color-accent)' }}>
+            <button type="button" onClick={onClose} className="min-h-11 w-full rounded-md px-4 text-sm font-semibold text-on-accent" style={{ backgroundColor: 'var(--color-accent)' }}>
               Done
             </button>
           ) : sale ? (
@@ -298,7 +298,7 @@ export function ReturnDialog({ onClose, onCompleted }: { onClose: () => void; on
                 type="button"
                 disabled={selected.length === 0 || busy}
                 onClick={submit}
-                className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-md px-4 text-sm font-semibold text-white disabled:opacity-50"
+                className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-md px-4 text-sm font-semibold text-on-accent disabled:opacity-50"
                 style={{ backgroundColor: 'var(--color-accent)' }}
               >
                 <RotateCcw size={15} strokeWidth={2} />

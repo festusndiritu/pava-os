@@ -129,7 +129,7 @@ export function CustomerDetailDrawer({
                 </button>
                 {customer.isCredit && customer.active && (
                   <>
-                    <button type="button" onClick={() => setAction('payment')} className="flex-1 rounded-md px-4 py-2 text-sm font-medium text-white" style={{ backgroundColor: 'var(--color-accent)' }}>
+                    <button type="button" onClick={() => setAction('payment')} className="flex-1 rounded-md px-4 py-2 text-sm font-medium text-on-accent" style={{ backgroundColor: 'var(--color-accent)' }}>
                       Record payment
                     </button>
                     <button type="button" onClick={() => setAction('adjustment')} className="flex-1 rounded-md border px-4 py-2 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
@@ -172,7 +172,7 @@ export function CustomerDetailDrawer({
           <div className="flex flex-col gap-5">
             {customer.creditBalance < 0 && (
               <div className="rounded-md border p-3" style={{ borderColor: 'var(--color-status-ok)', backgroundColor: 'var(--color-status-okSoft)' }}>
-                <p className="text-[11px] uppercase" style={{ color: 'var(--color-status-ok)' }}>
+                <p className="text-xs uppercase" style={{ color: 'var(--color-status-ok)' }}>
                   Credit held for them
                 </p>
                 <p className="mt-0.5 text-lg font-semibold data-num" style={{ color: 'var(--color-status-ok)' }}>
@@ -188,7 +188,7 @@ export function CustomerDetailDrawer({
             {customer.isCredit && (
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-md border p-3" style={{ borderColor: overLimit ? 'var(--color-status-bad)' : 'var(--color-border)' }}>
-                  <p className="text-[11px] uppercase" style={{ color: 'var(--color-ink-600)' }}>
+                  <p className="text-xs uppercase" style={{ color: 'var(--color-ink-600)' }}>
                     Outstanding balance
                   </p>
                   <p className="mt-0.5 text-lg font-semibold data-num" style={{ color: overLimit ? 'var(--color-status-bad)' : 'var(--color-ink-900)' }}>
@@ -196,7 +196,7 @@ export function CustomerDetailDrawer({
                   </p>
                 </div>
                 <div className="rounded-md border p-3" style={{ borderColor: 'var(--color-border)' }}>
-                  <p className="text-[11px] uppercase" style={{ color: 'var(--color-ink-600)' }}>
+                  <p className="text-xs uppercase" style={{ color: 'var(--color-ink-600)' }}>
                     Credit limit
                   </p>
                   <p className="mt-0.5 text-lg font-semibold data-num" style={{ color: 'var(--color-ink-900)' }}>
@@ -381,7 +381,7 @@ function LedgerActionDialog({
             <button type="button" onClick={onClose} className="flex-1 rounded-md border px-4 py-2 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
               Cancel
             </button>
-            <button type="button" onClick={submit} disabled={saving || !amount} className="flex-1 rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
+            <button type="button" onClick={submit} disabled={saving || !amount} className="flex-1 rounded-md px-4 py-2 text-sm font-medium text-on-accent disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
               {saving ? 'Saving…' : 'Save'}
             </button>
           </div>
@@ -455,7 +455,7 @@ function ReleaseCreditDialog({ customer, onClose, onDone }: { customer: Customer
           <button type="button" onClick={onClose} className="flex-1 rounded-md border px-4 py-2 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
             Cancel
           </button>
-          <button type="button" onClick={submit} disabled={saving} className="flex-1 rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
+          <button type="button" onClick={submit} disabled={saving} className="flex-1 rounded-md px-4 py-2 text-sm font-medium text-on-accent disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
             {saving ? 'Saving…' : 'Release'}
           </button>
         </div>

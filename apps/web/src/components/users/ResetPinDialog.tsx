@@ -50,7 +50,7 @@ export function ResetPinDialog({ user, onClose, onDone }: { user: StaffUser; onC
             <button type="button" onClick={onClose} className="flex-1 rounded-md border px-4 py-2 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
               Cancel
             </button>
-            <button type="button" onClick={submit} disabled={saving || pin.length !== 4} className="flex-1 rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
+            <button type="button" onClick={submit} disabled={saving || pin.length !== 4} className="flex-1 rounded-md px-4 py-2 text-sm font-medium text-on-accent disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
               {saving ? 'Saving…' : 'Reset PIN'}
             </button>
           </div>

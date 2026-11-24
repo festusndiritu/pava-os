@@ -36,7 +36,7 @@ export function IdleWarningDialog() {
           <button
             type="button"
             onClick={dismissIdleWarning}
-            className="flex-1 rounded-md px-3 py-2 text-sm font-medium text-white transition-colors"
+            className="flex-1 rounded-md px-3 py-2 text-sm font-medium text-on-accent transition-colors"
             style={{ backgroundColor: 'var(--color-accent)' }}
           >
             Continue session

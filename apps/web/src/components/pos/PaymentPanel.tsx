@@ -24,10 +24,10 @@ export interface PaymentDraft {
 
 export const emptyPayment: PaymentDraft = { mode: 'MPESA', cash: '', mpesa: '', changeAction: 'GIVE', useCredit: false, leaveBalance: false };
 
-const MODES: { value: PayMode; label: string; hint: string }[] = [
+export const MODES: { value: PayMode; label: string; hint: string }[] = [
   { value: 'MPESA', label: 'M-Pesa', hint: 'Paybill' },
   { value: 'CASH', label: 'Cash', hint: 'Counter' },
-  { value: 'SPLIT', label: 'Split Payment', hint: 'Both' },
+  { value: 'SPLIT', label: 'Split', hint: 'Cash + M-Pesa' },
 ];
 
 const num = (s: string) => parseInt(s, 10) || 0;
@@ -139,7 +139,7 @@ export function PaymentPanel({
                 }}
               >
                 {m.label}
-                <span className="block text-[11px] font-normal opacity-70">{m.hint}</span>
+                <span className="block text-xs font-normal opacity-70">{m.hint}</span>
               </button>
             );
           })}
@@ -187,7 +187,7 @@ export function PaymentPanel({
             {(
               [
                 { value: 'GIVE', label: 'Give back' },
-                { value: 'CREDIT', label: 'Keep on credit' },
+                { value: 'CREDIT', label: 'Keep on account' },
               ] as const
             ).map((o) => {
               const active = draft.changeAction === o.value;
@@ -295,7 +295,7 @@ export function PaymentDialog({
           type="button"
           onClick={onDone}
           disabled={!!r.problem}
-          className="min-h-12 flex-1 rounded-md px-4 text-sm font-semibold text-white disabled:opacity-50"
+          className="min-h-12 flex-1 rounded-md px-4 text-sm font-semibold text-on-accent disabled:opacity-50"
           style={{ backgroundColor: 'var(--color-accent)' }}
         >
           {r.problem ?? 'Done'}
@@ -395,7 +395,7 @@ export function QuickCustomerDialog({
           <button type="button" onClick={onClose} className="min-h-11 flex-1 rounded-md border px-4 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
             Cancel
           </button>
-          <button type="submit" disabled={saving || !name.trim()} className="min-h-11 flex-1 rounded-md px-4 text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: 'var(--color-accent)' }}>
+          <button type="submit" disabled={saving || !name.trim()} className="min-h-11 flex-1 rounded-md px-4 text-sm font-semibold text-on-accent disabled:opacity-50" style={{ backgroundColor: 'var(--color-accent)' }}>
             {saving ? 'Adding…' : 'Add & keep credit'}
           </button>
         </div>

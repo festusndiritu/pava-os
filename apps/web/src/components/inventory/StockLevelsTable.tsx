@@ -182,7 +182,7 @@ export function StockLevelsTable({
         Export count sheet
       </button>
       {onReceiveMany && (
-        <button type="button" onClick={() => onReceiveMany(selection.items)} className="flex min-h-10 items-center gap-1.5 rounded-md px-3 text-sm font-medium text-white" style={{ backgroundColor: 'var(--color-accent)' }}>
+        <button type="button" onClick={() => onReceiveMany(selection.items)} className="flex min-h-10 items-center gap-1.5 rounded-md px-3 text-sm font-medium text-on-accent" style={{ backgroundColor: 'var(--color-accent)' }}>
           <Truck size={14} strokeWidth={2} />
           Receive stock
         </button>

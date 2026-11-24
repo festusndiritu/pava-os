@@ -49,7 +49,7 @@ const REASONS: Record<'add' | 'remove', { value: AdjustType; label: string }[]> 
 };
 
 const fieldStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
-const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase';
+const labelClass = 'mb-1.5 block text-xs font-semibold uppercase';
 const labelStyle = { color: 'var(--color-ink-600)', letterSpacing: '0.06em' };
 
 /** The one place a manual stock change gets made, shared by the Products detail drawer, the Products table and the Inventory stock-levels tab. */
@@ -145,15 +145,15 @@ export function AdjustStockDialog({ product, onClose, onDone }: { product: Produ
             </p>
             <dl className="mt-2 grid grid-cols-3 gap-2 text-center">
               <div>
-                <dt className="text-[11px] uppercase" style={{ color: 'var(--color-ink-600)' }}>Current</dt>
+                <dt className="text-xs uppercase" style={{ color: 'var(--color-ink-600)' }}>Current</dt>
                 <dd className="data-num text-sm font-medium" style={{ color: 'var(--color-ink-900)' }}>{negative.current}</dd>
               </div>
               <div>
-                <dt className="text-[11px] uppercase" style={{ color: 'var(--color-ink-600)' }}>Change</dt>
+                <dt className="text-xs uppercase" style={{ color: 'var(--color-ink-600)' }}>Change</dt>
                 <dd className="data-num text-sm font-medium" style={{ color: 'var(--color-ink-900)' }}>{negative.change > 0 ? '+' : ''}{negative.change}</dd>
               </div>
               <div>
-                <dt className="text-[11px] uppercase" style={{ color: 'var(--color-ink-600)' }}>Resulting</dt>
+                <dt className="text-xs uppercase" style={{ color: 'var(--color-ink-600)' }}>Resulting</dt>
                 <dd className="data-num text-sm font-semibold" style={{ color: 'var(--color-status-bad)' }}>{negative.resulting}</dd>
               </div>
             </dl>
@@ -169,7 +169,7 @@ export function AdjustStockDialog({ product, onClose, onDone }: { product: Produ
               type="button"
               disabled={saving}
               onClick={() => submit(true)}
-              className="min-h-11 flex-1 rounded-md px-4 text-sm font-semibold text-white disabled:opacity-60"
+              className="min-h-11 flex-1 rounded-md px-4 text-sm font-semibold text-on-accent disabled:opacity-60"
               style={{ backgroundColor: 'var(--color-status-warn)' }}
             >
               {saving ? 'Saving…' : 'Proceed anyway'}
@@ -260,7 +260,7 @@ export function AdjustStockDialog({ product, onClose, onDone }: { product: Produ
             <button type="button" onClick={onClose} className="min-h-11 flex-1 rounded-md border px-4 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
               Cancel
             </button>
-            <button type="submit" disabled={saving || quantity === ''} className="min-h-11 flex-1 rounded-md px-4 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
+            <button type="submit" disabled={saving || quantity === ''} className="min-h-11 flex-1 rounded-md px-4 text-sm font-medium text-on-accent disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
               {saving ? 'Saving…' : 'Apply'}
             </button>
           </div>

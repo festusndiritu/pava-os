@@ -200,7 +200,7 @@ export function QuickCalculator() {
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Close calculator"
-                className="flex h-9 w-9 items-center justify-center rounded-md"
+                className="flex icon-btn items-center justify-center rounded-md"
                 style={{ color: 'var(--color-ink-600)' }}
               >
                 <X size={18} strokeWidth={2} />
@@ -229,7 +229,7 @@ export function QuickCalculator() {
             <button
               onClick={() => chooseOperator('÷')}
               className={keyBase}
-              style={{ color: operator === '÷' ? '#fff' : 'var(--color-accent)', backgroundColor: operator === '÷' ? 'var(--color-accent)' : 'var(--color-accent-soft)' }}
+              style={{ color: operator === '÷' ? 'var(--color-on-accent)' : 'var(--color-accent)', backgroundColor: operator === '÷' ? 'var(--color-accent)' : 'var(--color-accent-soft)' }}
             >
               ÷
             </button>
@@ -242,7 +242,7 @@ export function QuickCalculator() {
             <button
               onClick={() => chooseOperator('×')}
               className={keyBase}
-              style={{ color: operator === '×' ? '#fff' : 'var(--color-accent)', backgroundColor: operator === '×' ? 'var(--color-accent)' : 'var(--color-accent-soft)' }}
+              style={{ color: operator === '×' ? 'var(--color-on-accent)' : 'var(--color-accent)', backgroundColor: operator === '×' ? 'var(--color-accent)' : 'var(--color-accent-soft)' }}
             >
               ×
             </button>
@@ -255,7 +255,7 @@ export function QuickCalculator() {
             <button
               onClick={() => chooseOperator('−')}
               className={keyBase}
-              style={{ color: operator === '−' ? '#fff' : 'var(--color-accent)', backgroundColor: operator === '−' ? 'var(--color-accent)' : 'var(--color-accent-soft)' }}
+              style={{ color: operator === '−' ? 'var(--color-on-accent)' : 'var(--color-accent)', backgroundColor: operator === '−' ? 'var(--color-accent)' : 'var(--color-accent-soft)' }}
             >
               −
             </button>
@@ -268,7 +268,7 @@ export function QuickCalculator() {
             <button
               onClick={() => chooseOperator('+')}
               className={keyBase}
-              style={{ color: operator === '+' ? '#fff' : 'var(--color-accent)', backgroundColor: operator === '+' ? 'var(--color-accent)' : 'var(--color-accent-soft)' }}
+              style={{ color: operator === '+' ? 'var(--color-on-accent)' : 'var(--color-accent)', backgroundColor: operator === '+' ? 'var(--color-accent)' : 'var(--color-accent-soft)' }}
             >
               +
             </button>
@@ -282,7 +282,7 @@ export function QuickCalculator() {
             <button onClick={inputDecimal} className={keyBase} style={{ color: 'var(--color-ink-900)', backgroundColor: 'var(--color-bg)' }}>
               .
             </button>
-            <button onClick={equals} className={keyBase} style={{ color: '#fff', backgroundColor: 'var(--color-accent)' }}>
+            <button onClick={equals} className={keyBase} style={{ color: 'var(--color-on-accent)', backgroundColor: 'var(--color-accent)' }}>
               =
             </button>
             </div>

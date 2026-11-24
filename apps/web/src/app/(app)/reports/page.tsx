@@ -116,7 +116,7 @@ export default function ReportsPage() {
       cell: (d) => {
         const badge = STATUS_BADGE[d.status];
         return badge ? (
-          <span className="rounded px-1.5 py-0.5 text-[11px] font-medium" style={{ backgroundColor: badge.bg, color: badge.fg }}>
+          <span className="rounded px-1.5 py-0.5 text-xs font-medium" style={{ backgroundColor: badge.bg, color: badge.fg }}>
             {badge.label}
           </span>
         ) : null;

@@ -28,7 +28,7 @@ export function PermissionEditor({ value, onChange }: { value: ModuleKey[]; onCh
         return (
           <div key={group.label}>
             <div className="mb-1.5 flex items-center justify-between">
-              <p className="text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+              <p className="text-xs font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
                 {group.label}
               </p>
               <button type="button" onClick={() => toggleGroup(grantable)} className="text-xs font-medium" style={{ color: 'var(--color-accent)' }}>

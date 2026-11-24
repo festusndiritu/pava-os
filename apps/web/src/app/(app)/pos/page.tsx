@@ -32,7 +32,7 @@ import { documentsApi, type SaleDocument } from '../../../lib/documents-api';
 import { thicknessLabel } from '../../../lib/shape-config';
 import { TransportDialog, type TransportSettings } from '../../../components/pos/TransportDialog';
 import { ReceiptDialog } from '../../../components/pos/ReceiptDialog';
-import { PaymentDialog, PaymentPanel, QuickCustomerDialog, emptyPayment, resolvePayment, type PaymentDraft } from '../../../components/pos/PaymentPanel';
+import { MODES, PaymentDialog, PaymentPanel, QuickCustomerDialog, emptyPayment, resolvePayment, type PaymentDraft } from '../../../components/pos/PaymentPanel';
 import { ProductIcon } from '../../../components/pos/ProductIcon';
 import { SuspendOrderDialog, SuspendedOrdersDialog } from '../../../components/pos/SuspendedOrders';
 import { ReturnDialog } from '../../../components/pos/ReturnDialog';
@@ -42,6 +42,7 @@ import { FulfilmentDialog, defaultStockQty, type FulfilmentLine } from '../../..
 import { DeliveryNoteDialog } from '../../../components/documents/DeliveryNoteDialog';
 import { ApiError } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth-context';
+import { usePersistedState } from '../../../lib/use-persisted-state';
 import { CommittedNumberInput } from '../../../components/ui/inputs';
 import { toast } from '../../../components/ui/Toast';
 import { money } from '../../../lib/format';
@@ -67,7 +68,8 @@ export default function PosPage() {
 
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
 
-  const [cart, setCart] = useState<CartLine[]>([]);
+  const { user, hasPermission } = useAuth();
+  const [cart, setCart] = usePersistedState<CartLine[]>(user ? `pava:cart:${user.id}` : null, []);
   const [transport, setTransport] = useState<TransportSettings | null>(null);
   const [transportOpen, setTransportOpen] = useState(false);
   const [resumedFromId, setResumedFromId] = useState<string | null>(null);
@@ -95,7 +97,6 @@ export default function PosPage() {
 
   const [focusMode, setFocusMode] = useState(false);
   const [suspendOpen, setSuspendOpen] = useState(false);
-  const { hasPermission } = useAuth();
   const canQuote = hasPermission('QUOTES') || hasPermission('INVOICES');
   const [recentOpen, setRecentOpen] = useState(false);
   const [recentDetailId, setRecentDetailId] = useState<string | null>(null);
@@ -254,6 +255,14 @@ export default function PosPage() {
   }
 
   function removeLine(productId: string) {
+    const index = cart.findIndex((l) => l.product.id === productId);
+    const line = cart[index];
+    if (line) {
+      toast.success(`Removed ${line.product.displayName ?? line.product.name}`, {
+        label: 'Undo',
+        onClick: () => setCart((prev) => [...prev.slice(0, index), line, ...prev.slice(index)]),
+      });
+    }
     setCart((prev) => prev.filter((l) => l.product.id !== productId));
     setSourcing((prev) => {
       const { [productId]: _gone, ...rest } = prev;
@@ -600,7 +609,7 @@ export default function PosPage() {
                       onClick={() => removeLine(l.product.id)}
                       aria-label="Remove line"
                       title="Remove line"
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md"
+                      className="flex icon-btn shrink-0 items-center justify-center rounded-md"
                       style={{ color: 'var(--color-status-bad)' }}
                     >
                       <Trash2 size={15} strokeWidth={2} />
@@ -659,12 +668,10 @@ export default function PosPage() {
         >
           <span className="flex items-center gap-1.5">
             <Warehouse size={14} strokeWidth={2} />
-            Fulfilment
+            Item source
           </span>
           <span>
-            {elsewhereLines.length === 0
-              ? 'All from shop'
-              : `${elsewhereLines.length} item${elsewhereLines.length === 1 ? '' : 's'} from elsewhere`}
+            {elsewhereLines.length === 0 ? 'All from shop' : `${elsewhereLines.length} from elsewhere`}
           </span>
         </button>
 
@@ -713,7 +720,7 @@ export default function PosPage() {
           }}
         >
           Pay Later
-          <span className="ml-1 text-[11px] font-normal opacity-70">Release goods, pay later</span>
+          <span className="ml-1 text-xs font-normal opacity-70">Customer takes goods now</span>
         </button>
 
     </>
@@ -764,10 +771,16 @@ export default function PosPage() {
           type="button"
           onClick={() => checkout()}
           disabled={cart.length === 0 || submitting || (!settleLater && !!paying.problem)}
-          className="min-h-12 rounded-md px-4 text-sm font-semibold text-white disabled:opacity-50"
+          className="min-h-12 rounded-md px-4 text-sm font-semibold text-on-accent disabled:opacity-50"
           style={{ backgroundColor: 'var(--color-accent)' }}
         >
-          {submitting ? 'Completing sale…' : `${settleLater ? 'Release goods' : 'Complete sale'} · ${money(settleLater ? Math.max(0, estimatedTotal) : collectTotal)}`}
+          {submitting
+            ? 'Completing sale…'
+            : cart.length === 0
+              ? 'Add items to start'
+              : !settleLater && paying.problem
+                ? paying.problem
+                : `${settleLater ? 'Hand over goods' : 'Complete sale'} · ${money(settleLater ? Math.max(0, estimatedTotal) : collectTotal)}`}
         </button>
     </>
   );
@@ -785,7 +798,7 @@ export default function PosPage() {
             </span>
           )}
           {resumedFromId && (
-            <span className="rounded px-1.5 py-0.5 text-[11px] font-medium" style={{ backgroundColor: 'var(--color-status-warnSoft)', color: 'var(--color-status-warn)' }}>
+            <span className="rounded px-1.5 py-0.5 text-xs font-medium" style={{ backgroundColor: 'var(--color-status-warnSoft)', color: 'var(--color-status-warn)' }}>
               Resumed
             </span>
           )}
@@ -804,7 +817,7 @@ export default function PosPage() {
               Hold
             </button>
           )}
-          <button type="button" onClick={() => setMobileCartOpen(false)} aria-label="Close cart" className="flex h-9 w-9 items-center justify-center rounded-md lg:hidden" style={{ color: 'var(--color-ink-600)' }}>
+          <button type="button" onClick={() => setMobileCartOpen(false)} aria-label="Close cart" className="flex icon-btn items-center justify-center rounded-md lg:hidden" style={{ color: 'var(--color-ink-600)' }}>
             <X size={17} strokeWidth={2} />
           </button>
         </div>
@@ -838,7 +851,7 @@ export default function PosPage() {
           </span>
         )}
         {resumedFromId && (
-          <span className="rounded px-1.5 py-0.5 text-[11px] font-medium" style={{ backgroundColor: 'var(--color-status-warnSoft)', color: 'var(--color-status-warn)' }}>
+          <span className="rounded px-1.5 py-0.5 text-xs font-medium" style={{ backgroundColor: 'var(--color-status-warnSoft)', color: 'var(--color-status-warn)' }}>
             Resumed
           </span>
         )}
@@ -872,11 +885,7 @@ export default function PosPage() {
     <div className="hidden shrink-0 border-t lg:block" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
       <div className="flex flex-wrap items-center gap-2.5 p-3.5">
         <div className="flex flex-wrap items-center gap-2.5" role="group" aria-label="Payment">
-          {([
-            { value: 'MPESA', label: 'M-Pesa' },
-            { value: 'CASH', label: 'Cash' },
-            { value: 'SPLIT', label: 'Split' },
-          ] as const).map((m) => {
+          {MODES.map((m) => {
             const active = !settleLater && payment.mode === m.value;
             return (
               <button
@@ -981,7 +990,7 @@ export default function PosPage() {
             <PauseCircle size={15} strokeWidth={2} />
             <span className="hidden sm:inline">On hold</span>
             {heldCount > 0 && (
-              <span className="data-num rounded-full px-1.5 text-xs font-semibold" style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}>
+              <span className="data-num rounded-full px-1.5 text-xs font-semibold" style={{ backgroundColor: 'var(--color-accent)', color: 'var(--color-on-accent)' }}>
                 {heldCount}
               </span>
             )}
@@ -1100,7 +1109,7 @@ export default function PosPage() {
                         {money(p.basePrice)}
                       </span>
                       <span
-                        className="data-num shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium"
+                        className="data-num shrink-0 rounded px-1.5 py-0.5 text-xs font-medium"
                         style={{
                           backgroundColor: outOfStock ? 'var(--color-status-badSoft)' : 'var(--color-status-okSoft)',
                           color: outOfStock ? 'var(--color-status-bad)' : 'var(--color-status-ok)',
@@ -1131,7 +1140,7 @@ export default function PosPage() {
         <button
           type="button"
           onClick={() => setMobileCartOpen(true)}
-          className="fixed bottom-0 left-0 right-0 z-30 flex min-h-14 items-center justify-between px-4 text-sm font-semibold text-white lg:hidden"
+          className="fixed bottom-0 left-0 right-0 z-30 flex min-h-14 items-center justify-between px-4 text-sm font-semibold text-on-accent lg:hidden"
           style={{ backgroundColor: 'var(--color-accent)', paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
         >
           <span className="flex items-center gap-2">

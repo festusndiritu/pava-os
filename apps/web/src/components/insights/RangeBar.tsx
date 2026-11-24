@@ -106,7 +106,7 @@ export function RangeBar({
             className="rounded-md border px-2.5 py-1.5 text-xs outline-none"
             style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}
           />
-          <span className="text-xs" style={{ color: 'var(--color-ink-500)' }}>
+          <span className="text-xs" style={{ color: 'var(--color-ink-600)' }}>
             to
           </span>
           <input
@@ -119,7 +119,7 @@ export function RangeBar({
           />
         </div>
       ) : (
-        <span className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--color-ink-500)' }}>
+        <span className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--color-ink-600)' }}>
           <CalendarRange size={13} strokeWidth={2} />
           {label}
         </span>

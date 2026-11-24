@@ -8,16 +8,16 @@
 
   --color-ink-900: #101828;
   --color-ink-600: #475467;
-  --color-ink-400: #98A2B3;
+  --color-ink-400: #667085;
 
   --color-accent: #0559C9;
   --color-accent-hover: #0447A3;
   --color-accent-soft: #EAF1FD;
   --color-on-accent: #FFFFFF;
 
-  --color-status-ok: #0B9E6F;
+  --color-status-ok: #067A56;
   --color-status-okSoft: #E7F7F1;
-  --color-status-warn: #B76E00;
+  --color-status-warn: #8F5700;
   --color-status-warnSoft: #FFF4E5;
   --color-status-bad: #C0362C;
   --color-status-badSoft: #FBEAE9;
@@ -43,7 +43,7 @@
 
   --color-ink-900: #F2F4F7;
   --color-ink-600: #9AA4B2;
-  --color-ink-400: #6C7684;
+  --color-ink-400: #8A94A3;
 
   --color-accent: #4C8DF0;
   --color-accent-hover: #6AA5F5;
@@ -226,6 +226,15 @@ body {
   #print-area.print-thermal > div > div {
     break-inside: avoid;
     page-break-inside: avoid;
+  }
+}
+
+@utility icon-btn {
+  width: 2.25rem;
+  height: 2.25rem;
+  @media (pointer: coarse) {
+    width: 2.75rem;
+    height: 2.75rem;
   }
 }
 

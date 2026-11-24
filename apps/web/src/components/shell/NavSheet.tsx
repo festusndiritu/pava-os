@@ -15,7 +15,7 @@ export function NavSheet({ onClose }: { onClose: () => void }) {
         <h2 className="text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>
           Menu
         </h2>
-        <button type="button" onClick={onClose} aria-label="Close menu" className="flex h-9 w-9 items-center justify-center rounded-md" style={{ color: 'var(--color-ink-600)' }}>
+        <button type="button" onClick={onClose} aria-label="Close menu" className="flex icon-btn items-center justify-center rounded-md" style={{ color: 'var(--color-ink-600)' }}>
           <X size={18} strokeWidth={2} />
         </button>
       </div>
@@ -23,7 +23,7 @@ export function NavSheet({ onClose }: { onClose: () => void }) {
       <nav aria-label="All modules" className="overflow-y-auto px-3 py-3" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
         {sections.map((section) => (
           <div key={section.label} className="mb-4 last:mb-0">
-            <p className="mb-1 px-2 text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+            <p className="mb-1 px-2 text-xs font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
               {section.label}
             </p>
             <div className="grid grid-cols-2 gap-1.5">

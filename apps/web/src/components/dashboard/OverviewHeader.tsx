@@ -145,7 +145,7 @@ function Freshness({
 
   return (
     <div
-      className="flex items-center gap-1.5 text-[11px]"
+      className="flex items-center gap-1.5 text-xs"
       style={{ color: hasError ? 'var(--color-status-bad)' : 'var(--color-ink-600)' }}
     >
       <span aria-live="polite">{label}</span>
@@ -212,7 +212,7 @@ export function OverviewHeader({
               style={{ backgroundColor: 'var(--color-accent)' }}
             />
             <span
-              className="text-[11px] font-semibold uppercase tracking-[0.08em]"
+              className="text-xs font-semibold uppercase tracking-[0.08em]"
               style={{ color: 'var(--color-ink-600)' }}
             >
               Overview
@@ -287,7 +287,7 @@ export function OverviewHeader({
                 {items.length > 0 ? 'Needs attention' : 'All clear'}
               </p>
 
-              <p className="text-[11px]" style={{ color: 'var(--color-ink-600)' }}>
+              <p className="text-xs" style={{ color: 'var(--color-ink-600)' }}>
                 {items.length > 0
                   ? `${items.length} item${items.length === 1 ? '' : 's'} to review`
                   : 'Nothing is flagged right now'}

@@ -130,7 +130,7 @@ export function SalesTrendChart({ chart }: { chart: ChartPoint[] }) {
             </span>
             {trend && <TrendPill trend={trend} comparison={`vs previous ${active} days`} className="" />}
             {hasPrevious && (
-              <span className="ml-auto flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--color-ink-600)' }}>
+              <span className="ml-auto flex items-center gap-1.5 text-xs" style={{ color: 'var(--color-ink-600)' }}>
                 <span className="h-0 w-4 border-t-2 border-dashed" style={{ borderColor: 'var(--color-ink-400)' }} />
                 Previous period
               </span>

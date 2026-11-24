@@ -48,7 +48,7 @@ export function AdminLoginForm({
       <div className="flex flex-col gap-1.5">
         <label
           htmlFor="admin-email"
-          className="text-[11px] font-semibold uppercase"
+          className="text-xs font-semibold uppercase"
           style={{
             color: 'var(--color-ink-600)',
             letterSpacing: '0.06em',
@@ -84,7 +84,7 @@ export function AdminLoginForm({
       <div className="flex flex-col gap-1.5">
         <label
           htmlFor="admin-password"
-          className="text-[11px] font-semibold uppercase"
+          className="text-xs font-semibold uppercase"
           style={{
             color: 'var(--color-ink-600)',
             letterSpacing: '0.06em',
@@ -133,7 +133,7 @@ export function AdminLoginForm({
       <button
         type="submit"
         disabled={submitting}
-        className="mt-1 rounded-md px-4 py-2.5 text-sm font-medium text-white transition-colors disabled:opacity-60"
+        className="mt-1 rounded-md px-4 py-2.5 text-sm font-medium text-on-accent transition-colors disabled:opacity-60"
         style={{ backgroundColor: 'var(--color-accent)' }}
         onMouseEnter={(e) => {
           if (!submitting) {

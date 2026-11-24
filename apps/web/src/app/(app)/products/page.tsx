@@ -218,7 +218,7 @@ export default function ProductsPage() {
       ) : (
         isAdmin &&
         status === 'active' && (
-          <button type="button" onClick={() => openCreate()} className="mt-3 min-h-10 rounded-md px-3 text-sm font-medium text-white" style={{ backgroundColor: 'var(--color-accent)' }}>
+          <button type="button" onClick={() => openCreate()} className="mt-3 min-h-10 rounded-md px-3 text-sm font-medium text-on-accent" style={{ backgroundColor: 'var(--color-accent)' }}>
             Add product
           </button>
         )
@@ -376,7 +376,7 @@ export default function ProductsPage() {
             {exporting ? 'Exporting…' : 'Export CSV'}
           </button>
           {isAdmin && (
-            <button type="button" onClick={() => openCreate()} className="flex min-h-10 items-center gap-1.5 rounded-md px-3.5 text-sm font-medium text-white" style={{ backgroundColor: 'var(--color-accent)' }}>
+            <button type="button" onClick={() => openCreate()} className="flex min-h-10 items-center gap-1.5 rounded-md px-3.5 text-sm font-medium text-on-accent" style={{ backgroundColor: 'var(--color-accent)' }}>
               <Plus size={15} strokeWidth={2} />
               Add product
             </button>

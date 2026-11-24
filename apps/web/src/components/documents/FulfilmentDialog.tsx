@@ -84,7 +84,7 @@ export function FulfilmentDialog({
                 </p>
 
                 <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <span className="text-[11px] font-medium uppercase" style={mutedLabel}>
+                  <span className="text-xs font-medium uppercase" style={mutedLabel}>
                     From shop
                   </span>
                   <div className="flex items-center rounded-md border" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
@@ -150,7 +150,7 @@ export function FulfilmentDialog({
             type="button"
             onClick={() => onConfirm(rows)}
             disabled={busy}
-            className="min-h-11 rounded-md px-4 text-sm font-semibold text-white disabled:opacity-60"
+            className="min-h-11 rounded-md px-4 text-sm font-semibold text-on-accent disabled:opacity-60"
             style={{ backgroundColor: 'var(--color-accent)' }}
           >
             {busy ? 'Working…' : confirmLabel}

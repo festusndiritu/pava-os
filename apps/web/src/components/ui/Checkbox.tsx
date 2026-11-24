@@ -33,7 +33,7 @@ export function Checkbox({
           opacity: disabled ? 0.5 : 1,
         }}
       >
-        {checked && <Check size={11} strokeWidth={3} color="#fff" />}
+        {checked && <Check size={11} strokeWidth={3} color="var(--color-on-accent)" />}
       </span>
     </span>
   );

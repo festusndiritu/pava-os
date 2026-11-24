@@ -53,7 +53,7 @@ export function ConfirmDialog({
           type="button"
           disabled={busy}
           onClick={onConfirm}
-          className="min-h-11 rounded-md px-4 text-sm font-semibold text-white disabled:opacity-60"
+          className="min-h-11 rounded-md px-4 text-sm font-semibold text-on-accent disabled:opacity-60"
           style={{ backgroundColor: accent }}
         >
           {busy ? 'Working…' : confirmLabel}

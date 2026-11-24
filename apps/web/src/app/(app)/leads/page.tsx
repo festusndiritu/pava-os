@@ -298,7 +298,7 @@ export default function LeadsPage() {
         <button
           type="button"
           onClick={() => { setEditing(null); setFormOpen(true); }}
-          className="flex items-center gap-1.5 rounded-md px-3.5 py-2 text-sm font-medium text-white"
+          className="flex items-center gap-1.5 rounded-md px-3.5 py-2 text-sm font-medium text-on-accent"
           style={{ backgroundColor: 'var(--color-accent)' }}
         >
           <Plus size={15} strokeWidth={2} />
@@ -321,7 +321,7 @@ export default function LeadsPage() {
           >
             {t.label}
             {t.key === 'open' && overdueCount > 0 && (
-              <span className="rounded-full px-1.5 py-0.5 text-[11px] font-semibold text-white" style={{ backgroundColor: 'var(--color-status-bad)' }}>
+              <span className="rounded-full px-1.5 py-0.5 text-xs font-semibold text-on-accent" style={{ backgroundColor: 'var(--color-status-bad)' }}>
                 {overdueCount} overdue
               </span>
             )}

@@ -126,7 +126,7 @@ export function LookupManager({
           <button
             type="submit"
             disabled={adding || !newName.trim()}
-            className="flex min-h-10 shrink-0 items-center gap-1.5 rounded-md px-3.5 text-sm font-medium text-white disabled:opacity-50"
+            className="flex min-h-10 shrink-0 items-center gap-1.5 rounded-md px-3.5 text-sm font-medium text-on-accent disabled:opacity-50"
             style={{ backgroundColor: 'var(--color-accent)' }}
           >
             <Plus size={15} strokeWidth={2} />
@@ -184,10 +184,10 @@ export function LookupManager({
                         className={inputClass}
                         style={inputStyle}
                       />
-                      <button type="submit" disabled={saving || !editName.trim()} aria-label="Save name" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-white disabled:opacity-50" style={{ backgroundColor: 'var(--color-accent)' }}>
+                      <button type="submit" disabled={saving || !editName.trim()} aria-label="Save name" className="flex icon-btn shrink-0 items-center justify-center rounded-md text-on-accent disabled:opacity-50" style={{ backgroundColor: 'var(--color-accent)' }}>
                         <Check size={15} strokeWidth={2.25} />
                       </button>
-                      <button type="button" onClick={() => setEditingId(null)} aria-label="Cancel" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-600)' }}>
+                      <button type="button" onClick={() => setEditingId(null)} aria-label="Cancel" className="flex icon-btn shrink-0 items-center justify-center rounded-md border" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-600)' }}>
                         <X size={15} strokeWidth={2} />
                       </button>
                     </form>
@@ -209,7 +209,7 @@ export function LookupManager({
                             }}
                             aria-label={`Rename ${item.name}`}
                             title="Rename"
-                            className="flex h-9 w-9 items-center justify-center rounded-md"
+                            className="flex icon-btn items-center justify-center rounded-md"
                             style={{ color: 'var(--color-ink-600)' }}
                           >
                             <Pencil size={15} strokeWidth={2} />
@@ -220,7 +220,7 @@ export function LookupManager({
                             onClick={() => setConfirmDelete(item)}
                             aria-label={`Remove ${item.name}`}
                             title={used > 0 ? `In use by ${used} product${used === 1 ? '' : 's'} — move them first` : 'Remove'}
-                            className="flex h-9 w-9 items-center justify-center rounded-md disabled:cursor-not-allowed disabled:opacity-30"
+                            className="flex icon-btn items-center justify-center rounded-md disabled:cursor-not-allowed disabled:opacity-30"
                             style={{ color: 'var(--color-status-bad)' }}
                           >
                             <Trash2 size={15} strokeWidth={2} />

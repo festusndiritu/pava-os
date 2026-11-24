@@ -146,7 +146,7 @@ export function EditRequestDialog({ doc, onClose, onSent }: { doc: SaleDocument;
         <button type="button" onClick={onClose} className="min-h-10 flex-1 rounded-md border px-3 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
           Cancel
         </button>
-        <button type="button" disabled={!valid || busy} onClick={submit} className="min-h-10 flex-1 rounded-md px-3 text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: 'var(--color-accent)' }}>
+        <button type="button" disabled={!valid || busy} onClick={submit} className="min-h-10 flex-1 rounded-md px-3 text-sm font-semibold text-on-accent disabled:opacity-50" style={{ backgroundColor: 'var(--color-accent)' }}>
           {busy ? 'Sending…' : 'Send for approval'}
         </button>
       </div>
@@ -324,7 +324,7 @@ export function EditRequestCard({
             <button type="button" disabled={busy} onClick={() => decide(false)} className="flex min-h-9 flex-1 items-center justify-center gap-1 rounded-md border px-3 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-status-bad)' }}>
               <X size={14} /> Reject
             </button>
-            <button type="button" disabled={busy} onClick={() => decide(true)} className="flex min-h-9 flex-1 items-center justify-center gap-1 rounded-md px-3 text-sm font-semibold text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
+            <button type="button" disabled={busy} onClick={() => decide(true)} className="flex min-h-9 flex-1 items-center justify-center gap-1 rounded-md px-3 text-sm font-semibold text-on-accent disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
               <Check size={14} /> {shortfalls ? 'Approve anyway' : 'Approve'}
             </button>
           </div>

@@ -9,7 +9,7 @@ import { NumericInput, PhoneInput, toNumber } from '../../../components/ui/input
 import { PrinterSetup } from '../../../components/settings/PrinterSetup';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
-const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase';
+const labelClass = 'mb-1.5 block text-xs font-semibold uppercase';
 const labelStyle = { color: 'var(--color-ink-600)', letterSpacing: '0.06em' };
 
 function Section({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
@@ -248,7 +248,7 @@ export default function SettingsPage() {
         </Section>
 
         <div className="flex items-center gap-3">
-          <button type="submit" disabled={saving} className="rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
+          <button type="submit" disabled={saving} className="rounded-md px-4 py-2 text-sm font-medium text-on-accent disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
             {saving ? 'Saving…' : 'Save changes'}
           </button>
         </div>

@@ -143,11 +143,11 @@ export default function AuditPage() {
             <EntityIcon size={14} strokeWidth={2} />
             <span className="text-sm" style={{ color: 'var(--color-ink-700)' }}>
               {log.entityType}
-              {log.entityId && <span className="text-xs" style={{ color: 'var(--color-ink-500)' }}> · {log.entityId.slice(0, 8)}</span>}
+              {log.entityId && <span className="text-xs" style={{ color: 'var(--color-ink-600)' }}> · {log.entityId.slice(0, 8)}</span>}
             </span>
           </div>
         ) : (
-          <span className="text-xs" style={{ color: 'var(--color-ink-500)' }}>—</span>
+          <span className="text-xs" style={{ color: 'var(--color-ink-600)' }}>—</span>
         );
       },
     },
@@ -161,7 +161,7 @@ export default function AuditPage() {
             {summary(log)}
           </code>
         ) : (
-          <span className="text-xs" style={{ color: 'var(--color-ink-500)' }}>—</span>
+          <span className="text-xs" style={{ color: 'var(--color-ink-600)' }}>—</span>
         ),
     },
   ];
@@ -200,7 +200,7 @@ export default function AuditPage() {
 
       <div className="mt-5 flex flex-wrap items-center gap-3">
         <div className="relative flex items-center">
-          <Search size={14} strokeWidth={2} className="pointer-events-none absolute left-2.5" style={{ color: 'var(--color-ink-500)' }} />
+          <Search size={14} strokeWidth={2} className="pointer-events-none absolute left-2.5" style={{ color: 'var(--color-ink-600)' }} />
           <input
             type="search"
             aria-label="Filter by action"
@@ -218,7 +218,7 @@ export default function AuditPage() {
         </div>
 
         <div className="relative flex items-center">
-          <Filter size={14} strokeWidth={2} className="pointer-events-none absolute left-2.5 z-10" style={{ color: 'var(--color-ink-500)' }} />
+          <Filter size={14} strokeWidth={2} className="pointer-events-none absolute left-2.5 z-10" style={{ color: 'var(--color-ink-600)' }} />
           <Select inline className="w-40 pl-8" aria-label="Filter by entity" value={filterEntity} onChange={setFilterEntity} options={[{ value: '', label: 'All entities' }, ...entityTypes.map((t) => ({ value: t, label: t }))]} style={filterStyle} />
         </div>
 

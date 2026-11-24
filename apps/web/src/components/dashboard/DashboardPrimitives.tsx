@@ -73,7 +73,7 @@ export function IconAction({ href, label, icon: Icon }: { href: string; label: s
       href={href}
       title={label}
       aria-label={label}
-      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border transition-colors"
+      className="flex icon-btn shrink-0 items-center justify-center rounded-md border transition-colors"
       style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-600)' }}
     >
       <Icon size={15} strokeWidth={2} />
@@ -138,7 +138,7 @@ export function StatCard({
         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded" style={{ backgroundColor: colors.soft, color: colors.fg }}>
           <Icon size={13} strokeWidth={2} />
         </span>
-        <p className="truncate text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+        <p className="truncate text-xs font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
           {label}
         </p>
         {href && <ArrowUpRight size={13} strokeWidth={1.8} className="ml-auto shrink-0 opacity-30 transition-opacity group-hover:opacity-80" />}
@@ -224,7 +224,7 @@ export function ListRow({
 export function Badge({ label, tone }: { label: string; tone: Tone }) {
   const colors = TONE[tone];
   return (
-    <span className="rounded px-1.5 py-0.5 text-[11px] font-medium" style={{ backgroundColor: colors.soft, color: colors.fg }}>
+    <span className="rounded px-1.5 py-0.5 text-xs font-medium" style={{ backgroundColor: colors.soft, color: colors.fg }}>
       {label}
     </span>
   );

@@ -33,7 +33,7 @@ export function DeliveryLocationDialog({
     <Modal onClose={onCancel} dismissOnBackdrop={false} label="Delivery location" className="flex flex-col overflow-hidden sm:max-w-sm">
         <div className="flex items-start gap-3 px-5 pt-5">
           <span
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md"
+            className="flex icon-btn shrink-0 items-center justify-center rounded-md"
             style={{ backgroundColor: 'var(--color-accent-soft)', color: 'var(--color-accent)' }}
           >
             <Truck size={17} strokeWidth={2} />
@@ -86,7 +86,7 @@ export function DeliveryLocationDialog({
             type="button"
             onClick={() => onConfirm(value.trim(), phone.trim())}
             disabled={busy}
-            className="rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40"
+            className="rounded-md px-3 py-1.5 text-sm font-medium text-on-accent disabled:opacity-40"
             style={{ backgroundColor: 'var(--color-accent)' }}
           >
             {busy ? 'Creating…' : 'Create delivery note'}

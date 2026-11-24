@@ -75,13 +75,13 @@ export function ReceiptDialog({
           <div className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: 'var(--color-border)' }}>
             <div className="min-w-0">
               <p className="text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>
-                {unpaid ? 'Goods released — unpaid' : 'Sale complete'}
+                {unpaid ? 'Goods handed over — unpaid' : 'Sale complete'}
               </p>
               <p className="data-num truncate text-xs" style={{ color: 'var(--color-ink-600)' }}>
                 {vm.number}
               </p>
             </div>
-            <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-md" style={{ color: 'var(--color-ink-600)' }} aria-label="Close">
+            <button type="button" onClick={onClose} className="flex icon-btn items-center justify-center rounded-md" style={{ color: 'var(--color-ink-600)' }} aria-label="Close">
               <X size={17} strokeWidth={2} />
             </button>
           </div>
@@ -100,7 +100,7 @@ export function ReceiptDialog({
               <button
                 type="button"
                 onClick={() => printReceipt(vm)}
-                className="flex min-h-11 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold text-white"
+                className="flex min-h-11 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold text-on-accent"
                 style={{ backgroundColor: 'var(--color-accent)' }}
               >
                 <Printer size={15} strokeWidth={2} />

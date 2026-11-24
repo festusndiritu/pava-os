@@ -31,7 +31,7 @@ export function RecentSalesDialog({ onClose, onPick }: { onClose: () => void; on
         <h3 className="text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>
           Recent sales
         </h3>
-        <button type="button" onClick={onClose} aria-label="Close" className="flex h-9 w-9 items-center justify-center rounded-md" style={{ color: 'var(--color-ink-600)' }}>
+        <button type="button" onClick={onClose} aria-label="Close" className="flex icon-btn items-center justify-center rounded-md" style={{ color: 'var(--color-ink-600)' }}>
           <X size={17} strokeWidth={2} />
         </button>
       </div>

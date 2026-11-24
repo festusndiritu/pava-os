@@ -54,7 +54,7 @@ function NameAvatarCard() {
     <Card title="Profile" description="Your display name and avatar">
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="name" className="text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+          <label htmlFor="name" className="text-xs font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
             Display name
           </label>
           <input
@@ -68,7 +68,7 @@ function NameAvatarCard() {
         </div>
 
         <div>
-          <p className="mb-2 text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+          <p className="mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
             Avatar
           </p>
           <AvatarPicker name={name} value={avatar} onChange={setAvatar} />
@@ -78,7 +78,7 @@ function NameAvatarCard() {
           <button
             type="submit"
             disabled={saving}
-            className="rounded-md px-4 py-2 text-sm font-medium text-white transition-colors disabled:opacity-60"
+            className="rounded-md px-4 py-2 text-sm font-medium text-on-accent transition-colors disabled:opacity-60"
             style={{ backgroundColor: 'var(--color-accent)' }}
           >
             {saving ? 'Saving…' : 'Save changes'}
@@ -214,7 +214,7 @@ function ChangePasswordCard() {
     <Card title="Change password">
       <form onSubmit={handleSubmit} className="flex max-w-sm flex-col gap-4">
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="current-password" className="text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+          <label htmlFor="current-password" className="text-xs font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
             Current password
           </label>
           <input
@@ -229,7 +229,7 @@ function ChangePasswordCard() {
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="new-password" className="text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+          <label htmlFor="new-password" className="text-xs font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
             New password
           </label>
           <input
@@ -248,7 +248,7 @@ function ChangePasswordCard() {
         <button
           type="submit"
           disabled={saving}
-          className="self-start rounded-md px-4 py-2 text-sm font-medium text-white transition-colors disabled:opacity-60"
+          className="self-start rounded-md px-4 py-2 text-sm font-medium text-on-accent transition-colors disabled:opacity-60"
           style={{ backgroundColor: 'var(--color-accent)' }}
         >
           {saving ? 'Saving…' : 'Update password'}

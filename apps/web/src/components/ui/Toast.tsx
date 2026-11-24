@@ -8,6 +8,7 @@ interface ToastItem {
   id: number;
   kind: Kind;
   message: string;
+  action?: { label: string; onClick: () => void };
 }
 
 let nextId = 1;
@@ -23,16 +24,16 @@ function dismiss(id: number) {
   emit();
 }
 
-function push(kind: Kind, message: string) {
+function push(kind: Kind, message: string, action?: ToastItem['action']) {
   const id = nextId++;
   // Same message twice in a row replaces rather than stacks.
-  items = [...items.filter((t) => t.message !== message), { id, kind, message }].slice(-3);
+  items = [...items.filter((t) => t.message !== message), { id, kind, message, action }].slice(-3);
   emit();
-  setTimeout(() => dismiss(id), kind === 'error' ? 7000 : 3500);
+  setTimeout(() => dismiss(id), kind === 'error' || action ? 7000 : 3500);
 }
 
 export const toast = {
-  success: (message: string) => push('success', message),
+  success: (message: string, action?: ToastItem['action']) => push('success', message, action),
   error: (message: string) => push('error', message),
 };
 
@@ -66,6 +67,19 @@ export function ToastViewport() {
             <AlertCircle size={17} strokeWidth={2} className="mt-px shrink-0" style={{ color: 'var(--color-status-bad)' }} />
           )}
           <span className="min-w-0 flex-1">{t.message}</span>
+          {t.action && (
+            <button
+              type="button"
+              onClick={() => {
+                t.action!.onClick();
+                dismiss(t.id);
+              }}
+              className="min-h-8 shrink-0 rounded px-2 font-semibold"
+              style={{ color: 'var(--color-accent)' }}
+            >
+              {t.action.label}
+            </button>
+          )}
           <button type="button" onClick={() => dismiss(t.id)} aria-label="Dismiss" className="-mr-1 flex h-6 w-6 shrink-0 items-center justify-center rounded" style={{ color: 'var(--color-ink-600)' }}>
             <X size={14} strokeWidth={2} />
           </button>

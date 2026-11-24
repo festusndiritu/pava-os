@@ -11,7 +11,7 @@ import { toast } from '../../ui/Toast';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
 const inputClass = 'min-h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--color-accent)]';
-const labelClass = 'mb-1 block text-[11px] font-semibold uppercase';
+const labelClass = 'mb-1 block text-xs font-semibold uppercase';
 const labelStyle = { color: 'var(--color-ink-600)', letterSpacing: '0.06em' };
 
 // One tap to get a sensible starting set on a fresh install — a product can't be created without a
@@ -160,7 +160,7 @@ function IconButton({ label, onClick, danger, disabled, title, children }: { lab
       disabled={disabled}
       aria-label={label}
       title={title ?? label}
-      className="flex h-9 w-9 items-center justify-center rounded-md disabled:cursor-not-allowed disabled:opacity-30"
+      className="flex icon-btn items-center justify-center rounded-md disabled:cursor-not-allowed disabled:opacity-30"
       style={{ color: danger ? 'var(--color-status-bad)' : 'var(--color-ink-600)' }}
     >
       {children}
@@ -210,7 +210,7 @@ function SubUnitRow({ unit, sub, canEdit, onChanged, onError }: { unit: Unit; su
       <form onSubmit={save} className="flex items-center gap-2 py-1.5">
         <input autoFocus value={name} onChange={(e) => setName(e.target.value)} aria-label="Sub-unit name" maxLength={60} className={inputClass} style={inputStyle} />
         <NumericInput allowDecimal maxDecimals={3} value={factor} onChange={setFactor} aria-label="Factor" className={`${inputClass} w-24 shrink-0 data-num`} style={inputStyle} />
-        <button type="submit" disabled={busy} aria-label="Save" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-white disabled:opacity-50" style={{ backgroundColor: 'var(--color-accent)' }}>
+        <button type="submit" disabled={busy} aria-label="Save" className="flex icon-btn shrink-0 items-center justify-center rounded-md text-on-accent disabled:opacity-50" style={{ backgroundColor: 'var(--color-accent)' }}>
           <Check size={15} strokeWidth={2.25} />
         </button>
         <IconButton label="Cancel" onClick={() => setEditing(false)}>
@@ -417,7 +417,7 @@ export function UnitsManager({ canEdit }: { canEdit: boolean }) {
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Unit name — e.g. Bag" aria-label="New unit name" maxLength={60} className={inputClass} style={inputStyle} />
           </div>
           <SymbolPicker value={symbol} onChange={setSymbol} id="unitsmanager-new-symbol" />
-          <button type="submit" disabled={adding || !name.trim() || !symbol.trim()} className="flex min-h-10 shrink-0 items-center gap-1.5 rounded-md px-3.5 text-sm font-medium text-white disabled:opacity-50" style={{ backgroundColor: 'var(--color-accent)' }}>
+          <button type="submit" disabled={adding || !name.trim() || !symbol.trim()} className="flex min-h-10 shrink-0 items-center gap-1.5 rounded-md px-3.5 text-sm font-medium text-on-accent disabled:opacity-50" style={{ backgroundColor: 'var(--color-accent)' }}>
             <Plus size={15} strokeWidth={2} />
             {adding ? 'Adding…' : 'Add'}
           </button>
@@ -464,7 +464,7 @@ export function UnitsManager({ canEdit }: { canEdit: boolean }) {
               return (
                 <li key={u.id} style={i > 0 ? { borderTop: '1px solid var(--color-border)' } : undefined}>
                   <div className="flex min-h-12 items-center gap-2 px-2 py-2 pr-4">
-                    <button type="button" onClick={() => setOpenId(open ? null : u.id)} aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} sub-units of ${u.name}`} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md" style={{ color: 'var(--color-ink-600)' }}>
+                    <button type="button" onClick={() => setOpenId(open ? null : u.id)} aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} sub-units of ${u.name}`} className="flex icon-btn shrink-0 items-center justify-center rounded-md" style={{ color: 'var(--color-ink-600)' }}>
                       <ChevronRight size={16} strokeWidth={2} style={{ transform: open ? 'rotate(90deg)' : undefined, transition: 'transform 0.15s' }} />
                     </button>
 
@@ -474,7 +474,7 @@ export function UnitsManager({ canEdit }: { canEdit: boolean }) {
                           <input autoFocus value={editName} onChange={(e) => setEditName(e.target.value)} aria-label={`Name of ${u.name}`} maxLength={60} className={inputClass} style={inputStyle} />
                         </div>
                         <SymbolPicker value={editSymbol} onChange={setEditSymbol} id={`unitsmanager-edit-symbol-${u.id}`} />
-                        <button type="submit" disabled={saving} aria-label="Save" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-white disabled:opacity-50" style={{ backgroundColor: 'var(--color-accent)' }}>
+                        <button type="submit" disabled={saving} aria-label="Save" className="flex icon-btn shrink-0 items-center justify-center rounded-md text-on-accent disabled:opacity-50" style={{ backgroundColor: 'var(--color-accent)' }}>
                           <Check size={15} strokeWidth={2.25} />
                         </button>
                         <IconButton label="Cancel" onClick={() => setEditingId(null)}>

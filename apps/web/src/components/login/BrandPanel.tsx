@@ -109,7 +109,7 @@ export function BrandPanel() {
 
         <div className="my-auto max-w-md">
           <p
-            className="mb-4 text-[11px] font-semibold uppercase"
+            className="mb-4 text-xs font-semibold uppercase"
             style={{
               color: 'rgba(255,255,255,0.48)',
               letterSpacing: '0.14em',
@@ -131,7 +131,7 @@ export function BrandPanel() {
           </p>
 
           <div
-            className="mt-8 flex flex-wrap gap-x-5 gap-y-2 text-[10px] font-medium uppercase"
+            className="mt-8 flex flex-wrap gap-x-5 gap-y-2 text-xs font-medium uppercase"
             style={{
               color: 'rgba(255,255,255,0.45)',
               letterSpacing: '0.09em',

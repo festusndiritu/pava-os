@@ -136,7 +136,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
             type="button"
             onClick={onMenuClick}
             aria-label="Open menu"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-[var(--color-bg)]"
+            className="flex icon-btn shrink-0 items-center justify-center rounded-md transition-colors hover:bg-[var(--color-bg)]"
             style={{ color: 'var(--color-ink-600)' }}
           >
             <Menu size={19} strokeWidth={2} />
@@ -181,7 +181,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
             style={{
               backgroundColor: 'var(--color-bg)',
               borderColor: 'var(--color-border)',
-              color: 'var(--color-ink-500)',
+              color: 'var(--color-ink-600)',
             }}
           >
             <Search size={16} strokeWidth={2} className="shrink-0" />
@@ -189,10 +189,10 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
             <span className="flex-1 truncate">Search anything...</span>
 
             <kbd
-              className="shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium leading-none"
+              className="shrink-0 rounded border px-1.5 py-0.5 text-xs font-medium leading-none"
               style={{
                 borderColor: 'var(--color-border)',
-                color: 'var(--color-ink-500)',
+                color: 'var(--color-ink-600)',
                 backgroundColor: 'var(--color-surface)',
               }}
             >
@@ -207,7 +207,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
             onClick={() => setSearchOpen(true)}
             aria-label="Search"
             title="Search (Ctrl/Cmd+K)"
-            className="flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-[var(--color-bg)] lg:hidden"
+            className="flex icon-btn items-center justify-center rounded-md transition-colors hover:bg-[var(--color-bg)] lg:hidden"
             style={{ color: 'var(--color-ink-600)' }}
           >
             <Search size={17} strokeWidth={2} />
@@ -217,7 +217,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
         {hasPermission('POS') && !isPos && (
           <Link
             href="/pos"
-            className="mr-1 flex h-9 items-center gap-1.5 rounded-md px-3 text-sm font-medium text-white transition-colors"
+            className="mr-1 flex h-9 items-center gap-1.5 rounded-md px-3 text-sm font-medium text-on-accent transition-colors"
             style={{ backgroundColor: 'var(--color-accent)' }}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor =
@@ -239,13 +239,13 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
           href="/notifications"
           aria-label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
           title="Notifications"
-          className="relative flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-[var(--color-bg)]"
+          className="relative flex icon-btn items-center justify-center rounded-md transition-colors hover:bg-[var(--color-bg)]"
           style={{ color: pathname === '/notifications' ? 'var(--color-accent)' : 'var(--color-ink-600)' }}
         >
           <Bell size={18} strokeWidth={2} />
           {unread > 0 && (
             <span
-              className="data-num absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold leading-none text-white"
+              className="data-num absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-xs font-semibold leading-none text-on-accent"
               style={{ backgroundColor: 'var(--color-status-bad)' }}
             >
               {unread > 99 ? '99+' : unread}

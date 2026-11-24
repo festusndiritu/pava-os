@@ -14,7 +14,7 @@ export function BottomNav({ onMore, moreOpen }: { onMore: () => void; moreOpen: 
   const primary = PRIMARY.map((m) => all.find((i) => i.module === m)).filter((i): i is (typeof all)[number] => Boolean(i)).slice(0, 4);
   const onPrimary = primary.some((i) => isActive(i.href));
 
-  const tab = 'flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium';
+  const tab = 'flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-xs font-medium';
 
   return (
     <nav

@@ -133,7 +133,7 @@ export function ReceiveInventoryDrawer({
                 type="submit"
                 form="receive-form"
                 disabled={saving}
-                className="min-h-11 rounded-md px-4 text-sm font-medium text-white disabled:opacity-60"
+                className="min-h-11 rounded-md px-4 text-sm font-medium text-on-accent disabled:opacity-60"
                 style={{ backgroundColor: 'var(--color-accent)' }}
               >
                 {saving ? 'Saving…' : 'Save receipt'}
@@ -145,7 +145,7 @@ export function ReceiveInventoryDrawer({
         <form id="receive-form" onSubmit={handleSubmit} className="flex flex-col gap-5">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label htmlFor="receiveinventorydrawer-supplier" className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+              <label htmlFor="receiveinventorydrawer-supplier" className="mb-1.5 block text-xs font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
                 Supplier
               </label>
               <input id="receiveinventorydrawer-supplier" required list="receive-suppliers" autoComplete="off" value={supplier} onChange={(e) => setSupplier(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
@@ -156,7 +156,7 @@ export function ReceiveInventoryDrawer({
               </datalist>
             </div>
             <div>
-              <label htmlFor="receiveinventorydrawer-reference" className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+              <label htmlFor="receiveinventorydrawer-reference" className="mb-1.5 block text-xs font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
                 Reference
               </label>
               <input id="receiveinventorydrawer-reference" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="e.g. INV-10392" className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
@@ -164,14 +164,14 @@ export function ReceiveInventoryDrawer({
           </div>
 
           <div>
-            <label htmlFor="receiveinventorydrawer-notes" className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+            <label htmlFor="receiveinventorydrawer-notes" className="mb-1.5 block text-xs font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
               Notes
             </label>
             <input id="receiveinventorydrawer-notes" value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
           </div>
 
           <div>
-            <label className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+            <label className="mb-1.5 block text-xs font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
               Add product
             </label>
             <ProductPicker
@@ -245,7 +245,7 @@ export function ReceiveInventoryDrawer({
                           type="button"
                           aria-label={`Remove ${line.product.displayName ?? line.product.name}`}
                           onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))}
-                          className="flex h-9 w-9 items-center justify-center rounded-md"
+                          className="flex icon-btn items-center justify-center rounded-md"
                           style={{ color: 'var(--color-status-bad)' }}
                         >
                           <Trash2 size={14} strokeWidth={2} />
@@ -348,7 +348,7 @@ function PriceSuggestionDialog({ suggestions, onClose }: { suggestions: ReceiveL
                   type="button"
                   disabled={busyId !== null}
                   onClick={() => apply(s, true)}
-                  className="min-h-10 flex-1 rounded-md px-3 text-xs font-medium text-white disabled:opacity-60"
+                  className="min-h-10 flex-1 rounded-md px-3 text-xs font-medium text-on-accent disabled:opacity-60"
                   style={{ backgroundColor: 'var(--color-accent)' }}
                 >
                   {busyId === s.productId ? 'Updating…' : `Update to KSh ${fmtNumber(s.suggestedPrice)}`}
@@ -364,7 +364,7 @@ function PriceSuggestionDialog({ suggestions, onClose }: { suggestions: ReceiveL
         data-autofocus
         disabled={busyId !== null}
         onClick={onClose}
-        className="mt-4 min-h-11 w-full rounded-md px-4 text-sm font-medium text-white disabled:opacity-50"
+        className="mt-4 min-h-11 w-full rounded-md px-4 text-sm font-medium text-on-accent disabled:opacity-50"
         style={{ backgroundColor: allDecided ? 'var(--color-accent)' : 'var(--color-ink-600)' }}
       >
         {allDecided ? 'Done' : 'Skip — keep current prices'}

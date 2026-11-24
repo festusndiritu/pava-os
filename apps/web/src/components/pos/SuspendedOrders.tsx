@@ -30,7 +30,7 @@ function Shell({ title, subtitle, onClose, children, footer }: { title: string; 
               </p>
             )}
           </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md" style={{ color: 'var(--color-ink-600)' }}>
+          <button type="button" onClick={onClose} aria-label="Close" className="flex icon-btn shrink-0 items-center justify-center rounded-md" style={{ color: 'var(--color-ink-600)' }}>
             <X size={17} strokeWidth={2} />
           </button>
         </div>
@@ -86,7 +86,7 @@ export function SuspendOrderDialog({
           type="button"
           disabled={busy}
           onClick={() => onConfirm(label.trim())}
-          className="min-h-11 rounded-md px-4 text-sm font-semibold text-white disabled:opacity-60"
+          className="min-h-11 rounded-md px-4 text-sm font-semibold text-on-accent disabled:opacity-60"
           style={{ backgroundColor: 'var(--color-accent)' }}
         >
           {busy ? 'Suspending…' : 'Suspend order'}
@@ -203,7 +203,7 @@ export function SuspendedOrdersDialog({
                       type="button"
                       disabled={busyId === order.id}
                       onClick={() => discard(order.id)}
-                      className="min-h-9 rounded-md px-3 text-xs font-semibold text-white disabled:opacity-60"
+                      className="min-h-9 rounded-md px-3 text-xs font-semibold text-on-accent disabled:opacity-60"
                       style={{ backgroundColor: 'var(--color-status-bad)' }}
                     >
                       Discard
@@ -215,7 +215,7 @@ export function SuspendedOrdersDialog({
                   <button
                     type="button"
                     onClick={() => onResume(order)}
-                    className="min-h-10 flex-1 rounded-md px-3 text-sm font-semibold text-white"
+                    className="min-h-10 flex-1 rounded-md px-3 text-sm font-semibold text-on-accent"
                     style={{ backgroundColor: 'var(--color-accent)' }}
                   >
                     Resume

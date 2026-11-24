@@ -8,7 +8,7 @@ import { PhoneInput } from '../ui/inputs';
 import { toast } from '../ui/Toast';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
-const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase';
+const labelClass = 'mb-1.5 block text-xs font-semibold uppercase';
 const labelStyle = { color: 'var(--color-ink-600)', letterSpacing: '0.06em' };
 
 export function ContactFormDrawer({ open, onClose, onSaved, contact }: { open: boolean; onClose: () => void; onSaved: () => void; contact: Contact | null }) {
@@ -69,7 +69,7 @@ export function ContactFormDrawer({ open, onClose, onSaved, contact }: { open: b
       title={isEdit ? 'Edit contact' : 'New contact'}
       footer={
         <div className="flex items-center gap-3">
-          <button type="submit" form="contact-form" disabled={saving} className="rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
+          <button type="submit" form="contact-form" disabled={saving} className="rounded-md px-4 py-2 text-sm font-medium text-on-accent disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
             {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Add contact'}
           </button>
         </div>

@@ -182,7 +182,7 @@ export function GlobalSearch({ onClose }: { onClose: () => void }) {
 
         {groups.map((group) => (
           <div key={group.label} className="mb-1">
-            <p className="px-2.5 py-1 text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+            <p className="px-2.5 py-1 text-xs font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
               {group.label}
             </p>
             {group.rows.map((row) => {

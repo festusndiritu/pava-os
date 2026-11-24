@@ -60,7 +60,7 @@ export function Sidebar() {
           <div key={section.label} className="mb-3 flex flex-col gap-0.5">
             {/* A single-item pinned section (Overview/Dashboard) doesn't need a header of its own */}
             {section.items.length > 1 && (
-              <p className="px-2.5 py-1.5 text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+              <p className="px-2.5 py-1.5 text-xs font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
                 {section.label}
               </p>
             )}
@@ -80,7 +80,7 @@ export function Sidebar() {
                 onClick={() => toggle(section.label)}
                 aria-expanded={expanded}
                 aria-controls={panelId}
-                className="flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-[11px] font-semibold uppercase transition-colors hover:bg-[var(--color-bg)]"
+                className="flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-xs font-semibold uppercase transition-colors hover:bg-[var(--color-bg)]"
                 style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}
               >
                 {section.label}

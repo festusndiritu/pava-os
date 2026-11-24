@@ -51,7 +51,7 @@ export function DeliveryNoteDialog({ doc, onClose }: { doc: SaleDocument; onClos
             <p className="text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>
               Delivery note
             </p>
-            <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-md" style={{ color: 'var(--color-ink-600)' }} aria-label="Close">
+            <button type="button" onClick={onClose} className="flex icon-btn items-center justify-center rounded-md" style={{ color: 'var(--color-ink-600)' }} aria-label="Close">
               <X size={17} strokeWidth={2} />
             </button>
           </div>
@@ -71,7 +71,7 @@ export function DeliveryNoteDialog({ doc, onClose }: { doc: SaleDocument; onClos
             style={{ borderColor: 'var(--color-border)', gridTemplateColumns: mobile ? '1fr' : '1fr 1fr', paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
           >
             {!mobile && (
-              <button type="button" onClick={() => printReceipt(vm)} className="flex min-h-11 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold text-white" style={{ backgroundColor: 'var(--color-accent)' }}>
+              <button type="button" onClick={() => printReceipt(vm)} className="flex min-h-11 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold text-on-accent" style={{ backgroundColor: 'var(--color-accent)' }}>
                 <Printer size={15} strokeWidth={2} />
                 Print
               </button>

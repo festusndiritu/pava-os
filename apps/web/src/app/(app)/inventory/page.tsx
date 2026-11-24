@@ -39,7 +39,7 @@ function SummaryCard({ label, value, hint, tone = 'default', onClick }: { label:
   const color = tone === 'bad' ? 'var(--color-status-bad)' : tone === 'warn' ? 'var(--color-status-warn)' : 'var(--color-ink-900)';
   const body = (
     <>
-      <p className="text-[11px] uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.04em' }}>
+      <p className="text-xs uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.04em' }}>
         {label}
       </p>
       <p className="mt-0.5 text-lg font-semibold data-num" style={{ color }}>
@@ -152,7 +152,7 @@ export default function InventoryPage() {
           Clear filters
         </button>
       ) : (
-        <button type="button" onClick={() => setReceiveOpen(true)} className="mt-3 min-h-10 rounded-md px-3 text-sm font-medium text-white" style={{ backgroundColor: 'var(--color-accent)' }}>
+        <button type="button" onClick={() => setReceiveOpen(true)} className="mt-3 min-h-10 rounded-md px-3 text-sm font-medium text-on-accent" style={{ backgroundColor: 'var(--color-accent)' }}>
           Receive inventory
         </button>
       )}
@@ -225,7 +225,7 @@ export default function InventoryPage() {
             setReceiveFor(null);
             setReceiveOpen(true);
           }}
-          className="flex min-h-10 items-center gap-1.5 rounded-md px-3.5 text-sm font-medium text-white"
+          className="flex min-h-10 items-center gap-1.5 rounded-md px-3.5 text-sm font-medium text-on-accent"
           style={{ backgroundColor: 'var(--color-accent)' }}
         >
           <Plus size={15} strokeWidth={2} />

@@ -62,7 +62,7 @@ export function TransportDialog({
 
       <div className="mt-4 flex flex-col gap-4">
         <div>
-          <label htmlFor="transportdialog-amount-ksh" className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+          <label htmlFor="transportdialog-amount-ksh" className="mb-1.5 block text-xs font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
             Amount (KSh)
           </label>
           <NumericInput id="transportdialog-amount-ksh"
@@ -74,7 +74,7 @@ export function TransportDialog({
         </div>
 
         <div>
-          <label className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+          <label className="mb-1.5 block text-xs font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
             How to apply it
           </label>
           <div className="flex flex-col gap-1.5">
@@ -91,7 +91,7 @@ export function TransportDialog({
 
         {fold && (
           <div>
-            <label className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+            <label className="mb-1.5 block text-xs font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
               Which items absorb it
             </label>
             <div className="flex flex-col gap-1.5">
@@ -122,7 +122,7 @@ export function TransportDialog({
           <button type="button" onClick={remove} className="flex-1 rounded-md border px-4 py-2 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-status-bad)' }}>
             Remove transport
           </button>
-          <button type="button" onClick={apply} className="flex-1 rounded-md px-4 py-2 text-sm font-medium text-white" style={{ backgroundColor: 'var(--color-accent)' }}>
+          <button type="button" onClick={apply} className="flex-1 rounded-md px-4 py-2 text-sm font-medium text-on-accent" style={{ backgroundColor: 'var(--color-accent)' }}>
             Apply
           </button>
         </div>

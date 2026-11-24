@@ -117,7 +117,7 @@ export function PayrollRunDetailDrawer({ runId, onClose, onChanged }: { runId: s
         run &&
         (isDraft ? (
           <div className="flex items-center gap-3">
-            <button type="button" onClick={finalize} disabled={busyId === '__finalize'} className="rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
+            <button type="button" onClick={finalize} disabled={busyId === '__finalize'} className="rounded-md px-4 py-2 text-sm font-medium text-on-accent disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
               {busyId === '__finalize' ? 'Finalizing…' : 'Finalize run'}
             </button>
             <span className="text-xs" style={{ color: 'var(--color-ink-600)' }}>
@@ -151,7 +151,7 @@ export function PayrollRunDetailDrawer({ runId, onClose, onChanged }: { runId: s
                       type="button"
                       onClick={() => pay(item.id)}
                       disabled={busyId === item.id}
-                      className="rounded-md px-2.5 py-1 text-xs font-medium text-white disabled:opacity-60"
+                      className="rounded-md px-2.5 py-1 text-xs font-medium text-on-accent disabled:opacity-60"
                       style={{ backgroundColor: 'var(--color-accent)' }}
                     >
                       {busyId === item.id ? 'Recording…' : 'Mark paid'}
@@ -165,7 +165,7 @@ export function PayrollRunDetailDrawer({ runId, onClose, onChanged }: { runId: s
 
                 <div className="mt-2.5 grid grid-cols-2 gap-2.5 text-sm sm:grid-cols-4">
                   <div>
-                    <p className="text-[11px] uppercase" style={{ color: 'var(--color-ink-600)' }}>
+                    <p className="text-xs uppercase" style={{ color: 'var(--color-ink-600)' }}>
                       Base
                     </p>
                     <p className="data-num" style={{ color: 'var(--color-ink-900)' }}>
@@ -173,7 +173,7 @@ export function PayrollRunDetailDrawer({ runId, onClose, onChanged }: { runId: s
                     </p>
                   </div>
                   <div>
-                    <p className="text-[11px] uppercase" style={{ color: 'var(--color-ink-600)' }}>
+                    <p className="text-xs uppercase" style={{ color: 'var(--color-ink-600)' }}>
                       Advances
                     </p>
                     <p className="data-num" style={{ color: 'var(--color-ink-900)' }}>
@@ -181,7 +181,7 @@ export function PayrollRunDetailDrawer({ runId, onClose, onChanged }: { runId: s
                     </p>
                   </div>
                   <div>
-                    <p className="text-[11px] uppercase" style={{ color: 'var(--color-ink-600)' }}>
+                    <p className="text-xs uppercase" style={{ color: 'var(--color-ink-600)' }}>
                       Other deductions
                     </p>
                     {isDraft ? (
@@ -193,7 +193,7 @@ export function PayrollRunDetailDrawer({ runId, onClose, onChanged }: { runId: s
                     )}
                   </div>
                   <div>
-                    <p className="text-[11px] uppercase" style={{ color: 'var(--color-ink-600)' }}>
+                    <p className="text-xs uppercase" style={{ color: 'var(--color-ink-600)' }}>
                       Adjustments
                     </p>
                     {isDraft ? (

@@ -351,7 +351,7 @@ export default function MarketingPage() {
                   type="button"
                   onClick={handlePosterShare}
                   disabled={selectedProducts.length === 0 || posterBusy}
-                  className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
+                  className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-on-accent disabled:opacity-40"
                   style={{ backgroundColor: 'var(--color-accent)' }}
                 >
                   <Share2 size={13} strokeWidth={2} />

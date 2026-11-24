@@ -76,7 +76,7 @@ export function EmployeeDetailDrawer({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-md border p-3" style={{ borderColor: 'var(--color-border)' }}>
-              <p className="text-[11px] uppercase" style={{ color: 'var(--color-ink-600)' }}>
+              <p className="text-xs uppercase" style={{ color: 'var(--color-ink-600)' }}>
                 Base salary
               </p>
               <p className="mt-0.5 text-lg font-semibold data-num" style={{ color: 'var(--color-ink-900)' }}>
@@ -84,7 +84,7 @@ export function EmployeeDetailDrawer({
               </p>
             </div>
             <div className="rounded-md border p-3" style={{ borderColor: 'var(--color-border)' }}>
-              <p className="text-[11px] uppercase" style={{ color: 'var(--color-ink-600)' }}>
+              <p className="text-xs uppercase" style={{ color: 'var(--color-ink-600)' }}>
                 Status
               </p>
               <p className="mt-0.5 text-lg font-semibold" style={{ color: 'var(--color-ink-900)' }}>

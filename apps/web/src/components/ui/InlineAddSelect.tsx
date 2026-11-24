@@ -76,7 +76,7 @@ export function InlineAddSelect({
             onClick={() => setAdding(true)}
             aria-label={`Add a new ${noun}`}
             title={`Add a new ${noun}`}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border"
+            className="flex icon-btn shrink-0 items-center justify-center rounded-md border"
             style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-600)' }}
           >
             <Plus size={15} strokeWidth={2} />
@@ -108,7 +108,7 @@ export function InlineAddSelect({
             type="button"
             onClick={() => void submit()}
             disabled={busy}
-            className="shrink-0 rounded-md px-2.5 text-sm font-medium text-white disabled:opacity-60"
+            className="shrink-0 rounded-md px-2.5 text-sm font-medium text-on-accent disabled:opacity-60"
             style={{ backgroundColor: 'var(--color-accent)' }}
           >
             {busy ? 'Adding…' : 'Add'}
@@ -117,7 +117,7 @@ export function InlineAddSelect({
             type="button"
             onClick={cancel}
             aria-label="Cancel"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border"
+            className="flex icon-btn shrink-0 items-center justify-center rounded-md border"
             style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-600)' }}
           >
             <X size={15} strokeWidth={2} />

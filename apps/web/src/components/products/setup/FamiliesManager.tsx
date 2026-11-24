@@ -16,7 +16,7 @@ const inputStyle = {
 const inputClass =
   'min-h-10 w-full rounded-md border px-3 text-sm outline-none transition-colors focus:border-[var(--color-accent)]';
 
-const labelClass = 'mb-1 block text-[11px] font-semibold uppercase';
+const labelClass = 'mb-1 block text-xs font-semibold uppercase';
 
 const labelStyle = {
   color: 'var(--color-ink-600)',
@@ -60,7 +60,7 @@ function FamilyCheckbox({
             <Check
               size={11}
               strokeWidth={2.75}
-              className="text-white"
+              className="text-on-accent"
             />
           )}
         </span>
@@ -170,7 +170,7 @@ function FamilyRow({
             />
 
             <p
-              className="mt-1 text-[11px]"
+              className="mt-1 text-xs"
               style={{ color: 'var(--color-ink-600)' }}
             >
               Blank uses the global default.
@@ -182,7 +182,7 @@ function FamilyRow({
               type="button"
               onClick={save}
               disabled={saving}
-              className="min-h-10 self-start rounded-md px-3.5 text-sm font-medium text-white transition-opacity disabled:opacity-60 sm:self-end"
+              className="min-h-10 self-start rounded-md px-3.5 text-sm font-medium text-on-accent transition-opacity disabled:opacity-60 sm:self-end"
               style={{ backgroundColor: 'var(--color-accent)' }}
             >
               {saving ? 'Saving…' : 'Save'}
@@ -265,7 +265,7 @@ export function FamiliesManager({
           <button
             type="submit"
             disabled={creating || !newName.trim()}
-            className="flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-md px-3.5 text-sm font-medium text-white transition-opacity disabled:opacity-50"
+            className="flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-md px-3.5 text-sm font-medium text-on-accent transition-opacity disabled:opacity-50"
             style={{ backgroundColor: 'var(--color-accent)' }}
           >
             <Plus size={15} strokeWidth={2} />

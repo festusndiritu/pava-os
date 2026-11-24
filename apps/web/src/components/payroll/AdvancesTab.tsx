@@ -76,7 +76,7 @@ export function AdvancesTab() {
         <button
           type="button"
           onClick={() => setFormOpen(true)}
-          className="flex items-center gap-1.5 rounded-md px-3.5 py-2 text-sm font-medium text-white"
+          className="flex items-center gap-1.5 rounded-md px-3.5 py-2 text-sm font-medium text-on-accent"
           style={{ backgroundColor: 'var(--color-accent)' }}
         >
           <Plus size={15} strokeWidth={2} />
@@ -114,7 +114,7 @@ export function AdvancesTab() {
                   <button type="button" disabled={busyId === a.id} onClick={() => decide(a.id, 'REJECTED')} className="rounded-md border px-2.5 py-1 text-xs font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
                     Reject
                   </button>
-                  <button type="button" disabled={busyId === a.id} onClick={() => decide(a.id, 'APPROVED')} className="rounded-md px-2.5 py-1 text-xs font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
+                  <button type="button" disabled={busyId === a.id} onClick={() => decide(a.id, 'APPROVED')} className="rounded-md px-2.5 py-1 text-xs font-medium text-on-accent disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
                     Approve
                   </button>
                 </>
@@ -173,7 +173,7 @@ function AdvanceFormDrawer({ open, onClose, onSaved }: { open: boolean; onClose:
       title="Request advance"
       footer={
         <div className="flex items-center gap-3">
-          <button type="submit" form="advance-form" disabled={saving || !employeeId || !amount} className="rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
+          <button type="submit" form="advance-form" disabled={saving || !employeeId || !amount} className="rounded-md px-4 py-2 text-sm font-medium text-on-accent disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
             {saving ? 'Saving…' : 'Request'}
           </button>
         </div>
@@ -181,25 +181,25 @@ function AdvanceFormDrawer({ open, onClose, onSaved }: { open: boolean; onClose:
     >
       <form id="advance-form" onSubmit={submit} className="flex flex-col gap-3.5">
         <div>
-          <label htmlFor="advancestab-employee" className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+          <label htmlFor="advancestab-employee" className="mb-1.5 block text-xs font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
             Employee
           </label>
           <Select id="advancestab-employee" required placeholder="Select…" value={employeeId} onChange={setEmployeeId} options={employees.map((e) => ({ value: e.id, label: e.displayName }))} style={inputStyle} />
         </div>
         <div>
-          <label htmlFor="advancestab-amount-ksh" className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+          <label htmlFor="advancestab-amount-ksh" className="mb-1.5 block text-xs font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
             Amount (KSh)
           </label>
           <NumericInput id="advancestab-amount-ksh" required min={1} value={amount} onChange={setAmount} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)] data-num" style={inputStyle} />
         </div>
         <div>
-          <label htmlFor="advancestab-reason" className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+          <label htmlFor="advancestab-reason" className="mb-1.5 block text-xs font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
             Reason
           </label>
           <input id="advancestab-reason" value={reason} onChange={(e) => setReason(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
         </div>
         <div>
-          <label htmlFor="advancestab-notes" className="mb-1.5 block text-[11px] font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
+          <label htmlFor="advancestab-notes" className="mb-1.5 block text-xs font-semibold uppercase" style={{ color: 'var(--color-ink-600)', letterSpacing: '0.06em' }}>
             Notes
           </label>
           <textarea id="advancestab-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />

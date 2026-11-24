@@ -224,7 +224,7 @@ export function DocumentDetailDrawer({
                       type="button"
                       disabled={busy || !!settling.problem}
                       onClick={() => runAction(() => documentsApi.markPaid(doc.id, { paymentMethod: settling.method, payments: settling.tenders, changeAction: settling.changeAction, leaveBalance: settling.balanceLeft > 0 || undefined, discount: settleDiscount > 0 ? doc.discount + settleDiscount : undefined }))}
-                      className="min-h-10 rounded-md px-3 text-sm font-semibold text-white disabled:opacity-60"
+                      className="min-h-10 rounded-md px-3 text-sm font-semibold text-on-accent disabled:opacity-60"
                       style={{ backgroundColor: 'var(--color-accent)' }}
                     >
                       {settling.problem ?? `Mark paid · ${money(settleTotal)}`}
@@ -239,7 +239,7 @@ export function DocumentDetailDrawer({
                     <button type="button" disabled={busy} onClick={() => runAction(() => documentsApi.cancel(doc.id))} className="flex-1 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-status-bad)' }}>
                       Cancel quote
                     </button>
-                    <button type="button" disabled={busy} onClick={() => setFulfilmentOpen(true)} className="flex-1 rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
+                    <button type="button" disabled={busy} onClick={() => setFulfilmentOpen(true)} className="flex-1 rounded-md px-4 py-2 text-sm font-medium text-on-accent disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
                       Convert to invoice
                     </button>
                   </>

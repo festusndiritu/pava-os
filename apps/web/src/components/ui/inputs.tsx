@@ -611,7 +611,7 @@ export function Select({
               type="button"
               aria-label="Close"
               onClick={() => close(true)}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+              className="flex icon-btn shrink-0 items-center justify-center rounded-full"
               style={{
                 backgroundColor: 'var(--color-bg)',
                 color: 'var(--color-ink-600)',

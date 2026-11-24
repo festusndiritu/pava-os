@@ -329,7 +329,7 @@ export function DataTable<T>({
                             aria-expanded={open}
                             aria-label={`${open ? 'Hide' : 'Show'} details${rowLabel ? ` for ${rowLabel(row)}` : ''}`}
                             onClick={() => setExpanded(open ? null : key)}
-                            className="flex h-9 w-9 items-center justify-center rounded-md"
+                            className="flex icon-btn items-center justify-center rounded-md"
                             style={{ color: 'var(--color-ink-600)' }}
                           >
                             {open ? <ChevronDown size={15} strokeWidth={2} /> : <ChevronRight size={15} strokeWidth={2} />}
