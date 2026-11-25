@@ -165,5 +165,4 @@ long the oldest has been held.
   adjusted in, so units added without a cost stay uncosted.
 - Dashboard and analytics sums over long date ranges load every sale in the
   range into memory; fine at current volume, worth moving into SQL if it grows.
-- API hardening (rate limiting, `helmet`, a stricter CORS policy than
-  `origin: true`) hasn't been done.
+- API hardening (rate limiting, `helmet`) hasn't been done.

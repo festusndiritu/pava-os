@@ -17,11 +17,6 @@ export class LoginPinDto {
   pin!: string;
 }
 
-export class RefreshDto {
-  @IsString()
-  refreshToken!: string;
-}
-
 export class ChangePinDto {
   @Matches(/^\d{4}$/, { message: 'PIN must be exactly 4 digits' })
   currentPin!: string;

@@ -5,31 +5,6 @@ export function resolveImageUrl(path: string | null | undefined): string | null 
   return path.startsWith('http') ? path : `${API_URL}${path}`;
 }
 
-const ACCESS_KEY = 'pava.accessToken';
-const REFRESH_KEY = 'pava.refreshToken';
-
-export function getAccessToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem(ACCESS_KEY);
-}
-
-export function getRefreshToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem(REFRESH_KEY);
-}
-
-export function setTokens(accessToken: string, refreshToken: string) {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(ACCESS_KEY, accessToken);
-  localStorage.setItem(REFRESH_KEY, refreshToken);
-}
-
-export function clearTokens() {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem(ACCESS_KEY);
-  localStorage.removeItem(REFRESH_KEY);
-}
-
 export class ApiError extends Error {
   status: number;
   // The parsed error body, when the server sent one.
@@ -48,18 +23,9 @@ export const SESSION_EXPIRED_EVENT = 'pava:session-expired';
 let refreshInFlight: Promise<boolean> | null = null;
 
 async function doRefresh(): Promise<boolean> {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) return false;
   try {
-    const res = await fetch(`${API_URL}/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
-    });
-    if (!res.ok) return false;
-    const data = await res.json();
-    setTokens(data.accessToken, data.refreshToken);
-    return true;
+    const res = await fetch(`${API_URL}/auth/refresh`, { method: 'POST', credentials: 'include' });
+    return res.ok;
   } catch {
     return false;
   }
@@ -87,21 +53,16 @@ export async function apiFetch<T = unknown>(path: string, options: ApiOptions = 
   const buildHeaders = () => {
     const h = new Headers(headers);
     if (rest.body && !h.has('Content-Type')) h.set('Content-Type', 'application/json');
-    if (auth) {
-      const token = getAccessToken();
-      if (token) h.set('Authorization', `Bearer ${token}`);
-    }
     return h;
   };
 
-  let res = await fetch(`${API_URL}${path}`, { ...rest, headers: buildHeaders() });
+  let res = await fetch(`${API_URL}${path}`, { ...rest, headers: buildHeaders(), credentials: 'include' });
 
-  if (res.status === 401 && auth && getRefreshToken()) {
+  if (res.status === 401 && auth) {
     const refreshed = await refreshOnce();
     if (refreshed) {
-      res = await fetch(`${API_URL}${path}`, { ...rest, headers: buildHeaders() });
+      res = await fetch(`${API_URL}${path}`, { ...rest, headers: buildHeaders(), credentials: 'include' });
     } else {
-      clearTokens();
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
       }

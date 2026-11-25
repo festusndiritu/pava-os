@@ -7,7 +7,14 @@ import { PrismaExceptionFilter } from './common/prisma-exception.filter.js';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  app.enableCors({ origin: true, credentials: true, exposedHeaders: ['X-Total-Count'] });
+  const webOrigins = (process.env.WEB_ORIGIN || 'http://localhost:3000').split(',').map((o) => o.trim());
+  app.enableCors({ origin: webOrigins, credentials: true, exposedHeaders: ['X-Total-Count'] });
+  // Cookies ride along on any request the browser makes, so a state-changing call from another site is refused outright.
+  app.use((req: any, res: any, next: () => void) => {
+    const safe = req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS';
+    if (!safe && req.headers.origin && !webOrigins.includes(req.headers.origin)) return res.status(403).json({ message: 'Origin not allowed' });
+    next();
+  });
 
   app.useGlobalFilters(new PrismaExceptionFilter());
 

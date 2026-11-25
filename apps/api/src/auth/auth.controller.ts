@@ -1,12 +1,13 @@
-import { Body, Controller, Get, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, Req, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
+import type { Response } from 'express';
 import { AuthService } from './auth.service.js';
 import { JwtAuthGuard } from './jwt-auth.guard.js';
+import { clearSessionCookies, readCookie, REFRESH_COOKIE, setSessionCookies } from './session-cookies.js';
 import {
   ChangePasswordDto,
   ChangePinDto,
   LoginPasswordDto,
   LoginPinDto,
-  RefreshDto,
   UpdateProfileDto,
 } from './dto/auth.dto.js';
 
@@ -21,6 +22,12 @@ function metaFrom(req: any) {
 export class AuthController {
   constructor(private authService: AuthService) {}
 
+  // Moves the tokens out of the response body into httpOnly cookies.
+  private withCookies(res: Response, { accessToken, refreshToken, ...session }: { accessToken: string; refreshToken: string }) {
+    setSessionCookies(res, accessToken, refreshToken, this.authService.sessionMaxHours());
+    return session;
+  }
+
   // Powers the staff login tile grid — public, name/avatar only.
   @Get('staff')
   listStaff() {
@@ -28,23 +35,26 @@ export class AuthController {
   }
 
   @Post('login/password')
-  loginPassword(@Body() body: LoginPasswordDto, @Req() req: any) {
-    return this.authService.loginWithPassword(body.email, body.password, metaFrom(req));
+  async loginPassword(@Body() body: LoginPasswordDto, @Req() req: any, @Res({ passthrough: true }) res: Response) {
+    return this.withCookies(res, await this.authService.loginWithPassword(body.email, body.password, metaFrom(req)));
   }
 
   @Post('login/pin')
-  loginPin(@Body() body: LoginPinDto, @Req() req: any) {
-    return this.authService.loginWithPin(body.userId, body.pin, metaFrom(req));
+  async loginPin(@Body() body: LoginPinDto, @Req() req: any, @Res({ passthrough: true }) res: Response) {
+    return this.withCookies(res, await this.authService.loginWithPin(body.userId, body.pin, metaFrom(req)));
   }
 
   @Post('refresh')
-  refresh(@Body() body: RefreshDto, @Req() req: any) {
-    return this.authService.refresh(body.refreshToken, metaFrom(req));
+  async refresh(@Req() req: any, @Res({ passthrough: true }) res: Response) {
+    const refreshToken = readCookie(req, REFRESH_COOKIE);
+    if (!refreshToken) throw new UnauthorizedException('Session expired');
+    return this.withCookies(res, await this.authService.refresh(refreshToken, metaFrom(req)));
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('logout')
-  logout(@Req() req: any) {
+  logout(@Req() req: any, @Res({ passthrough: true }) res: Response) {
+    clearSessionCookies(res);
     return this.authService.logout(req.user.sid, req.user.sub);
   }
 

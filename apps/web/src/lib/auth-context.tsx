@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, clearTokens, getAccessToken, pingActivity, setTokens, SESSION_EXPIRED_EVENT } from './api';
+import { api, pingActivity, SESSION_EXPIRED_EVENT } from './api';
 import { releaseDeviceOnLogout } from './push';
 import { ADMIN_ONLY_MODULES, type ModuleKey } from './constants';
 
@@ -18,8 +18,6 @@ export interface AuthUser {
 }
 
 interface LoginResponse {
-  accessToken: string;
-  refreshToken: string;
   expiresInMinutes: number;
   user: AuthUser;
 }
@@ -55,7 +53,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   timeoutMinutesRef.current = timeoutMinutes;
 
   const hardLogout = useCallback(() => {
-    clearTokens();
     setUser(null);
     setIdleWarning(false);
     router.push('/login');
@@ -80,7 +77,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(() => endSession(true), [endSession]);
 
   const applySession = useCallback((data: LoginResponse) => {
-    setTokens(data.accessToken, data.refreshToken);
     setUser(data.user);
     setTimeoutMinutes(data.expiresInMinutes);
     lastActivityRef.current = Date.now();
@@ -110,14 +106,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     (async () => {
-      if (!getAccessToken()) {
-        setLoading(false);
-        return;
-      }
+      try {
+        localStorage.removeItem('pava.accessToken');
+        localStorage.removeItem('pava.refreshToken');
+      } catch {}
       try {
         await refreshMe();
       } catch {
-        clearTokens();
         setUser(null);
       } finally {
         setLoading(false);

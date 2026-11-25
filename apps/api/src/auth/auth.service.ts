@@ -38,7 +38,7 @@ export class AuthService {
     return Number(this.config.get(key)) || (role === Role.ADMIN ? 30 : 60);
   }
 
-  private sessionMaxHours() {
+  sessionMaxHours() {
     return Number(this.config.get('SESSION_MAX_HOURS')) || 12;
   }
 
