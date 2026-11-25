@@ -12,6 +12,7 @@ import { TransportDialog, transportFromDoc, type TransportSettings } from '../po
 import { NumericInput, toNumber } from '../ui/inputs';
 import { fmtNumber } from '../../lib/format';
 import { removeWithUndo, toast } from '../ui/Toast';
+import { useAuth } from '../../lib/auth-context';
 
 interface Line {
   product: Product;
@@ -43,6 +44,9 @@ export function QuoteFormDrawer({
   editId?: string | null;
   onUpdated?: (id: string) => void;
 }) {
+  const { user } = useAuth();
+  const draftKey = user && !editId ? `pava:quote-draft:${user.id}` : null;
+  const [draftLoaded, setDraftLoaded] = useState(false);
   const [customerMode, setCustomerMode] = useState<'walkin' | 'existing'>('walkin');
   const [walkinName, setWalkinName] = useState('');
   const [customerQuery, setCustomerQuery] = useState('');
@@ -74,8 +78,41 @@ export function QuoteFormDrawer({
       setQuoteNumber(null);
       setEditReady(false);
       setLoadingQuote(false);
+      setDraftLoaded(false);
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !draftKey) return;
+    try {
+      const raw = localStorage.getItem(draftKey);
+      if (raw) {
+        const d = JSON.parse(raw);
+        setCustomerMode(d.customerMode);
+        setWalkinName(d.walkinName);
+        setSelectedCustomer(d.selectedCustomer);
+        setLines(d.lines);
+        setTransport(d.transport);
+        setNotes(d.notes);
+        setDiscountInput(d.discountInput);
+      }
+    } catch {}
+    setDraftLoaded(true);
+  }, [open, draftKey]);
+
+  useEffect(() => {
+    if (!open || !draftKey || !draftLoaded) return;
+    try {
+      if (lines.length === 0 && !notes && !walkinName && !selectedCustomer) localStorage.removeItem(draftKey);
+      else localStorage.setItem(draftKey, JSON.stringify({ customerMode, walkinName, selectedCustomer, lines, transport, notes, discountInput }));
+    } catch {}
+  }, [open, draftKey, draftLoaded, customerMode, walkinName, selectedCustomer, lines, transport, notes, discountInput]);
+
+  function discardDraft() {
+    if (draftKey) localStorage.removeItem(draftKey);
+    setDraftLoaded(false);
+    onClose();
+  }
 
   // Edit mode: fetch the quote by id (the list rows don't carry full product details) and prefill
   // every field from it.
@@ -171,6 +208,7 @@ export function QuoteFormDrawer({
         onUpdated?.(doc.id);
       } else {
         const doc = await documentsApi.create(payload);
+        if (draftKey) localStorage.removeItem(draftKey);
         onCreated(doc.id);
       }
       onClose();
@@ -183,7 +221,7 @@ export function QuoteFormDrawer({
 
   return (
     <Drawer
-      guardUnsaved
+      guardUnsaved={!!editId}
       open={open}
       onClose={onClose}
       title={editId ? `Edit quote${quoteNumber ? ` ${quoteNumber}` : ''}` : 'New quote'}
@@ -194,6 +232,11 @@ export function QuoteFormDrawer({
             Total: <span className="font-medium data-num" style={{ color: 'var(--color-ink-900)' }}>KSh {fmtNumber(total)}</span>
           </p>
           <div className="flex items-center gap-3">
+            {!editId && lines.length > 0 && (
+              <button type="button" onClick={discardDraft} className="text-sm font-medium" style={{ color: 'var(--color-ink-600)' }}>
+                Discard draft
+              </button>
+            )}
             <button type="submit" form="quote-form" disabled={saving || loadingQuote || (!!editId && !editReady)} className="rounded-md px-4 py-2 text-sm font-medium text-on-accent disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
               {saving ? 'Saving…' : editId ? 'Save changes' : 'Create quote'}
             </button>

@@ -69,25 +69,26 @@ export default function PosPage() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
 
   const { user, hasPermission } = useAuth();
-  const [cart, setCart] = usePersistedState<CartLine[]>(user ? `pava:cart:${user.id}` : null, []);
-  const [transport, setTransport] = useState<TransportSettings | null>(null);
+  const till = (name: string) => (user ? `pava:till:${user.id}:${name}` : null);
+  const [cart, setCart] = usePersistedState<CartLine[]>(till('cart'), []);
+  const [transport, setTransport] = usePersistedState<TransportSettings | null>(till('transport'), null);
   const [transportOpen, setTransportOpen] = useState(false);
-  const [resumedFromId, setResumedFromId] = useState<string | null>(null);
+  const [resumedFromId, setResumedFromId] = usePersistedState<string | null>(till('resumed'), null);
 
-  const [customerMode, setCustomerMode] = useState<'walkin' | 'existing'>('walkin');
-  const [walkinName, setWalkinName] = useState('');
+  const [customerMode, setCustomerMode] = usePersistedState<'walkin' | 'existing'>(till('customerMode'), 'walkin');
+  const [walkinName, setWalkinName] = usePersistedState(till('walkin'), '');
   const [customerQuery, setCustomerQuery] = useState('');
   const [customerResults, setCustomerResults] = useState<Customer[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = usePersistedState<Customer | null>(till('customer'), null);
   // Opened when change is to be kept as credit but the sale has no customer yet.
   const [quickCustomerOpen, setQuickCustomerOpen] = useState(false);
 
   const [payment, setPayment] = useState<PaymentDraft>(emptyPayment);
   // PAVA's only credit: the customer takes the goods and settles the same day.
-  const [settleLater, setSettleLater] = useState(false);
+  const [settleLater, setSettleLater] = usePersistedState(till('settleLater'), false);
   // An earlier unpaid balance the customer is settling together with this sale.
-  const [addBalance, setAddBalance] = useState(false);
-  const [sourcing, setSourcing] = useState<Record<string, Sourcing>>({});
+  const [addBalance, setAddBalance] = usePersistedState(till('addBalance'), false);
+  const [sourcing, setSourcing] = usePersistedState<Record<string, Sourcing>>(till('sourcing'), {});
   const [fulfilmentOpen, setFulfilmentOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [receipt, setReceipt] = useState<PosSaleResult | null>(null);
