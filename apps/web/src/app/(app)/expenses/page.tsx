@@ -138,7 +138,7 @@ export default function ExpensesPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button type="button" onClick={() => expenses && exportRows(table.sortedRows ?? expenses, 'expenses')} disabled={!expenses || expenses.length === 0} className="flex min-h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium disabled:opacity-50" style={buttonStyle}>
+          <button type="button" onClick={() => expenses && exportRows(table.sortedRows ?? expenses, 'expenses')} disabled={!expenses || expenses.length === 0} className="flex min-h-10 pointer-coarse:min-h-11 items-center gap-1.5 rounded-md border px-3 text-sm font-medium disabled:opacity-50" style={buttonStyle}>
             <Download size={15} strokeWidth={2} />
             Export CSV
           </button>
@@ -148,7 +148,7 @@ export default function ExpensesPage() {
               setEditing(null);
               setFormOpen(true);
             }}
-            className="flex min-h-10 items-center gap-1.5 rounded-md px-3.5 text-sm font-medium text-on-accent"
+            className="flex min-h-10 pointer-coarse:min-h-11 items-center gap-1.5 rounded-md px-3.5 text-sm font-medium text-on-accent"
             style={{ backgroundColor: 'var(--color-accent)' }}
           >
             <Plus size={15} strokeWidth={2} />
@@ -191,7 +191,7 @@ export default function ExpensesPage() {
           selection={selection}
           selectAllMatching={async () => table.sortedRows ?? []}
           bulkActions={
-            <button type="button" onClick={() => exportRows(selection.items, 'expenses-selected')} className="flex min-h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium" style={buttonStyle}>
+            <button type="button" onClick={() => exportRows(selection.items, 'expenses-selected')} className="flex min-h-10 pointer-coarse:min-h-11 items-center gap-1.5 rounded-md border px-3 text-sm font-medium" style={buttonStyle}>
               <Download size={14} strokeWidth={2} />
               Export selected
             </button>

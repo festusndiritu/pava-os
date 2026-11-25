@@ -37,6 +37,13 @@ export const toast = {
   error: (message: string) => push('error', message),
 };
 
+export function removeWithUndo<T>(list: T[], index: number, label: string, set: (update: (prev: T[]) => T[]) => void) {
+  const item = list[index];
+  if (item === undefined) return;
+  set((prev) => prev.filter((_, i) => i !== index));
+  toast.success(`Removed ${label}`, { label: 'Undo', onClick: () => set((prev) => [...prev.slice(0, index), item, ...prev.slice(index)]) });
+}
+
 export function ToastViewport() {
   const [list, setList] = useState<ToastItem[]>(items);
 
@@ -74,13 +81,13 @@ export function ToastViewport() {
                 t.action!.onClick();
                 dismiss(t.id);
               }}
-              className="min-h-8 shrink-0 rounded px-2 font-semibold"
+              className="min-h-8 pointer-coarse:min-h-11 shrink-0 rounded px-2 font-semibold"
               style={{ color: 'var(--color-accent)' }}
             >
               {t.action.label}
             </button>
           )}
-          <button type="button" onClick={() => dismiss(t.id)} aria-label="Dismiss" className="-mr-1 flex h-6 w-6 shrink-0 items-center justify-center rounded" style={{ color: 'var(--color-ink-600)' }}>
+          <button type="button" onClick={() => dismiss(t.id)} aria-label="Dismiss" className="-mr-1 flex icon-btn shrink-0 items-center justify-center rounded" style={{ color: 'var(--color-ink-600)' }}>
             <X size={14} strokeWidth={2} />
           </button>
         </div>

@@ -46,7 +46,10 @@ export function IsKenyanPhone(validationOptions?: ValidationOptions): PropertyDe
 export function OptionalKenyanPhone(validationOptions?: ValidationOptions) {
   return applyDecorators(
     IsOptional(),
-    Transform(({ value }) => normalizeKenyanPhone(value)),
+    Transform(({ value }) => {
+      const normalized = normalizeKenyanPhone(value);
+      return normalized === '' ? null : normalized;
+    }),
     IsKenyanPhone(validationOptions),
   );
 }

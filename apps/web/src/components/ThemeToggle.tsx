@@ -31,7 +31,7 @@ export function ThemeToggle() {
             aria-label={label}
             title={label}
             onClick={() => setTheme(value)}
-            className="flex h-7 w-7 items-center justify-center rounded transition-colors"
+            className="flex h-7 w-7 pointer-coarse:h-11 pointer-coarse:w-11 items-center justify-center rounded transition-colors"
             style={{
               backgroundColor: active ? 'var(--color-bg)' : 'transparent',
               color: active ? 'var(--color-ink-900)' : 'var(--color-ink-600)',

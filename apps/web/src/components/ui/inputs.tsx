@@ -224,6 +224,10 @@ export function normalizePhoneInput(raw: string): string {
   return digits.slice(0, 10);
 }
 
+export function isValidPhone(value: string): boolean {
+  return value === '' || /^(07|01)\d{8}$/.test(value);
+}
+
 export function PhoneInput({
   value,
   onChange,
@@ -259,7 +263,7 @@ const SELECT_BASE =
 
 const SELECT_SIZES = {
   md: 'px-3 py-2',
-  sm: 'min-h-10 px-2.5 py-1 md:min-h-9',
+  sm: 'min-h-10 pointer-coarse:min-h-11 px-2.5 py-1 md:min-h-9',
 } as const;
 
 interface SelectPosition {
@@ -667,7 +671,7 @@ export function Select({
                   setQuery('');
                   searchRef.current?.focus();
                 }}
-                className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full"
+                className="absolute right-1 top-1/2 flex icon-btn -translate-y-1/2 items-center justify-center rounded-full"
                 style={{ color: 'var(--color-ink-600)' }}
               >
                 <X size={14} strokeWidth={2} aria-hidden />
@@ -709,7 +713,7 @@ export function Select({
               className={`flex w-full items-center gap-3 text-left outline-none transition-colors hover:bg-[var(--color-bg)] focus:bg-[var(--color-bg)] aria-disabled:cursor-not-allowed aria-disabled:opacity-45 ${
                 sheet
                   ? 'min-h-[3.25rem] rounded-xl px-3.5 text-base'
-                  : 'min-h-9 px-3 text-sm'
+                  : 'min-h-9 pointer-coarse:min-h-11 px-3 text-sm'
               } ${o.hint ? 'py-1.5' : ''}`}
               style={{
                 color: isSelected

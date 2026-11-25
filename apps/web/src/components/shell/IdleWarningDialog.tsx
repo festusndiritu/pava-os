@@ -13,7 +13,7 @@ export function IdleWarningDialog() {
     // Escape means "keep me signed in", never "sign out".
     <Modal onClose={dismissIdleWarning} role="alertdialog" placement="center" dismissOnBackdrop={false} labelledBy="idle-warning-title" className="max-w-sm p-6">
         <div
-          className="flex h-10 w-10 items-center justify-center rounded-full"
+          className="flex h-10 w-10 pointer-coarse:h-11 pointer-coarse:w-11 items-center justify-center rounded-full"
           style={{ backgroundColor: 'var(--color-status-warnSoft)', color: 'var(--color-status-warn)' }}
         >
           <Clock size={18} strokeWidth={2} />

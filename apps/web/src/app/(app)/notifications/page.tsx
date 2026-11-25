@@ -88,7 +88,7 @@ export default function NotificationsPage() {
           type="button"
           onClick={readAll}
           disabled={unread === 0}
-          className="flex min-h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium disabled:opacity-40"
+          className="flex min-h-9 pointer-coarse:min-h-11 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium disabled:opacity-40"
           style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}
         >
           <CheckCheck size={15} strokeWidth={2} />
@@ -103,7 +103,7 @@ export default function NotificationsPage() {
             type="button"
             aria-pressed={unreadOnly === only}
             onClick={() => setUnreadOnly(only)}
-            className="min-h-8 rounded px-3 text-sm font-medium"
+            className="min-h-8 pointer-coarse:min-h-11 rounded px-3 text-sm font-medium"
             style={{ backgroundColor: unreadOnly === only ? 'var(--color-accent-soft)' : 'transparent', color: unreadOnly === only ? 'var(--color-accent)' : 'var(--color-ink-600)' }}
           >
             {only ? 'Unread' : 'All'}

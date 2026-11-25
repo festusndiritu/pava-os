@@ -30,7 +30,7 @@ import {
 } from './dashboard-derive';
 import { EmptyState, IconAction, SectionCard, TrendPill } from './DashboardPrimitives';
 
-const AXIS_TICK = { fontSize: 11, fill: 'var(--color-ink-600)' };
+const AXIS_TICK = { fontSize: 12, fill: 'var(--color-ink-600)' };
 const TOOLTIP_STYLE = {
   fontSize: 12,
   borderRadius: 6,
@@ -65,7 +65,7 @@ function RangeToggle({ value, onChange, available }: { value: Range; onChange: (
             type="button"
             aria-pressed={active}
             onClick={() => onChange(range)}
-            className="min-h-8 rounded px-2.5 text-xs font-medium transition-colors"
+            className="min-h-8 pointer-coarse:min-h-11 rounded px-2.5 text-xs font-medium transition-colors"
             style={{
               backgroundColor: active ? 'var(--color-surface)' : 'transparent',
               color: active ? 'var(--color-ink-900)' : 'var(--color-ink-600)',
@@ -210,7 +210,7 @@ export function WeekSparkline({ chart }: { chart: ChartPoint[] }) {
           <Tooltip
             formatter={(v) => (typeof v === 'number' ? money(v) : '—')}
             labelFormatter={fmtDate}
-            contentStyle={{ ...TOOLTIP_STYLE, fontSize: 11, padding: '4px 8px' }}
+            contentStyle={{ ...TOOLTIP_STYLE, fontSize: 12, padding: '4px 8px' }}
             cursor={{ stroke: 'var(--color-border)' }}
           />
           <Area

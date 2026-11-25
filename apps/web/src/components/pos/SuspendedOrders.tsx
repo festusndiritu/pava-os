@@ -62,7 +62,7 @@ export function SuspendOrderDialog({
   const [label, setLabel] = useState(defaultLabel);
 
   return (
-    <Shell title="Suspend this order" subtitle={`${itemCount} item${itemCount === 1 ? '' : 's'} · ${money(total)}`} onClose={onCancel}>
+    <Shell title="Hold this order" subtitle={`${itemCount} item${itemCount === 1 ? '' : 's'} · ${money(total)}`} onClose={onCancel}>
       <label htmlFor="suspendedorders-label-optional" className="text-xs font-medium" style={{ color: 'var(--color-ink-600)' }}>
         Label (optional)
       </label>
@@ -76,7 +76,7 @@ export function SuspendOrderDialog({
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}
       />
       <p className="mt-2 text-xs" style={{ color: 'var(--color-ink-600)' }}>
-        Parks the cart. No stock moves until completed.
+        Puts the cart aside. No stock moves until it is completed.
       </p>
       <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <button type="button" onClick={onCancel} className="min-h-11 rounded-md border px-4 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
@@ -89,7 +89,7 @@ export function SuspendOrderDialog({
           className="min-h-11 rounded-md px-4 text-sm font-semibold text-on-accent disabled:opacity-60"
           style={{ backgroundColor: 'var(--color-accent)' }}
         >
-          {busy ? 'Suspending…' : 'Suspend order'}
+          {busy ? 'Holding…' : 'Hold order'}
         </button>
       </div>
     </Shell>
@@ -115,7 +115,7 @@ export function SuspendedOrdersDialog({
       setOrders(await posApi.suspended());
       setLoadError(null);
     } catch (err) {
-      setLoadError(err instanceof ApiError ? err.message : "Couldn't load suspended orders");
+      setLoadError(err instanceof ApiError ? err.message : "Couldn't load held orders");
       setOrders([]);
     }
   }
@@ -139,7 +139,7 @@ export function SuspendedOrdersDialog({
   }
 
   return (
-    <Shell title="Suspended orders" subtitle="Parked carts" onClose={onClose}>
+    <Shell title="Orders on hold" subtitle="Waiting to be resumed" onClose={onClose}>
       {loadError && (
         <p className="mb-3 rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'var(--color-status-badSoft)', color: 'var(--color-status-bad)' }}>
           {loadError}
@@ -161,7 +161,7 @@ export function SuspendedOrdersDialog({
             Nothing on hold
           </p>
           <p className="mt-1 text-sm" style={{ color: 'var(--color-ink-600)' }}>
-            Suspend a cart to serve someone else.
+            Hold a cart to serve someone else.
           </p>
         </div>
       )}
@@ -196,14 +196,14 @@ export function SuspendedOrdersDialog({
                     Discard this order?
                   </span>
                   <div className="flex gap-2">
-                    <button type="button" onClick={() => setConfirmId(null)} className="min-h-9 rounded-md border px-3 text-xs font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
+                    <button type="button" onClick={() => setConfirmId(null)} className="min-h-9 pointer-coarse:min-h-11 rounded-md border px-3 text-xs font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
                       Keep
                     </button>
                     <button
                       type="button"
                       disabled={busyId === order.id}
                       onClick={() => discard(order.id)}
-                      className="min-h-9 rounded-md px-3 text-xs font-semibold text-on-accent disabled:opacity-60"
+                      className="min-h-9 pointer-coarse:min-h-11 rounded-md px-3 text-xs font-semibold text-on-accent disabled:opacity-60"
                       style={{ backgroundColor: 'var(--color-status-bad)' }}
                     >
                       Discard
@@ -215,7 +215,7 @@ export function SuspendedOrdersDialog({
                   <button
                     type="button"
                     onClick={() => onResume(order)}
-                    className="min-h-10 flex-1 rounded-md px-3 text-sm font-semibold text-on-accent"
+                    className="min-h-10 pointer-coarse:min-h-11 flex-1 rounded-md px-3 text-sm font-semibold text-on-accent"
                     style={{ backgroundColor: 'var(--color-accent)' }}
                   >
                     Resume
@@ -225,7 +225,7 @@ export function SuspendedOrdersDialog({
                     onClick={() => setConfirmId(order.id)}
                     aria-label="Discard order"
                     title="Discard order"
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border"
+                    className="flex h-10 w-10 pointer-coarse:h-11 pointer-coarse:w-11 shrink-0 items-center justify-center rounded-md border"
                     style={{ borderColor: 'var(--color-border)', color: 'var(--color-status-bad)' }}
                   >
                     <Trash2 size={15} strokeWidth={2} />

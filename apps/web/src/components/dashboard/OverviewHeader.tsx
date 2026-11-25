@@ -57,7 +57,7 @@ function QuickAction({
   return (
     <Link
       href={href}
-      className="flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-3.5 py-2 text-sm font-medium transition-colors hover:brightness-95"
+      className="flex min-h-10 pointer-coarse:min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-3.5 py-2 text-sm font-medium transition-colors hover:brightness-95"
       style={
         primary
           ? {
@@ -90,7 +90,7 @@ function AttentionChip({
 
   const body = (
     <span
-      className="group flex min-h-10 items-center gap-2.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors"
+      className="group flex min-h-10 pointer-coarse:min-h-11 items-center gap-2.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors"
       style={{
         borderColor: 'var(--color-border)',
         backgroundColor: 'var(--color-surface)',
@@ -155,7 +155,7 @@ function Freshness({
         disabled={refreshing}
         aria-label="Refresh dashboard"
         title="Refresh"
-        className="flex h-8 w-8 items-center justify-center rounded-md border transition-colors disabled:opacity-60"
+        className="flex icon-btn items-center justify-center rounded-md border transition-colors disabled:opacity-60"
         style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-600)', backgroundColor: 'var(--color-surface)' }}
       >
         <RefreshCw size={13} strokeWidth={2} className={refreshing ? 'animate-spin motion-reduce:animate-none' : ''} />

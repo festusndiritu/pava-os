@@ -13,7 +13,7 @@ interface Item {
 }
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
-const inputClass = 'min-h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--color-accent)]';
+const inputClass = 'min-h-10 pointer-coarse:min-h-11 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--color-accent)]';
 
 export function usageLabel(n: number | undefined, noun = 'product') {
   if (!n) return 'Not used yet';
@@ -126,7 +126,7 @@ export function LookupManager({
           <button
             type="submit"
             disabled={adding || !newName.trim()}
-            className="flex min-h-10 shrink-0 items-center gap-1.5 rounded-md px-3.5 text-sm font-medium text-on-accent disabled:opacity-50"
+            className="flex min-h-10 pointer-coarse:min-h-11 shrink-0 items-center gap-1.5 rounded-md px-3.5 text-sm font-medium text-on-accent disabled:opacity-50"
             style={{ backgroundColor: 'var(--color-accent)' }}
           >
             <Plus size={15} strokeWidth={2} />

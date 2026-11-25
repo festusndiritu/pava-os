@@ -121,8 +121,8 @@ export function moduleForPath(pathname: string): ModuleKey | null {
 export const AVATAR_COLORS = [
   { key: 'slate', bg: '#475467', fg: '#FFFFFF' },
   { key: 'blue', bg: '#0559C9', fg: '#FFFFFF' },
-  { key: 'teal', bg: '#0E8F6A', fg: '#FFFFFF' },
-  { key: 'amber', bg: '#B76E00', fg: '#FFFFFF' },
+  { key: 'teal', bg: '#0A7A5A', fg: '#FFFFFF' },
+  { key: 'amber', bg: '#8F5700', fg: '#FFFFFF' },
   { key: 'rose', bg: '#C0362C', fg: '#FFFFFF' },
   { key: 'violet', bg: '#6D3FC9', fg: '#FFFFFF' },
 ] as const;

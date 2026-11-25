@@ -20,6 +20,15 @@ export interface TransportSettings {
   fold: boolean;
 }
 
+/** The transport a saved document already carries, in the shape the dialog edits. */
+export function transportFromDoc(doc: { transportAmount: number; transportMode: string; items: { productId: string | null; transportAllocated: number }[] }): TransportSettings | null {
+  if (doc.transportAmount <= 0) return null;
+  const ids = (items: { productId: string | null }[]) => items.flatMap((i) => (i.productId ? [i.productId] : []));
+  const folded = doc.transportMode === 'DISTRIBUTED';
+  const absorbing = ids(doc.items.filter((i) => i.transportAllocated > 0));
+  return { amount: doc.transportAmount, allocation: 'QUANTITY', applyTo: folded && absorbing.length > 0 ? absorbing : ids(doc.items), manualAllocations: {}, fold: folded };
+}
+
 export function TransportDialog({
   lines,
   initial,

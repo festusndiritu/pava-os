@@ -140,7 +140,7 @@ export function ActionMenu({ actions, label, heading }: { actions: RowAction[]; 
   if (actions.length === 0) return null;
 
   const baseItem = 'flex w-full items-center gap-3 px-3 text-left text-sm outline-none transition-colors focus:bg-[var(--color-bg)] aria-disabled:cursor-not-allowed aria-disabled:opacity-45';
-  const itemSize = sheet ? 'min-h-12' : 'min-h-10';
+  const itemSize = sheet ? 'min-h-12' : 'min-h-10 pointer-coarse:min-h-11';
 
   const menu = (
     <div

@@ -55,7 +55,11 @@ export class DocumentEditsService {
     // Priced by the same rules as a new sale — including the requester's own discount limit — so
     // the proposed total is exactly what approval applies.
     const priced = await this.documents.priceQuoteInput(actorId, actorRole, { ...input, discount: doc.discount });
-    if (priced.total === doc.total && !this.linesDiffer(doc, priced.lines)) {
+    const sourcingChanged = (input.lineSourcing ?? []).some((c) => {
+      const old = doc.items.find((i) => i.id === input.items[c.index]?.itemId);
+      return old && c.stockQty !== (old.stockQty ?? old.qty);
+    });
+    if (priced.total === doc.total && !sourcingChanged && !this.linesDiffer(doc, priced.lines)) {
       throw new BadRequestException('Nothing would change — adjust a quantity, price or the transport first');
     }
 
@@ -235,48 +239,50 @@ export class DocumentEditsService {
       });
     };
 
-    let missing = await stockShortfalls();
-    if (missing.length > 0 && !input.allowShortfall) refuse(missing);
+    const deliveryNotesIssued = await this.prisma.document.count({ where: { sourceDocumentId: doc.id, type: DocumentType.DELIVERY_NOTE } });
 
+    // The cashier's choice is applied whether or not stock is short. Once goods have left on a
+    // delivery note, a line can't drop below what it already took from the shelf.
     const sourcedElsewhere: { name: string; fromElsewhere: number }[] = [];
-    if (input.allowShortfall) {
-      const touched = new Set<number>();
-      const chosen = input.fulfilment ?? [];
-      for (const c of chosen) {
-        const l = nextLines[c.index];
-        if (!l || !l.productId || l.stockQty == null) throw new BadRequestException('Unknown line in the from-shop choices');
-        if (c.stockQty < floors[c.index] || c.stockQty > l.qty) {
-          throw new BadRequestException(`${l.description}: from-shop quantity must be between ${floors[c.index]} and ${l.qty}`);
-        }
-        l.stockQty = c.stockQty;
-        touched.add(c.index);
+    const touched = new Set<number>();
+    const lineSource = new Map<number, string>();
+    const chosen = input.fulfilment ?? changes.lineSourcing ?? [];
+    for (const c of chosen) {
+      const l = nextLines[c.index];
+      if (!l || !l.productId || l.stockQty == null) throw new BadRequestException('Unknown line in the from-shop choices');
+      const lowest = deliveryNotesIssued > 0 ? floors[c.index] : 0;
+      if (c.stockQty < lowest || c.stockQty > l.qty) {
+        throw new BadRequestException(`${l.description}: from-shop quantity must be between ${lowest} and ${l.qty}`);
       }
-      missing = await stockShortfalls();
-      if (missing.length > 0) {
-        // The admin asked for more from the shelf than it holds: show the shelf again.
-        if (chosen.length > 0) refuse(missing);
-        cutPlan(missing).forEach((q, i) => {
-          if (q != null && q !== nextLines[i].stockQty) {
-            nextLines[i].stockQty = q;
-            touched.add(i);
-          }
-        });
-      }
-      const source = input.supplierSource?.trim();
-      for (const i of touched) {
-        const l = nextLines[i];
-        if (l.stockQty == null) continue;
-        if (l.stockQty < l.qty) {
-          l.supplierSource = source || l.supplierSource || 'Backorder';
-          sourcedElsewhere.push({ name: l.description, fromElsewhere: l.qty - l.stockQty });
-        } else {
-          l.supplierSource = null;
+      l.stockQty = c.stockQty;
+      if (c.supplierSource?.trim()) lineSource.set(c.index, c.supplierSource.trim());
+      touched.add(c.index);
+    }
+
+    const missing = await stockShortfalls();
+    if (missing.length > 0) {
+      // Either the shelf can't cover what was asked for, or nobody chose and the shortfall wasn't accepted.
+      if (!input.allowShortfall || chosen.length > 0) refuse(missing);
+      cutPlan(missing).forEach((q, i) => {
+        if (q != null && q !== nextLines[i].stockQty) {
+          nextLines[i].stockQty = q;
+          touched.add(i);
         }
+      });
+    }
+    const source = input.supplierSource?.trim();
+    for (const i of touched) {
+      const l = nextLines[i];
+      if (l.stockQty == null) continue;
+      if (l.stockQty < l.qty) {
+        l.supplierSource = lineSource.get(i) || source || l.supplierSource || 'Backorder';
+        sourcedElsewhere.push({ name: l.description, fromElsewhere: l.qty - l.stockQty });
+      } else {
+        l.supplierSource = null;
       }
     }
     const net = netStock();
 
-    const deliveryNotesIssued = await this.prisma.document.count({ where: { sourceDocumentId: doc.id, type: DocumentType.DELIVERY_NOTE } });
     const before = { total: doc.total, transportAmount: doc.transportAmount, items: doc.items.map((i) => ({ description: i.description, qty: i.qty, unitPrice: i.unitPrice })) };
 
     await this.prisma.$transaction(async (tx) => {

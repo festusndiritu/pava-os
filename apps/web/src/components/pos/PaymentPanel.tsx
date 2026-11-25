@@ -155,7 +155,7 @@ export function PaymentPanel({
               onChange={(cash) => set({ cash })}
               placeholder={draft.mode === 'CASH' ? String(r.due) : '0'}
               aria-label="Cash received"
-              className="data-num min-h-10 w-36 rounded-md border px-2 text-right"
+              className="data-num min-h-10 pointer-coarse:min-h-11 w-36 rounded-md border px-2 text-right"
               style={inputStyle}
             />
           </label>
@@ -167,7 +167,7 @@ export function PaymentPanel({
                 onChange={(mpesa) => set({ mpesa })}
                 placeholder={String(Math.max(0, r.due - num(draft.cash)))}
                 aria-label="M-Pesa received"
-                className="data-num min-h-10 w-36 rounded-md border px-2 text-right"
+                className="data-num min-h-10 pointer-coarse:min-h-11 w-36 rounded-md border px-2 text-right"
                 style={inputStyle}
               />
             </label>
@@ -187,7 +187,7 @@ export function PaymentPanel({
             {(
               [
                 { value: 'GIVE', label: 'Give back' },
-                { value: 'CREDIT', label: 'Keep on account' },
+                { value: 'CREDIT', label: 'Keep as credit' },
               ] as const
             ).map((o) => {
               const active = draft.changeAction === o.value;
@@ -199,7 +199,7 @@ export function PaymentPanel({
                     set({ changeAction: o.value });
                     if (o.value === 'CREDIT' && !hasCustomer) onNeedCustomer?.();
                   }}
-                  className="min-h-10 rounded-md border px-2 text-sm font-medium"
+                  className="min-h-10 pointer-coarse:min-h-11 rounded-md border px-2 text-sm font-medium"
                   style={{
                     borderColor: active ? 'var(--color-accent)' : 'var(--color-border)',
                     backgroundColor: active ? 'var(--color-accent-soft)' : 'transparent',
@@ -226,7 +226,7 @@ export function PaymentPanel({
               type="button"
               aria-pressed={draft.leaveBalance}
               onClick={() => set({ leaveBalance: !draft.leaveBalance })}
-              className="flex min-h-10 items-center justify-between gap-3 rounded-md border px-3 text-left text-sm"
+              className="flex min-h-10 pointer-coarse:min-h-11 items-center justify-between gap-3 rounded-md border px-3 text-left text-sm"
               style={{
                 borderColor: draft.leaveBalance ? 'var(--color-status-warn)' : 'var(--color-border)',
                 backgroundColor: draft.leaveBalance ? 'var(--color-status-warnSoft)' : 'transparent',
@@ -358,7 +358,7 @@ export function QuickCustomerDialog({
           Add a customer
         </h3>
         <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>
-          {amount ? `${money(amount)} will be kept on their account for next time.` : 'Their change will be kept on this account.'}
+          {amount ? `${money(amount)} will be kept as credit on their account for next time.` : 'Their change will be kept as credit.'}
         </p>
 
         <div className="mt-4 flex flex-col gap-3">

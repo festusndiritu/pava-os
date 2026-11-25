@@ -200,7 +200,7 @@ export function ReturnDialog({ onClose, onCompleted }: { onClose: () => void; on
                               type="button"
                               aria-label="Less"
                               onClick={() => setQty(item.documentItemId, picked - 1, item.qtyReturnable)}
-                              className="flex h-10 w-10 items-center justify-center"
+                              className="flex h-10 w-10 pointer-coarse:h-11 pointer-coarse:w-11 items-center justify-center"
                               style={{ color: 'var(--color-ink-600)' }}
                             >
                               <Minus size={14} strokeWidth={2} />
@@ -217,7 +217,7 @@ export function ReturnDialog({ onClose, onCompleted }: { onClose: () => void; on
                               type="button"
                               aria-label="More"
                               onClick={() => setQty(item.documentItemId, picked + 1, item.qtyReturnable)}
-                              className="flex h-10 w-10 items-center justify-center"
+                              className="flex h-10 w-10 pointer-coarse:h-11 pointer-coarse:w-11 items-center justify-center"
                               style={{ color: 'var(--color-ink-600)' }}
                             >
                               <Plus size={14} strokeWidth={2} />

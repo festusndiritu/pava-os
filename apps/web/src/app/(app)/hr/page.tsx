@@ -156,7 +156,7 @@ export default function HrPage() {
             style={inputStyle}
           />
           {search && (
-            <button type="button" aria-label="Clear search" onClick={() => setSearch('')} className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md" style={{ color: 'var(--color-ink-600)' }}>
+            <button type="button" aria-label="Clear search" onClick={() => setSearch('')} className="absolute right-1 top-1/2 flex icon-btn -translate-y-1/2 items-center justify-center rounded-md" style={{ color: 'var(--color-ink-600)' }}>
               <X size={14} strokeWidth={2} />
             </button>
           )}
@@ -168,7 +168,7 @@ export default function HrPage() {
               type="button"
               aria-pressed={status === t.key}
               onClick={() => setStatus(t.key)}
-              className="min-h-9 rounded px-2.5 text-xs font-medium transition-colors"
+              className="min-h-9 pointer-coarse:min-h-11 rounded px-2.5 text-xs font-medium transition-colors"
               style={{ backgroundColor: status === t.key ? 'var(--color-accent-soft)' : 'transparent', color: status === t.key ? 'var(--color-accent)' : 'var(--color-ink-600)' }}
             >
               {t.label}

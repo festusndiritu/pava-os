@@ -167,7 +167,7 @@ export function QuickCalculator() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label="Quick calculator"
-        className="flex h-8 w-8 items-center justify-center rounded-md transition-colors"
+        className="flex icon-btn items-center justify-center rounded-md transition-colors"
         style={{ backgroundColor: open ? 'var(--color-bg)' : 'transparent', color: 'var(--color-ink-600)' }}
       >
         <CalculatorIcon size={17} strokeWidth={2} />

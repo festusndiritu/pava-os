@@ -63,7 +63,7 @@ function SortButton<T>({ column, sort, onSortChange }: { column: Column<T>; sort
       type="button"
       onClick={() => onSortChange({ id: column.id, dir: next })}
       title={`Sort by ${name}, ${next === 'asc' ? 'ascending' : 'descending'}`}
-      className="-mx-1.5 inline-flex min-h-8 items-center gap-1 rounded px-1.5 font-medium transition-colors hover:bg-[var(--color-border)]"
+      className="-mx-1.5 inline-flex min-h-8 pointer-coarse:min-h-11 items-center gap-1 rounded px-1.5 font-medium transition-colors hover:bg-[var(--color-border)]"
       style={{ color: active ? 'var(--color-ink-900)' : 'var(--color-ink-600)' }}
     >
       {column.header}
@@ -197,7 +197,7 @@ export function DataTable<T>({
         {error}
       </p>
       {onRetry && (
-        <button type="button" onClick={onRetry} className="min-h-10 rounded-md border px-3 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
+        <button type="button" onClick={onRetry} className="min-h-10 pointer-coarse:min-h-11 rounded-md border px-3 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
           Try again
         </button>
       )}
@@ -231,7 +231,7 @@ export function DataTable<T>({
           )}
           <div className="ml-auto flex flex-wrap items-center gap-2">
             {bulkActions}
-            <button type="button" onClick={selection.clear} className="min-h-10 rounded-md px-3 text-sm font-medium" style={{ color: 'var(--color-ink-600)' }}>
+            <button type="button" onClick={selection.clear} className="min-h-10 pointer-coarse:min-h-11 rounded-md px-3 text-sm font-medium" style={{ color: 'var(--color-ink-600)' }}>
               Clear selection
             </button>
           </div>

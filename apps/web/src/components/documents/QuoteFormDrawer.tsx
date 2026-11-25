@@ -8,10 +8,10 @@ import { customersApi, type Customer } from '../../lib/customers-api';
 import { canEditQuote, documentsApi, type CreateDocumentInput, type SaleDocument } from '../../lib/documents-api';
 import type { Product } from '../../lib/products-api';
 import { ApiError } from '../../lib/api';
-import { TransportDialog, type TransportSettings } from '../pos/TransportDialog';
+import { TransportDialog, transportFromDoc, type TransportSettings } from '../pos/TransportDialog';
 import { NumericInput, toNumber } from '../ui/inputs';
 import { fmtNumber } from '../../lib/format';
-import { toast } from '../ui/Toast';
+import { removeWithUndo, toast } from '../ui/Toast';
 
 interface Line {
   product: Product;
@@ -103,19 +103,7 @@ export function QuoteFormDrawer({
           setWalkinName(doc.customerName ?? '');
         }
         setLines(doc.items.map((i) => ({ product: i.product!, qty: String(i.qty), unitPrice: String(negotiatedUnitPrice(doc, i)) })));
-        const folded = doc.transportMode === 'DISTRIBUTED';
-        if (doc.transportAmount > 0) {
-          const absorbing = doc.items.filter((i) => i.transportAllocated > 0).map((i) => i.productId!);
-          setTransport({
-            amount: doc.transportAmount,
-            allocation: 'QUANTITY',
-            applyTo: folded && absorbing.length > 0 ? absorbing : doc.items.map((i) => i.productId!),
-            manualAllocations: {},
-            fold: folded,
-          });
-        } else {
-          setTransport(null);
-        }
+        setTransport(transportFromDoc(doc));
         setNotes(doc.notes ?? '');
         setDiscountInput(doc.discount > 0 ? String(doc.discount) : '');
       })
@@ -284,10 +272,10 @@ export function QuoteFormDrawer({
                   </p>
                   <button
                     type="button"
-                    onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))}
+                    onClick={() => removeWithUndo(lines, i, line.product.displayName ?? line.product.name, setLines)}
                     aria-label={`Remove ${line.product.displayName ?? line.product.name}`}
                     title="Remove line"
-                    className="-mr-1 -mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-md"
+                    className="-mr-1 -mt-1 flex h-10 w-10 pointer-coarse:h-11 pointer-coarse:w-11 shrink-0 items-center justify-center rounded-md"
                     style={{ color: 'var(--color-status-bad)' }}
                   >
                     <Trash2 size={16} strokeWidth={2} />
@@ -296,7 +284,7 @@ export function QuoteFormDrawer({
                 <div className="flex flex-wrap items-end gap-3">
                   <label className="flex flex-col gap-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>
                     Qty
-                    <NumericInput min={1} aria-label="Quantity" value={line.qty} onChange={(v) => setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, qty: v } : l)))} className="min-h-10 w-20 rounded border px-2 text-sm data-num" style={inputStyle} />
+                    <NumericInput min={1} aria-label="Quantity" value={line.qty} onChange={(v) => setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, qty: v } : l)))} className="min-h-10 pointer-coarse:min-h-11 w-20 rounded border px-2 text-sm data-num" style={inputStyle} />
                   </label>
                   <label className="flex flex-col gap-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>
                     Unit price
@@ -304,7 +292,7 @@ export function QuoteFormDrawer({
                       aria-label="Unit price"
                       value={line.unitPrice}
                       onChange={(v) => setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, unitPrice: v } : l)))}
-                      className="min-h-10 w-28 rounded border px-2 text-sm data-num"
+                      className="min-h-10 pointer-coarse:min-h-11 w-28 rounded border px-2 text-sm data-num"
                       style={inputStyle}
                       title="Final negotiated price."
                     />

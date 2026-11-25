@@ -210,7 +210,7 @@ export function DocumentDetailDrawer({
                         value={agreed}
                         onChange={setAgreed}
                         placeholder={money(doc.total)}
-                        className="data-num min-h-10 w-full rounded-md border px-3 text-sm"
+                        className="data-num min-h-10 pointer-coarse:min-h-11 w-full rounded-md border px-3 text-sm"
                         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}
                       />
                       {settleDiscount > 0 && (
@@ -224,7 +224,7 @@ export function DocumentDetailDrawer({
                       type="button"
                       disabled={busy || !!settling.problem}
                       onClick={() => runAction(() => documentsApi.markPaid(doc.id, { paymentMethod: settling.method, payments: settling.tenders, changeAction: settling.changeAction, leaveBalance: settling.balanceLeft > 0 || undefined, discount: settleDiscount > 0 ? doc.discount + settleDiscount : undefined }))}
-                      className="min-h-10 rounded-md px-3 text-sm font-semibold text-on-accent disabled:opacity-60"
+                      className="min-h-10 pointer-coarse:min-h-11 rounded-md px-3 text-sm font-semibold text-on-accent disabled:opacity-60"
                       style={{ backgroundColor: 'var(--color-accent)' }}
                     >
                       {settling.problem ?? `Mark paid · ${money(settleTotal)}`}

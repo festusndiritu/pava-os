@@ -118,7 +118,7 @@ export function AdminLoginForm({
             type="button"
             onClick={() => setShowPassword((visible) => !visible)}
             aria-label={showPassword ? 'Hide password' : 'Show password'}
-            className="absolute right-2.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded transition-colors"
+            className="absolute right-2.5 top-1/2 flex icon-btn -translate-y-1/2 items-center justify-center rounded transition-colors"
             style={{ color: 'var(--color-ink-600)' }}
           >
             {showPassword ? (

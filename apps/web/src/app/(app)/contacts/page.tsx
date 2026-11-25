@@ -121,7 +121,7 @@ export default function ContactsPage() {
   ];
 
   const bulkActions = (
-    <button type="button" onClick={() => exportRows(selection.items, 'contacts-selected')} className="flex min-h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium" style={buttonStyle}>
+    <button type="button" onClick={() => exportRows(selection.items, 'contacts-selected')} className="flex min-h-10 pointer-coarse:min-h-11 items-center gap-1.5 rounded-md border px-3 text-sm font-medium" style={buttonStyle}>
       <Download size={14} strokeWidth={2} />
       Export selected
     </button>
@@ -139,7 +139,7 @@ export default function ContactsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button type="button" onClick={exportAll} disabled={exporting || !contacts || contacts.length === 0} className="flex min-h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium disabled:opacity-50" style={buttonStyle}>
+          <button type="button" onClick={exportAll} disabled={exporting || !contacts || contacts.length === 0} className="flex min-h-10 pointer-coarse:min-h-11 items-center gap-1.5 rounded-md border px-3 text-sm font-medium disabled:opacity-50" style={buttonStyle}>
             <Download size={15} strokeWidth={2} />
             {exporting ? 'Exporting…' : 'Export CSV'}
           </button>
@@ -149,7 +149,7 @@ export default function ContactsPage() {
               setEditing(null);
               setFormOpen(true);
             }}
-            className="flex min-h-10 items-center gap-1.5 rounded-md px-3.5 text-sm font-medium text-on-accent"
+            className="flex min-h-10 pointer-coarse:min-h-11 items-center gap-1.5 rounded-md px-3.5 text-sm font-medium text-on-accent"
             style={{ backgroundColor: 'var(--color-accent)' }}
           >
             <Plus size={15} strokeWidth={2} />
@@ -170,7 +170,7 @@ export default function ContactsPage() {
           style={inputStyle}
         />
         {search && (
-          <button type="button" aria-label="Clear search" onClick={() => setSearch('')} className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md" style={{ color: 'var(--color-ink-600)' }}>
+          <button type="button" aria-label="Clear search" onClick={() => setSearch('')} className="absolute right-1 top-1/2 flex icon-btn -translate-y-1/2 items-center justify-center rounded-md" style={{ color: 'var(--color-ink-600)' }}>
             <X size={14} strokeWidth={2} />
           </button>
         )}

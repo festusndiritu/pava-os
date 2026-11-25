@@ -179,7 +179,7 @@ export function CustomerDetailDrawer({
                   {money(-customer.creditBalance)}
                 </p>
                 {isAdmin && customer.active && (
-                  <button type="button" onClick={() => setAction('release')} className="mt-2 min-h-9 rounded-md border px-3 text-xs font-medium" style={{ borderColor: 'var(--color-status-ok)', color: 'var(--color-status-ok)' }}>
+                  <button type="button" onClick={() => setAction('release')} className="mt-2 min-h-9 pointer-coarse:min-h-11 rounded-md border px-3 text-xs font-medium" style={{ borderColor: 'var(--color-status-ok)', color: 'var(--color-status-ok)' }}>
                     Release credit
                   </button>
                 )}

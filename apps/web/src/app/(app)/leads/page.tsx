@@ -183,7 +183,7 @@ export default function LeadsPage() {
           {lead.phone ? (
             <div className="flex items-center gap-2">
               <a href={`tel:${lead.phone}`} className="hover:underline" style={{ color: 'var(--color-ink-900)' }}>{lead.phone}</a>
-              <a href={waHref(lead.phone)} target="_blank" rel="noreferrer" title="Message on WhatsApp" aria-label={`Message ${lead.name} on WhatsApp`} className="flex h-7 w-7 items-center justify-center rounded-md border" style={{ borderColor: 'var(--color-border)', color: 'var(--color-status-ok)' }}>
+              <a href={waHref(lead.phone)} target="_blank" rel="noreferrer" title="Message on WhatsApp" aria-label={`Message ${lead.name} on WhatsApp`} className="flex icon-btn items-center justify-center rounded-md border" style={{ borderColor: 'var(--color-border)', color: 'var(--color-status-ok)' }}>
                 <MessageCircle size={13} strokeWidth={2} />
               </a>
             </div>
@@ -254,14 +254,14 @@ export default function LeadsPage() {
   const buttonStyle = { borderColor: 'var(--color-border)', color: 'var(--color-ink-900)', backgroundColor: 'var(--color-surface)' };
   const bulkActions = (
     <>
-      <button type="button" onClick={() => exportRows(selection.items)} className="flex min-h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium" style={buttonStyle}>
+      <button type="button" onClick={() => exportRows(selection.items)} className="flex min-h-10 pointer-coarse:min-h-11 items-center gap-1.5 rounded-md border px-3 text-sm font-medium" style={buttonStyle}>
         <Download size={14} strokeWidth={2} />
         Export selected
       </button>
       <button
         type="button"
         onClick={() => setBulkConfirm(tab === 'archived' ? 'restore' : 'archive')}
-        className="flex min-h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium"
+        className="flex min-h-10 pointer-coarse:min-h-11 items-center gap-1.5 rounded-md border px-3 text-sm font-medium"
         style={{ ...buttonStyle, color: tab === 'archived' ? 'var(--color-accent)' : 'var(--color-status-bad)' }}
       >
         {tab === 'archived' ? <RotateCcw size={14} strokeWidth={2} /> : <Archive size={14} strokeWidth={2} />}
@@ -312,7 +312,7 @@ export default function LeadsPage() {
             key={t.key}
             type="button"
             onClick={() => setTab(t.key)}
-            className="flex min-h-9 items-center gap-1.5 rounded-md border px-3 text-sm font-medium"
+            className="flex min-h-9 pointer-coarse:min-h-11 items-center gap-1.5 rounded-md border px-3 text-sm font-medium"
             style={{
               borderColor: tab === t.key ? 'var(--color-accent)' : 'var(--color-border)',
               backgroundColor: tab === t.key ? 'var(--color-accent-soft)' : 'transparent',
@@ -341,7 +341,7 @@ export default function LeadsPage() {
           style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}
         />
         {search && (
-          <button type="button" aria-label="Clear search" onClick={() => setSearch('')} className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md" style={{ color: 'var(--color-ink-600)' }}>
+          <button type="button" aria-label="Clear search" onClick={() => setSearch('')} className="absolute right-1 top-1/2 flex icon-btn -translate-y-1/2 items-center justify-center rounded-md" style={{ color: 'var(--color-ink-600)' }}>
             <X size={14} strokeWidth={2} />
           </button>
         )}

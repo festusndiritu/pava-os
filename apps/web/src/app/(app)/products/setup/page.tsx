@@ -39,7 +39,7 @@ export default function CatalogueSetupPage() {
             role="tab"
             aria-selected={tab === t.id}
             onClick={() => setTab(t.id)}
-            className="-mb-px min-h-10 border-b-2 px-3.5 text-sm font-medium"
+            className="-mb-px min-h-10 pointer-coarse:min-h-11 border-b-2 px-3.5 text-sm font-medium"
             style={{ borderColor: tab === t.id ? 'var(--color-accent)' : 'transparent', color: tab === t.id ? 'var(--color-ink-900)' : 'var(--color-ink-600)' }}
           >
             {t.label}

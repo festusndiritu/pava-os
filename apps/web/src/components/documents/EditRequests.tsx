@@ -2,10 +2,12 @@
 
 import { lineLabel } from '../../lib/line-label';
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Plus, X } from 'lucide-react';
+import { Check, Plus, Truck, Warehouse, X } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { NumericInput } from '../ui/inputs';
 import { ProductPicker } from '../products/ProductPicker';
+import { FulfilmentDialog, type FulfilmentLine } from './FulfilmentDialog';
+import { TransportDialog, transportFromDoc, type TransportSettings } from '../pos/TransportDialog';
 import { toast } from '../ui/Toast';
 import { ApiError } from '../../lib/api';
 import { documentsApi, type EditRequest, type SaleDocument } from '../../lib/documents-api';
@@ -22,6 +24,8 @@ interface DraftLine {
   description: string;
   qty: string;
   unitPrice: string;
+  unit: string;
+  shelf: number;
 }
 
 // An existing line's price before transport was folded into it.
@@ -39,20 +43,47 @@ export function EditRequestDialog({ doc, onClose, onSent }: { doc: SaleDocument;
       description: i.description,
       qty: String(i.qty),
       unitPrice: String(negotiatedUnit(doc, i)),
+      unit: i.product?.unit?.symbol ?? '',
+      shelf: Math.max(0, i.product?.stockQuantity ?? 0),
     })),
   );
-  const [transport, setTransport] = useState(String(doc.transportAmount || ''));
+  const [transport, setTransport] = useState<TransportSettings | null>(() => transportFromDoc(doc));
+  // Stays null until the cashier confirms the fulfilment dialog; until then the server keeps the recorded split.
+  const [sourcing, setSourcing] = useState<FulfilmentLine[] | null>(null);
+  const [dialog, setDialog] = useState<'fulfilment' | 'transport' | null>(null);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
-  const itemized = doc.transportMode === 'ITEMIZED';
 
   const num = (s: string) => parseInt(s, 10) || 0;
-  const estimate = useMemo(() => lines.reduce((sum, l) => sum + num(l.qty) * num(l.unitPrice), 0) + num(transport), [lines, transport]);
+  const estimate = useMemo(() => lines.reduce((sum, l) => sum + num(l.qty) * num(l.unitPrice), 0) + (transport?.amount ?? 0), [lines, transport]);
   const valid = lines.length > 0 && lines.every((l) => num(l.qty) >= 1 && l.unitPrice !== '') && reason.trim().length >= 3;
 
   function patch(key: string, change: Partial<DraftLine>) {
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...change } : l)));
   }
+
+  // The split each product line shows now: what the cashier chose, else the recorded one, with added units from the shop while it has stock.
+  function fulfilmentRows(): FulfilmentLine[] {
+    const shelf = new Map<string, number>();
+    return lines.flatMap((l) => {
+      if (!l.productId) return [];
+      const qty = num(l.qty);
+      const old = doc.items.find((i) => i.id === l.itemId);
+      const taken = old ? (old.stockQty ?? old.qty) : 0;
+      const delta = qty - (old?.qty ?? 0);
+      const room = shelf.get(l.productId) ?? l.shelf;
+      const chosen = sourcing?.find((r) => r.key === l.key);
+      const stockQty = chosen
+        ? Math.min(chosen.stockQty, qty)
+        : delta >= 0
+          ? Math.min(qty, taken + Math.min(delta, room))
+          : qty - Math.max(0, (old?.qty ?? 0) - taken + delta);
+      shelf.set(l.productId, room - Math.max(0, stockQty - taken));
+      return [{ key: l.key, name: l.description, unit: l.unit, qty, available: room + taken, stockQty, supplierSource: chosen?.supplierSource ?? old?.supplierSource ?? '' }];
+    });
+  }
+  const elsewhere = fulfilmentRows().filter((r) => r.stockQty < r.qty).length;
+  const productIds = lines.flatMap((l) => (l.productId ? [l.productId] : []));
 
   async function submit() {
     setBusy(true);
@@ -67,8 +98,14 @@ export function EditRequestDialog({ doc, onClose, onSent }: { doc: SaleDocument;
           qty: num(l.qty),
           unitPrice: num(l.unitPrice),
         })),
-        transportAmount: num(transport) || undefined,
-        foldTransportIntoPrices: !itemized,
+        transportAmount: transport?.amount || undefined,
+        transportAllocation: 'QUANTITY',
+        transportApplyTo: transport ? (transport.applyTo.some((id) => productIds.includes(id)) ? transport.applyTo.filter((id) => productIds.includes(id)) : productIds) : undefined,
+        foldTransportIntoPrices: transport?.fold ?? true,
+        lineSourcing: sourcing?.flatMap((r) => {
+          const index = lines.findIndex((l) => l.key === r.key);
+          return index < 0 ? [] : [{ index, stockQty: Math.min(r.stockQty, num(lines[index].qty)), supplierSource: r.supplierSource.trim() || undefined }];
+        }),
       });
       toast.success('Sent for admin approval');
       onSent();
@@ -81,12 +118,13 @@ export function EditRequestDialog({ doc, onClose, onSent }: { doc: SaleDocument;
   }
 
   return (
+    <>
     <Modal onClose={onClose} label="Request an edit" className="p-5 sm:max-w-lg">
       <h2 className="text-base font-semibold" style={{ color: 'var(--color-ink-900)' }}>
         Request an edit
       </h2>
       <p className="mt-1 text-sm" style={muted}>
-        Change quantities, items, add/remove items or fix transport.
+        Change quantities, items, where goods come from or transport.
       </p>
 
       <div className="mt-4 flex max-h-[45vh] flex-col gap-2 overflow-y-auto">
@@ -103,11 +141,11 @@ export function EditRequestDialog({ doc, onClose, onSent }: { doc: SaleDocument;
             <div className="mt-2 grid grid-cols-2 gap-2">
               <label className="text-xs" style={muted}>
                 Qty
-                <NumericInput value={l.qty} onChange={(qty) => patch(l.key, { qty })} min={1} className="data-num mt-1 min-h-10 w-full rounded-md border px-2 text-right text-sm" style={inputStyle} />
+                <NumericInput value={l.qty} onChange={(qty) => patch(l.key, { qty })} min={1} className="data-num mt-1 min-h-10 pointer-coarse:min-h-11 w-full rounded-md border px-2 text-right text-sm" style={inputStyle} />
               </label>
               <label className="text-xs" style={muted}>
                 Unit price
-                <NumericInput value={l.unitPrice} onChange={(unitPrice) => patch(l.key, { unitPrice })} className="data-num mt-1 min-h-10 w-full rounded-md border px-2 text-right text-sm" style={inputStyle} />
+                <NumericInput value={l.unitPrice} onChange={(unitPrice) => patch(l.key, { unitPrice })} className="data-num mt-1 min-h-10 pointer-coarse:min-h-11 w-full rounded-md border px-2 text-right text-sm" style={inputStyle} />
               </label>
             </div>
           </div>
@@ -120,15 +158,35 @@ export function EditRequestDialog({ doc, onClose, onSent }: { doc: SaleDocument;
         </p>
         <ProductPicker
           onSelect={(p) =>
-            setLines((prev) => [...prev, { key: `new-${p.id}-${prev.length}`, productId: p.id, description: lineLabel(p), qty: '1', unitPrice: String(p.basePrice) }])
+            setLines((prev) => [
+              ...prev,
+              { key: `new-${p.id}-${prev.length}`, productId: p.id, description: lineLabel(p), qty: '1', unitPrice: String(p.basePrice), unit: p.unit?.symbol ?? '', shelf: Math.max(0, p.stockQuantity) },
+            ])
           }
         />
       </div>
 
-      <label className="mt-4 flex items-center justify-between gap-3 text-sm" style={muted}>
-        Transport{itemized ? ' (own line)' : ''}
-        <NumericInput value={transport} onChange={setTransport} placeholder="0" className="data-num min-h-10 w-36 rounded-md border px-2 text-right" style={inputStyle} />
-      </label>
+      <div className="mt-4 flex flex-col gap-2">
+        {[
+          { id: 'fulfilment', icon: Warehouse, label: 'Fulfilment', value: elsewhere === 0 ? 'All from shop' : `${elsewhere} from elsewhere`, warn: elsewhere > 0, off: productIds.length === 0 },
+          { id: 'transport', icon: Truck, label: 'Transport', value: transport ? money(transport.amount) : '+ Add', warn: false, off: productIds.length === 0 },
+        ].map((r) => (
+          <button
+            key={r.id}
+            type="button"
+            disabled={r.off}
+            onClick={() => setDialog(r.id as 'fulfilment' | 'transport')}
+            className="flex min-h-10 pointer-coarse:min-h-11 items-center justify-between rounded-md border px-3 text-sm disabled:opacity-50"
+            style={{ borderColor: r.warn ? 'var(--color-status-warn)' : 'var(--color-border)', color: r.warn ? 'var(--color-status-warn)' : 'var(--color-ink-600)' }}
+          >
+            <span className="flex items-center gap-1.5">
+              <r.icon size={14} strokeWidth={2} />
+              {r.label}
+            </span>
+            <span className="data-num">{r.value}</span>
+          </button>
+        ))}
+      </div>
 
       <label className="mt-3 block text-xs font-medium" style={muted}>
         Why is this being corrected?
@@ -143,14 +201,38 @@ export function EditRequestDialog({ doc, onClose, onSent }: { doc: SaleDocument;
       </div>
 
       <div className="mt-4 flex gap-2">
-        <button type="button" onClick={onClose} className="min-h-10 flex-1 rounded-md border px-3 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
+        <button type="button" onClick={onClose} className="min-h-10 pointer-coarse:min-h-11 flex-1 rounded-md border px-3 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
           Cancel
         </button>
-        <button type="button" disabled={!valid || busy} onClick={submit} className="min-h-10 flex-1 rounded-md px-3 text-sm font-semibold text-on-accent disabled:opacity-50" style={{ backgroundColor: 'var(--color-accent)' }}>
+        <button type="button" disabled={!valid || busy} onClick={submit} className="min-h-10 pointer-coarse:min-h-11 flex-1 rounded-md px-3 text-sm font-semibold text-on-accent disabled:opacity-50" style={{ backgroundColor: 'var(--color-accent)' }}>
           {busy ? 'Sending…' : 'Send for approval'}
         </button>
       </div>
     </Modal>
+    {dialog === 'fulfilment' && (
+      <FulfilmentDialog
+        title="Where does this order come from?"
+        lines={fulfilmentRows()}
+        confirmLabel="Save"
+        onCancel={() => setDialog(null)}
+        onConfirm={(rows) => {
+          setSourcing(rows);
+          setDialog(null);
+        }}
+      />
+    )}
+    {dialog === 'transport' && (
+      <TransportDialog
+        lines={lines.flatMap((l) => (l.productId ? [{ product: { id: l.productId, name: l.description, displayName: null }, qty: num(l.qty), unitPrice: num(l.unitPrice), discount: 0 }] : []))}
+        initial={transport}
+        onClose={() => setDialog(null)}
+        onApply={(t) => {
+          setTransport(t.amount > 0 ? t : null);
+          setDialog(null);
+        }}
+      />
+    )}
+    </>
   );
 }
 
@@ -248,6 +330,14 @@ export function EditRequestCard({
             <p key={i}>{l}</p>
           ))}
           {(request.changes.transportAmount ?? 0) > 0 && <p>Transport {money(request.changes.transportAmount ?? 0)}</p>}
+          {(request.changes.lineSourcing ?? []).map((s) => {
+            const l = request.changes.after?.[s.index];
+            return l && s.stockQty < l.qty ? (
+              <p key={s.index}>
+                {l.qty - s.stockQty} × {l.description} from elsewhere{s.supplierSource ? ` (${s.supplierSource})` : ''}
+              </p>
+            ) : null;
+          })}
         </div>
       </div>
 
@@ -274,7 +364,7 @@ export function EditRequestCard({
                   key={m}
                   type="button"
                   onClick={() => setSettlement(m)}
-                  className="min-h-8 rounded-md border px-2 font-medium"
+                  className="min-h-8 pointer-coarse:min-h-11 rounded-md border px-2 font-medium"
                   style={{
                     borderColor: settlement === m ? 'var(--color-accent)' : 'var(--color-border)',
                     color: settlement === m ? 'var(--color-accent)' : 'var(--color-ink-600)',
@@ -288,7 +378,7 @@ export function EditRequestCard({
           {shortfalls && (
             <div className="flex flex-col gap-2 rounded-md border p-2 text-xs" style={{ borderColor: 'var(--color-status-warn)', color: 'var(--color-ink-900)' }}>
               <p>
-                Not enough stock: {shortfalls.map((s) => `${s.name} (need ${s.requested}, have ${s.available})`).join(', ')}. Choose how much comes from the shop shelf; the rest is marked as sourced elsewhere.
+                Not enough stock: {shortfalls.map((s) => `${s.name} (need ${s.requested}, have ${s.available})`).join(', ')}. Choose how much comes from the shop; the rest is marked as from elsewhere.
               </p>
               {lines.map((l) => {
                 const value = fromShop[l.index] ?? l.suggested;
@@ -305,26 +395,26 @@ export function EditRequestCard({
                         min={l.min}
                         max={l.qty}
                         aria-label={`${l.name} from shop`}
-                        className="data-num min-h-9 w-20 rounded-md border px-2 text-right text-sm"
+                        className="data-num min-h-9 pointer-coarse:min-h-11 w-20 rounded-md border px-2 text-right text-sm"
                         style={inputStyle}
                       />
                     </label>
-                    <button type="button" onClick={() => setFromShop((f) => ({ ...f, [l.index]: l.min }))} className="min-h-9 rounded-md border px-2 font-medium" style={{ borderColor: 'var(--color-border)' }}>
+                    <button type="button" onClick={() => setFromShop((f) => ({ ...f, [l.index]: l.min }))} className="min-h-9 pointer-coarse:min-h-11 rounded-md border px-2 font-medium" style={{ borderColor: 'var(--color-border)' }}>
                       None from shop
                     </button>
                     <span style={muted}>{l.qty - value} from elsewhere</span>
                   </div>
                 );
               })}
-              <input value={source} onChange={(e) => setSource(e.target.value)} placeholder="Sourced from (optional)" maxLength={120} className="min-h-9 rounded-md border px-2 text-sm" style={inputStyle} />
+              <input value={source} onChange={(e) => setSource(e.target.value)} placeholder="Collect from (optional)" maxLength={120} className="min-h-9 pointer-coarse:min-h-11 rounded-md border px-2 text-sm" style={inputStyle} />
             </div>
           )}
-          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional)" maxLength={500} className="min-h-9 rounded-md border px-2 text-sm" style={inputStyle} />
+          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional)" maxLength={500} className="min-h-9 pointer-coarse:min-h-11 rounded-md border px-2 text-sm" style={inputStyle} />
           <div className="flex gap-2">
-            <button type="button" disabled={busy} onClick={() => decide(false)} className="flex min-h-9 flex-1 items-center justify-center gap-1 rounded-md border px-3 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-status-bad)' }}>
+            <button type="button" disabled={busy} onClick={() => decide(false)} className="flex min-h-9 pointer-coarse:min-h-11 flex-1 items-center justify-center gap-1 rounded-md border px-3 text-sm font-medium disabled:opacity-60" style={{ borderColor: 'var(--color-border)', color: 'var(--color-status-bad)' }}>
               <X size={14} /> Reject
             </button>
-            <button type="button" disabled={busy} onClick={() => decide(true)} className="flex min-h-9 flex-1 items-center justify-center gap-1 rounded-md px-3 text-sm font-semibold text-on-accent disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
+            <button type="button" disabled={busy} onClick={() => decide(true)} className="flex min-h-9 pointer-coarse:min-h-11 flex-1 items-center justify-center gap-1 rounded-md px-3 text-sm font-semibold text-on-accent disabled:opacity-60" style={{ backgroundColor: 'var(--color-accent)' }}>
               <Check size={14} /> {shortfalls ? 'Approve anyway' : 'Approve'}
             </button>
           </div>

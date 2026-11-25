@@ -82,7 +82,7 @@ function DrawerPanel({
               type="button"
               onClick={requestClose}
               aria-label="Close"
-              className="flex h-7 w-7 items-center justify-center rounded-md"
+              className="flex icon-btn items-center justify-center rounded-md"
               style={{ color: 'var(--color-ink-600)' }}
             >
               <X size={16} strokeWidth={2} />

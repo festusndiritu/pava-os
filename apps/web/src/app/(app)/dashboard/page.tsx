@@ -160,7 +160,7 @@ export default function DashboardPage() {
             type="button"
             onClick={() => void load()}
             disabled={refreshing}
-            className="min-h-10 rounded-lg border px-3.5 text-sm font-medium disabled:opacity-60"
+            className="min-h-10 pointer-coarse:min-h-11 rounded-lg border px-3.5 text-sm font-medium disabled:opacity-60"
             style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)', backgroundColor: 'var(--color-surface)' }}
           >
             {refreshing ? 'Trying…' : 'Try again'}

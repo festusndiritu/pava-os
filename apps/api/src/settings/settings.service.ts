@@ -1,17 +1,23 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import type { BusinessSetting } from '../../generated/prisma/client.js';
 
 const SINGLETON_ID = 'singleton';
+const CACHE_TTL_MS = 60_000;
 type DocNumberType = 'QUOTE' | 'INVOICE' | 'RECEIPT' | 'DELIVERY_NOTE' | 'RETURN';
 
 @Injectable()
 export class SettingsService {
+  private cached: { row: BusinessSetting; at: number } | null = null;
+
   constructor(private prisma: PrismaService) {}
 
+  /** Read on nearly every sale and changed rarely, so it is served from memory; the short TTL bounds staleness across API instances. */
   async get() {
-    const existing = await this.prisma.businessSetting.findUnique({ where: { id: SINGLETON_ID } });
-    if (existing) return existing;
-    return this.prisma.businessSetting.create({ data: { id: SINGLETON_ID } });
+    if (this.cached && Date.now() - this.cached.at < CACHE_TTL_MS) return this.cached.row;
+    const row = await this.prisma.businessSetting.upsert({ where: { id: SINGLETON_ID }, update: {}, create: { id: SINGLETON_ID } });
+    this.cached = { row, at: Date.now() };
+    return row;
   }
 
   async update(data: Partial<{
@@ -33,13 +39,13 @@ export class SettingsService {
     documentFooter: string;
     paymentDetails: string;
   }>) {
-    await this.get();
-    return this.prisma.businessSetting.update({ where: { id: SINGLETON_ID }, data });
+    const row = await this.prisma.businessSetting.upsert({ where: { id: SINGLETON_ID }, update: data, create: { id: SINGLETON_ID, ...data } });
+    this.cached = { row, at: Date.now() };
+    return row;
   }
 
   async nextNumber(type: DocNumberType, client?: any): Promise<string> {
     const db = client ?? this.prisma;
-    await this.get();
     const SEQ_FIELDS: Record<DocNumberType, string> = {
       QUOTE: 'nextQuoteSeq',
       INVOICE: 'nextInvoiceSeq',
@@ -57,11 +63,13 @@ export class SettingsService {
     const field = SEQ_FIELDS[type];
     const prefixField = PREFIX_FIELDS[type];
 
-    const updated = await db.businessSetting.update({
+    const updated = await db.businessSetting.upsert({
       where: { id: SINGLETON_ID },
-      data: { [field]: { increment: 1 } },
+      update: { [field]: { increment: 1 } },
+      create: { id: SINGLETON_ID, [field]: 2 },
     });
 
+    this.cached = null;
     const seq: number = updated[field] - 1;
     const prefix: string = updated[prefixField];
     const year = new Date().getFullYear();

@@ -177,12 +177,12 @@ export function StockLevelsTable({
 
   const bulkActions = (
     <>
-      <button type="button" onClick={() => exportSheet(selection.items)} className="flex min-h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)', backgroundColor: 'var(--color-surface)' }}>
+      <button type="button" onClick={() => exportSheet(selection.items)} className="flex min-h-10 pointer-coarse:min-h-11 items-center gap-1.5 rounded-md border px-3 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)', backgroundColor: 'var(--color-surface)' }}>
         <Download size={14} strokeWidth={2} />
         Export count sheet
       </button>
       {onReceiveMany && (
-        <button type="button" onClick={() => onReceiveMany(selection.items)} className="flex min-h-10 items-center gap-1.5 rounded-md px-3 text-sm font-medium text-on-accent" style={{ backgroundColor: 'var(--color-accent)' }}>
+        <button type="button" onClick={() => onReceiveMany(selection.items)} className="flex min-h-10 pointer-coarse:min-h-11 items-center gap-1.5 rounded-md px-3 text-sm font-medium text-on-accent" style={{ backgroundColor: 'var(--color-accent)' }}>
           <Truck size={14} strokeWidth={2} />
           Receive stock
         </button>
@@ -199,7 +199,7 @@ export function StockLevelsTable({
         {stock === 'restock' && !search && !categoryId ? 'Every product is above the reorder threshold.' : filtersActive ? 'Try a different search, or clear the filters.' : 'Add products in the Products screen.'}
       </p>
       {filtersActive && (
-        <button type="button" onClick={clearFilters} className="mt-3 min-h-10 rounded-md border px-3 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
+        <button type="button" onClick={clearFilters} className="mt-3 min-h-10 pointer-coarse:min-h-11 rounded-md border px-3 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
           Clear filters
         </button>
       )}
@@ -221,7 +221,7 @@ export function StockLevelsTable({
             style={inputStyle}
           />
           {search && (
-            <button type="button" aria-label="Clear search" onClick={() => setSearch('')} className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md" style={{ color: 'var(--color-ink-600)' }}>
+            <button type="button" aria-label="Clear search" onClick={() => setSearch('')} className="absolute right-1 top-1/2 flex icon-btn -translate-y-1/2 items-center justify-center rounded-md" style={{ color: 'var(--color-ink-600)' }}>
               <X size={14} strokeWidth={2} />
             </button>
           )}
@@ -236,7 +236,7 @@ export function StockLevelsTable({
             type="button"
             aria-pressed={stock === c.value}
             onClick={() => onStockChange(c.value)}
-            className="min-h-8 rounded-full border px-3 text-xs font-medium"
+            className="min-h-8 pointer-coarse:min-h-11 rounded-full border px-3 text-xs font-medium"
             style={{
               borderColor: stock === c.value ? 'var(--color-accent)' : 'var(--color-border)',
               backgroundColor: stock === c.value ? 'var(--color-accent-soft)' : 'transparent',
@@ -247,7 +247,7 @@ export function StockLevelsTable({
           </button>
         ))}
         {filtersActive && (
-          <button type="button" onClick={clearFilters} className="ml-1 flex min-h-8 items-center gap-1 rounded-full px-2.5 text-xs font-medium" style={{ color: 'var(--color-ink-600)' }}>
+          <button type="button" onClick={clearFilters} className="ml-1 flex min-h-8 pointer-coarse:min-h-11 items-center gap-1 rounded-full px-2.5 text-xs font-medium" style={{ color: 'var(--color-ink-600)' }}>
             <X size={13} strokeWidth={2} />
             Clear filters
           </button>

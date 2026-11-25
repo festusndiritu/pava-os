@@ -119,7 +119,11 @@ export interface EditRequestInput {
   reason: string;
   items: { itemId?: string; productId?: string; description?: string; qty: number; unitPrice: number }[];
   transportAmount?: number;
+  transportAllocation?: 'QUANTITY';
+  transportApplyTo?: string[];
   foldTransportIntoPrices?: boolean;
+  /** Per line (by position in `items`): how much leaves the shop; the rest is from elsewhere. */
+  lineSourcing?: { index: number; stockQty: number; supplierSource?: string }[];
 }
 
 export interface EditRequest {

@@ -252,7 +252,7 @@ export default function ReportsPage() {
             type="button"
             onClick={exportCurrentTab}
             disabled={rowCount === 0}
-            className="ml-auto flex min-h-9 items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+            className="ml-auto flex min-h-9 pointer-coarse:min-h-11 items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium disabled:opacity-50"
             style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)', backgroundColor: 'var(--color-surface)' }}
           >
             <Download size={14} strokeWidth={2} />
@@ -295,7 +295,7 @@ export default function ReportsPage() {
               type="button"
               aria-pressed={active}
               onClick={() => setTab(key)}
-              className="min-h-9 rounded-md border px-3 text-xs font-medium"
+              className="min-h-9 pointer-coarse:min-h-11 rounded-md border px-3 text-xs font-medium"
               style={{
                 borderColor: active ? 'var(--color-accent)' : 'var(--color-border)',
                 color: active ? 'var(--color-accent)' : 'var(--color-ink-600)',

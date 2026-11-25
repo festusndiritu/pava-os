@@ -44,7 +44,7 @@ import { ApiError } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth-context';
 import { usePersistedState } from '../../../lib/use-persisted-state';
 import { CommittedNumberInput } from '../../../components/ui/inputs';
-import { toast } from '../../../components/ui/Toast';
+import { removeWithUndo, toast } from '../../../components/ui/Toast';
 import { money } from '../../../lib/format';
 
 interface CartLine {
@@ -256,14 +256,7 @@ export default function PosPage() {
 
   function removeLine(productId: string) {
     const index = cart.findIndex((l) => l.product.id === productId);
-    const line = cart[index];
-    if (line) {
-      toast.success(`Removed ${line.product.displayName ?? line.product.name}`, {
-        label: 'Undo',
-        onClick: () => setCart((prev) => [...prev.slice(0, index), line, ...prev.slice(index)]),
-      });
-    }
-    setCart((prev) => prev.filter((l) => l.product.id !== productId));
+    if (index >= 0) removeWithUndo(cart, index, cart[index].product.displayName ?? cart[index].product.name, setCart);
     setSourcing((prev) => {
       const { [productId]: _gone, ...rest } = prev;
       return rest;
@@ -441,10 +434,10 @@ export default function PosPage() {
       if (resumedFromId) await posApi.discardSuspended(resumedFromId).catch(() => {});
       clearCounter();
       setSuspendOpen(false);
-      toast.success('Order suspended');
+      toast.success('Order held');
       refreshHeldCount();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Couldn't suspend order");
+      toast.error(err instanceof ApiError ? err.message : "Couldn't hold order");
       setSuspendOpen(false);
     } finally {
       setSubmitting(false);
@@ -507,7 +500,7 @@ export default function PosPage() {
             <button
               type="button"
               onClick={() => setCustomerMode('walkin')}
-              className="min-h-10 flex-1 rounded-md border px-2 text-xs font-medium"
+              className="min-h-10 pointer-coarse:min-h-11 flex-1 rounded-md border px-2 text-xs font-medium"
               style={{ borderColor: customerMode === 'walkin' ? 'var(--color-accent)' : 'var(--color-border)', color: customerMode === 'walkin' ? 'var(--color-accent)' : 'var(--color-ink-600)' }}
             >
               Walk-in
@@ -515,18 +508,18 @@ export default function PosPage() {
             <button
               type="button"
               onClick={() => setCustomerMode('existing')}
-              className="min-h-10 flex-1 rounded-md border px-2 text-xs font-medium"
+              className="min-h-10 pointer-coarse:min-h-11 flex-1 rounded-md border px-2 text-xs font-medium"
               style={{ borderColor: customerMode === 'existing' ? 'var(--color-accent)' : 'var(--color-border)', color: customerMode === 'existing' ? 'var(--color-accent)' : 'var(--color-ink-600)' }}
             >
               Existing customer
             </button>
           </div>
           {customerMode === 'walkin' ? (
-            <input value={walkinName} onChange={(e) => setWalkinName(e.target.value)} placeholder="Customer name (optional)" className="mt-2 min-h-10 w-full rounded-md border px-3 text-sm" style={inputStyle} />
+            <input value={walkinName} onChange={(e) => setWalkinName(e.target.value)} placeholder="Customer name (optional)" className="mt-2 min-h-10 pointer-coarse:min-h-11 w-full rounded-md border px-3 text-sm" style={inputStyle} />
           ) : (
             <div className="relative mt-2">
               {selectedCustomer ? (
-                <div className="flex min-h-10 items-center justify-between rounded-md border px-3 text-sm" style={inputStyle}>
+                <div className="flex min-h-10 pointer-coarse:min-h-11 items-center justify-between rounded-md border px-3 text-sm" style={inputStyle}>
                   <span className="truncate">
                     {selectedCustomer.businessName || selectedCustomer.name}
                     {creditAvailable > 0 && (
@@ -546,7 +539,7 @@ export default function PosPage() {
                 </div>
               ) : (
                 <>
-                  <input value={customerQuery} onChange={(e) => setCustomerQuery(e.target.value)} placeholder="Search customers…" className="min-h-10 w-full rounded-md border px-3 text-sm" style={inputStyle} />
+                  <input value={customerQuery} onChange={(e) => setCustomerQuery(e.target.value)} placeholder="Search customers…" className="min-h-10 pointer-coarse:min-h-11 w-full rounded-md border px-3 text-sm" style={inputStyle} />
                   {customerResults.length > 0 && (
                     <div className={`absolute left-0 right-0 z-10 max-h-44 overflow-y-auto rounded-md border ${down ? 'top-full mt-1' : 'bottom-full mb-1'}`} style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
                       {customerResults.map((c) => (
@@ -617,7 +610,7 @@ export default function PosPage() {
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <div className="flex items-center rounded-md border" style={{ borderColor: 'var(--color-border)' }}>
-                      <button type="button" aria-label="Less" onClick={() => updateLine(l.product.id, { qty: Math.max(1, l.qty - 1) })} className="flex h-10 w-10 items-center justify-center" style={{ color: 'var(--color-ink-600)' }}>
+                      <button type="button" aria-label="Less" onClick={() => updateLine(l.product.id, { qty: Math.max(1, l.qty - 1) })} className="flex h-10 w-10 pointer-coarse:h-11 pointer-coarse:w-11 items-center justify-center" style={{ color: 'var(--color-ink-600)' }}>
                         <Minus size={14} strokeWidth={2} />
                       </button>
                       <CommittedNumberInput
@@ -628,7 +621,7 @@ export default function PosPage() {
                         className="data-num w-12 border-0 bg-transparent text-center text-sm outline-none"
                         style={{ color: 'var(--color-ink-900)' }}
                       />
-                      <button type="button" aria-label="More" onClick={() => updateLine(l.product.id, { qty: l.qty + 1 })} className="flex h-10 w-10 items-center justify-center" style={{ color: 'var(--color-ink-600)' }}>
+                      <button type="button" aria-label="More" onClick={() => updateLine(l.product.id, { qty: l.qty + 1 })} className="flex h-10 w-10 pointer-coarse:h-11 pointer-coarse:w-11 items-center justify-center" style={{ color: 'var(--color-ink-600)' }}>
                         <Plus size={14} strokeWidth={2} />
                       </button>
                     </div>
@@ -637,7 +630,7 @@ export default function PosPage() {
                       min={0}
                       value={l.unitPrice}
                       onCommit={(n) => updateLine(l.product.id, { unitPrice: n })}
-                      className="data-num min-h-10 w-24 rounded-md border px-2 text-sm"
+                      className="data-num min-h-10 pointer-coarse:min-h-11 w-24 rounded-md border px-2 text-sm"
                       style={inputStyle}
                     />
                     <p className="data-num ml-auto text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>
@@ -654,35 +647,30 @@ export default function PosPage() {
     </>
   );
   const fulfilButton = (
-    <>
-        <button
-          type="button"
-          onClick={() => setFulfilmentOpen(true)}
-          disabled={cart.length === 0}
-          className="flex min-h-10 items-center justify-between rounded-md border px-3 text-sm disabled:opacity-50"
-          style={{
-            borderColor: elsewhereLines.length > 0 ? 'var(--color-status-warn)' : 'var(--color-border)',
-            backgroundColor: elsewhereLines.length > 0 ? 'var(--color-status-warnSoft)' : 'transparent',
-            color: elsewhereLines.length > 0 ? 'var(--color-status-warn)' : 'var(--color-ink-600)',
-          }}
-        >
-          <span className="flex items-center gap-1.5">
-            <Warehouse size={14} strokeWidth={2} />
-            Item source
-          </span>
-          <span>
-            {elsewhereLines.length === 0 ? 'All from shop' : `${elsewhereLines.length} from elsewhere`}
-          </span>
-        </button>
-
-    </>
+    <button
+      type="button"
+      onClick={() => setFulfilmentOpen(true)}
+      disabled={cart.length === 0}
+      className="flex min-h-10 pointer-coarse:min-h-11 items-center justify-between rounded-md border px-3 text-sm disabled:opacity-50"
+      style={{
+        borderColor: elsewhereLines.length > 0 ? 'var(--color-status-warn)' : 'var(--color-border)',
+        backgroundColor: elsewhereLines.length > 0 ? 'var(--color-status-warnSoft)' : 'transparent',
+        color: elsewhereLines.length > 0 ? 'var(--color-status-warn)' : 'var(--color-ink-600)',
+      }}
+    >
+      <span className="flex items-center gap-1.5">
+        <Warehouse size={14} strokeWidth={2} />
+        Fulfilment
+      </span>
+      <span>{elsewhereLines.length === 0 ? 'All from shop' : `${elsewhereLines.length} from elsewhere`}</span>
+    </button>
   );
   const transportButton = (
     <>
         <button
           type="button"
           onClick={() => setTransportOpen(true)}
-          className="flex min-h-10 items-center justify-between rounded-md border px-3 text-sm"
+          className="flex min-h-10 pointer-coarse:min-h-11 items-center justify-between rounded-md border px-3 text-sm"
           style={{ borderColor: 'var(--color-border)', color: transport ? 'var(--color-accent)' : 'var(--color-ink-600)' }}
         >
           <span className="flex items-center gap-1.5">
@@ -740,7 +728,7 @@ export default function PosPage() {
             type="button"
             aria-pressed={addBalance}
             onClick={() => setAddBalance((v) => !v)}
-            className="-mt-1 flex min-h-10 items-center justify-between gap-3 rounded-md border px-3 text-left text-sm"
+            className="-mt-1 flex min-h-10 pointer-coarse:min-h-11 items-center justify-between gap-3 rounded-md border px-3 text-left text-sm"
             style={{
               borderColor: addBalance ? 'var(--color-status-warn)' : 'var(--color-border)',
               backgroundColor: addBalance ? 'var(--color-status-warnSoft)' : 'transparent',
@@ -808,8 +796,8 @@ export default function PosPage() {
             <button
               type="button"
               onClick={() => setSuspendOpen(true)}
-              title="Suspend this order"
-              aria-label="Suspend this order"
+              title="Hold this order"
+              aria-label="Hold this order"
               className="flex h-9 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium"
               style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}
             >
@@ -934,7 +922,7 @@ export default function PosPage() {
         </button>
         <button type="button" onClick={() => setSuspendOpen(true)} disabled={cart.length === 0} className={barButton} style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
           <PauseCircle size={17} strokeWidth={2} />
-          Hold cart
+          Hold
         </button>
         {canQuote && (
           <button
@@ -962,7 +950,7 @@ export default function PosPage() {
       <div className="flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
         <Link
           href="/dashboard"
-          className="flex min-h-10 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium"
+          className="flex min-h-10 pointer-coarse:min-h-11 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium"
           style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}
         >
           <ArrowLeft size={15} strokeWidth={2} />
@@ -974,7 +962,7 @@ export default function PosPage() {
             type="button"
             onClick={() => setReturnOpen(true)}
             title="Return items from a previous sale"
-            className="flex min-h-10 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium"
+            className="flex min-h-10 pointer-coarse:min-h-11 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium"
             style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}
           >
             <RotateCcw size={15} strokeWidth={2} />
@@ -983,8 +971,8 @@ export default function PosPage() {
           <button
             type="button"
             onClick={() => setHeldOpen(true)}
-            title="Suspended orders"
-            className="relative flex min-h-10 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium"
+            title="Orders on hold"
+            className="relative flex min-h-10 pointer-coarse:min-h-11 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium"
             style={{ borderColor: heldCount > 0 ? 'var(--color-accent)' : 'var(--color-border)', color: heldCount > 0 ? 'var(--color-accent)' : 'var(--color-ink-900)' }}
           >
             <PauseCircle size={15} strokeWidth={2} />
@@ -1000,7 +988,7 @@ export default function PosPage() {
             onClick={toggleFocusMode}
             aria-label={focusMode ? 'Leave full-screen POS' : 'Full-screen POS'}
             title={focusMode ? 'Leave full-screen POS' : 'Full-screen POS'}
-            className="flex h-10 w-10 items-center justify-center rounded-md border"
+            className="flex h-10 w-10 pointer-coarse:h-11 pointer-coarse:w-11 items-center justify-center rounded-md border"
             style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-600)' }}
           >
             {focusMode ? <Minimize2 size={15} strokeWidth={2} /> : <Maximize2 size={15} strokeWidth={2} />}
@@ -1052,7 +1040,7 @@ export default function PosPage() {
               <button
                 type="button"
                 onClick={() => setActiveCategory(null)}
-                className="min-h-9 shrink-0 rounded-md border px-3 text-xs font-medium"
+                className="min-h-9 pointer-coarse:min-h-11 shrink-0 rounded-md border px-3 text-xs font-medium"
                 style={{ borderColor: activeCategory === null ? 'var(--color-accent)' : 'var(--color-border)', color: activeCategory === null ? 'var(--color-accent)' : 'var(--color-ink-600)' }}
               >
                 All
@@ -1062,7 +1050,7 @@ export default function PosPage() {
                   key={c.id}
                   type="button"
                   onClick={() => setActiveCategory(c.id)}
-                  className="min-h-9 shrink-0 rounded-md border px-3 text-xs font-medium"
+                  className="min-h-9 pointer-coarse:min-h-11 shrink-0 rounded-md border px-3 text-xs font-medium"
                   style={{ borderColor: activeCategory === c.id ? 'var(--color-accent)' : 'var(--color-border)', color: activeCategory === c.id ? 'var(--color-accent)' : 'var(--color-ink-600)' }}
                 >
                   {c.name}
@@ -1212,7 +1200,7 @@ export default function PosPage() {
             setCustomerMode('existing');
             chooseCustomer(c);
             setQuickCustomerOpen(false);
-            toast.success(`${c.businessName || c.name} added — change will be kept on their account`);
+            toast.success(`${c.businessName || c.name} added — change will be kept as credit`);
           }}
         />
       )}

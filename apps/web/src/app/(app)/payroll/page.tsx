@@ -104,7 +104,7 @@ function RunsTab() {
         <button
           type="button"
           onClick={() => setFormOpen(true)}
-          className="flex min-h-10 items-center gap-1.5 rounded-md px-3.5 text-sm font-medium text-on-accent"
+          className="flex min-h-10 pointer-coarse:min-h-11 items-center gap-1.5 rounded-md px-3.5 text-sm font-medium text-on-accent"
           style={{ backgroundColor: 'var(--color-accent)' }}
         >
           <Plus size={15} strokeWidth={2} />
@@ -165,7 +165,7 @@ export default function PayrollPage() {
           type="button"
           aria-pressed={tab === 'runs'}
           onClick={() => setTab('runs')}
-          className="min-h-9 rounded px-3 text-sm font-medium transition-colors"
+          className="min-h-9 pointer-coarse:min-h-11 rounded px-3 text-sm font-medium transition-colors"
           style={{ backgroundColor: tab === 'runs' ? 'var(--color-accent-soft)' : 'transparent', color: tab === 'runs' ? 'var(--color-accent)' : 'var(--color-ink-600)' }}
         >
           Payroll runs
@@ -174,7 +174,7 @@ export default function PayrollPage() {
           type="button"
           aria-pressed={tab === 'advances'}
           onClick={() => setTab('advances')}
-          className="min-h-9 rounded px-3 text-sm font-medium transition-colors"
+          className="min-h-9 pointer-coarse:min-h-11 rounded px-3 text-sm font-medium transition-colors"
           style={{ backgroundColor: tab === 'advances' ? 'var(--color-accent-soft)' : 'transparent', color: tab === 'advances' ? 'var(--color-accent)' : 'var(--color-ink-600)' }}
         >
           Advances

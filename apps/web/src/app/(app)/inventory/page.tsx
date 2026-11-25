@@ -146,13 +146,13 @@ export default function InventoryPage() {
             setReceiptSearch('');
             setKind('');
           }}
-          className="mt-3 min-h-10 rounded-md border px-3 text-sm font-medium"
+          className="mt-3 min-h-10 pointer-coarse:min-h-11 rounded-md border px-3 text-sm font-medium"
           style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}
         >
           Clear filters
         </button>
       ) : (
-        <button type="button" onClick={() => setReceiveOpen(true)} className="mt-3 min-h-10 rounded-md px-3 text-sm font-medium text-on-accent" style={{ backgroundColor: 'var(--color-accent)' }}>
+        <button type="button" onClick={() => setReceiveOpen(true)} className="mt-3 min-h-10 pointer-coarse:min-h-11 rounded-md px-3 text-sm font-medium text-on-accent" style={{ backgroundColor: 'var(--color-accent)' }}>
           Receive inventory
         </button>
       )}
@@ -225,7 +225,7 @@ export default function InventoryPage() {
             setReceiveFor(null);
             setReceiveOpen(true);
           }}
-          className="flex min-h-10 items-center gap-1.5 rounded-md px-3.5 text-sm font-medium text-on-accent"
+          className="flex min-h-10 pointer-coarse:min-h-11 items-center gap-1.5 rounded-md px-3.5 text-sm font-medium text-on-accent"
           style={{ backgroundColor: 'var(--color-accent)' }}
         >
           <Plus size={15} strokeWidth={2} />
@@ -269,7 +269,7 @@ export default function InventoryPage() {
               aria-controls={`inventory-panel-${t.key}`}
               tabIndex={active ? 0 : -1}
               onClick={() => setTab(t.key)}
-              className="flex min-h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium"
+              className="flex min-h-10 pointer-coarse:min-h-11 items-center gap-1.5 rounded-md border px-3 text-sm font-medium"
               style={{
                 borderColor: active ? 'var(--color-accent)' : 'var(--color-border)',
                 backgroundColor: active ? 'var(--color-accent-soft)' : 'transparent',
@@ -327,7 +327,7 @@ export default function InventoryPage() {
                 style={inputStyle}
               />
               {receiptSearch && (
-                <button type="button" aria-label="Clear search" onClick={() => setReceiptSearch('')} className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md" style={{ color: 'var(--color-ink-600)' }}>
+                <button type="button" aria-label="Clear search" onClick={() => setReceiptSearch('')} className="absolute right-1 top-1/2 flex icon-btn -translate-y-1/2 items-center justify-center rounded-md" style={{ color: 'var(--color-ink-600)' }}>
                   <X size={14} strokeWidth={2} />
                 </button>
               )}
@@ -340,7 +340,7 @@ export default function InventoryPage() {
                 type="button"
                 aria-pressed={kind === k.value}
                 onClick={() => setKind(k.value)}
-                className="min-h-8 rounded-full border px-3 text-xs font-medium"
+                className="min-h-8 pointer-coarse:min-h-11 rounded-full border px-3 text-xs font-medium"
                 style={{
                   borderColor: kind === k.value ? 'var(--color-accent)' : 'var(--color-border)',
                   backgroundColor: kind === k.value ? 'var(--color-accent-soft)' : 'transparent',

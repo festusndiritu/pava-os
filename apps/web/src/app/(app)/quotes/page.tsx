@@ -95,7 +95,7 @@ export default function QuotesPage() {
             Quotes not yet converted to invoices.
           </p>
         </div>
-        <button type="button" onClick={() => setFormOpen(true)} className="flex min-h-10 items-center gap-1.5 rounded-md px-3.5 text-sm font-medium text-on-accent" style={{ backgroundColor: 'var(--color-accent)' }}>
+        <button type="button" onClick={() => setFormOpen(true)} className="flex min-h-10 pointer-coarse:min-h-11 items-center gap-1.5 rounded-md px-3.5 text-sm font-medium text-on-accent" style={{ backgroundColor: 'var(--color-accent)' }}>
           <Plus size={15} strokeWidth={2} />
           New quote
         </button>
@@ -114,7 +114,7 @@ export default function QuotesPage() {
           selection={selection}
           selectAllMatching={() => documentsApi.list(filters)}
           bulkActions={
-            <button type="button" onClick={() => exportRows(selection.items)} className="flex min-h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)', backgroundColor: 'var(--color-surface)' }}>
+            <button type="button" onClick={() => exportRows(selection.items)} className="flex min-h-10 pointer-coarse:min-h-11 items-center gap-1.5 rounded-md border px-3 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)', backgroundColor: 'var(--color-surface)' }}>
               <Download size={14} strokeWidth={2} />
               Export selected
             </button>

@@ -58,8 +58,8 @@ export function DeliveryNoteDialog({ doc, onClose }: { doc: SaleDocument; onClos
 
           <div className="flex-1 overflow-y-auto p-4">
             <div className="mb-3 flex flex-col gap-2">
-              <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Delivery location" aria-label="Delivery location" className="min-h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
-              <PhoneInput value={phone} onChange={setPhone} placeholder="Contact phone" aria-label="Contact phone" className="min-h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+              <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Delivery location" aria-label="Delivery location" className="min-h-10 pointer-coarse:min-h-11 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+              <PhoneInput value={phone} onChange={setPhone} placeholder="Contact phone" aria-label="Contact phone" className="min-h-10 pointer-coarse:min-h-11 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
             </div>
             <div className="mx-auto max-w-[320px] rounded-md border" style={{ borderColor: 'var(--color-border)' }}>
               <ThermalDocument vm={vm} variant="preview" />

@@ -339,7 +339,7 @@ function PriceSuggestionDialog({ suggestions, onClose }: { suggestions: ReceiveL
                   type="button"
                   disabled={busyId !== null}
                   onClick={() => apply(s, false)}
-                  className="min-h-10 flex-1 rounded-md border px-3 text-xs font-medium disabled:opacity-60"
+                  className="min-h-10 pointer-coarse:min-h-11 flex-1 rounded-md border px-3 text-xs font-medium disabled:opacity-60"
                   style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}
                 >
                   Keep KSh {fmtNumber(s.currentPrice)}
@@ -348,7 +348,7 @@ function PriceSuggestionDialog({ suggestions, onClose }: { suggestions: ReceiveL
                   type="button"
                   disabled={busyId !== null}
                   onClick={() => apply(s, true)}
-                  className="min-h-10 flex-1 rounded-md px-3 text-xs font-medium text-on-accent disabled:opacity-60"
+                  className="min-h-10 pointer-coarse:min-h-11 flex-1 rounded-md px-3 text-xs font-medium text-on-accent disabled:opacity-60"
                   style={{ backgroundColor: 'var(--color-accent)' }}
                 >
                   {busyId === s.productId ? 'Updating…' : `Update to KSh ${fmtNumber(s.suggestedPrice)}`}

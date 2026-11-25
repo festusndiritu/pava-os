@@ -58,7 +58,7 @@ function Tabs({ value, onChange }: { value: TabKey; onChange: (k: TabKey) => voi
             aria-controls={`product-panel-${t.key}`}
             tabIndex={active ? 0 : -1}
             onClick={() => onChange(t.key)}
-            className="min-h-10 border-b-2 px-1 text-sm font-medium transition-colors"
+            className="min-h-10 pointer-coarse:min-h-11 border-b-2 px-1 text-sm font-medium transition-colors"
             style={{ borderColor: active ? 'var(--color-accent)' : 'transparent', color: active ? 'var(--color-accent)' : 'var(--color-ink-600)' }}
           >
             {t.label}
@@ -305,7 +305,7 @@ export function ProductDetailDrawer({
         {!loading && !product && loadError && (
           <div className="flex flex-col items-start gap-3" role="alert">
             <SectionNote tone="bad">{loadError}</SectionNote>
-            <button type="button" onClick={() => setReloadTick((t) => t + 1)} className="min-h-10 rounded-md border px-3 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
+            <button type="button" onClick={() => setReloadTick((t) => t + 1)} className="min-h-10 pointer-coarse:min-h-11 rounded-md border px-3 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
               Try again
             </button>
           </div>

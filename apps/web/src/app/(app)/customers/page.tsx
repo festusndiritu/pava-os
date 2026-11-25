@@ -201,14 +201,14 @@ export default function CustomersPage() {
   const buttonStyle = { borderColor: 'var(--color-border)', color: 'var(--color-ink-900)', backgroundColor: 'var(--color-surface)' };
   const bulkActions = (
     <>
-      <button type="button" onClick={() => exportRows(selection.items, 'customers-selected')} className="flex min-h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium" style={buttonStyle}>
+      <button type="button" onClick={() => exportRows(selection.items, 'customers-selected')} className="flex min-h-10 pointer-coarse:min-h-11 items-center gap-1.5 rounded-md border px-3 text-sm font-medium" style={buttonStyle}>
         <Download size={14} strokeWidth={2} />
         Export selected
       </button>
       <button
         type="button"
         onClick={() => setBulkConfirm(status === 'active' ? 'archive' : 'restore')}
-        className="flex min-h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium"
+        className="flex min-h-10 pointer-coarse:min-h-11 items-center gap-1.5 rounded-md border px-3 text-sm font-medium"
         style={{ ...buttonStyle, color: status === 'active' ? 'var(--color-status-bad)' : 'var(--color-accent)' }}
       >
         {status === 'active' ? <Archive size={14} strokeWidth={2} /> : <RotateCcw size={14} strokeWidth={2} />}
@@ -244,7 +244,7 @@ export default function CustomersPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button type="button" onClick={exportAll} disabled={exporting || !customers || customers.length === 0} className="flex min-h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium disabled:opacity-50" style={buttonStyle}>
+          <button type="button" onClick={exportAll} disabled={exporting || !customers || customers.length === 0} className="flex min-h-10 pointer-coarse:min-h-11 items-center gap-1.5 rounded-md border px-3 text-sm font-medium disabled:opacity-50" style={buttonStyle}>
             <Download size={15} strokeWidth={2} />
             {exporting ? 'Exporting…' : 'Export CSV'}
           </button>
@@ -254,7 +254,7 @@ export default function CustomersPage() {
               setEditing(null);
               setFormOpen(true);
             }}
-            className="flex min-h-10 items-center gap-1.5 rounded-md px-3.5 text-sm font-medium text-on-accent"
+            className="flex min-h-10 pointer-coarse:min-h-11 items-center gap-1.5 rounded-md px-3.5 text-sm font-medium text-on-accent"
             style={{ backgroundColor: 'var(--color-accent)' }}
           >
             <Plus size={15} strokeWidth={2} />
@@ -270,7 +270,7 @@ export default function CustomersPage() {
             type="button"
             aria-pressed={status === s}
             onClick={() => setStatus(s)}
-            className="min-h-9 rounded-md border px-3 text-sm font-medium"
+            className="min-h-9 pointer-coarse:min-h-11 rounded-md border px-3 text-sm font-medium"
             style={{
               borderColor: status === s ? 'var(--color-accent)' : 'var(--color-border)',
               backgroundColor: status === s ? 'var(--color-accent-soft)' : 'transparent',
@@ -294,7 +294,7 @@ export default function CustomersPage() {
           style={inputStyle}
         />
         {search && (
-          <button type="button" aria-label="Clear search" onClick={() => setSearch('')} className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md" style={{ color: 'var(--color-ink-600)' }}>
+          <button type="button" aria-label="Clear search" onClick={() => setSearch('')} className="absolute right-1 top-1/2 flex icon-btn -translate-y-1/2 items-center justify-center rounded-md" style={{ color: 'var(--color-ink-600)' }}>
             <X size={14} strokeWidth={2} />
           </button>
         )}

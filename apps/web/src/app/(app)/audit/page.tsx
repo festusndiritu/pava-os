@@ -211,7 +211,7 @@ export default function AuditPage() {
             style={filterStyle}
           />
           {filterAction && (
-            <button type="button" aria-label="Clear action filter" onClick={() => setFilterAction('')} className="absolute right-0.5 flex h-8 w-8 items-center justify-center rounded-md" style={{ color: 'var(--color-ink-600)' }}>
+            <button type="button" aria-label="Clear action filter" onClick={() => setFilterAction('')} className="absolute right-0.5 flex icon-btn items-center justify-center rounded-md" style={{ color: 'var(--color-ink-600)' }}>
               <X size={14} strokeWidth={2} />
             </button>
           )}
@@ -229,7 +229,7 @@ export default function AuditPage() {
               setFilterAction('');
               setFilterEntity('');
             }}
-            className="min-h-9 text-sm font-medium"
+            className="min-h-9 pointer-coarse:min-h-11 text-sm font-medium"
             style={{ color: 'var(--color-accent)' }}
           >
             Clear filters

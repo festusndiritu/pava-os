@@ -10,7 +10,7 @@ import { usageLabel } from './LookupManager';
 import { toast } from '../../ui/Toast';
 
 const inputStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' };
-const inputClass = 'min-h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--color-accent)]';
+const inputClass = 'min-h-10 pointer-coarse:min-h-11 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--color-accent)]';
 const labelClass = 'mb-1 block text-xs font-semibold uppercase';
 const labelStyle = { color: 'var(--color-ink-600)', letterSpacing: '0.06em' };
 
@@ -128,7 +128,7 @@ function SymbolPicker({ value, onChange, id }: { value: string; onChange: (v: st
                 placeholder="Custom symbol"
                 aria-label="Custom symbol"
                 maxLength={12}
-                className={`${inputClass} min-h-8`}
+                className={`${inputClass} min-h-8 pointer-coarse:min-h-11`}
                 style={inputStyle}
               />
             ) : (
@@ -298,7 +298,7 @@ function SubUnits({ unit, canEdit, onChanged, onError }: { unit: Unit; canEdit: 
             </label>
             <NumericInput id="unitsmanager-factor" allowDecimal maxDecimals={3} value={factor} onChange={setFactor} placeholder="50" className={`${inputClass} data-num`} style={inputStyle} />
           </div>
-          <button type="submit" disabled={busy || !name.trim() || !toNumber(factor)} className="flex min-h-10 shrink-0 items-center gap-1 rounded-md border px-3 text-sm font-medium disabled:opacity-50" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)', backgroundColor: 'var(--color-surface)' }}>
+          <button type="submit" disabled={busy || !name.trim() || !toNumber(factor)} className="flex min-h-10 pointer-coarse:min-h-11 shrink-0 items-center gap-1 rounded-md border px-3 text-sm font-medium disabled:opacity-50" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)', backgroundColor: 'var(--color-surface)' }}>
             <Plus size={14} strokeWidth={2} />
             Add
           </button>
@@ -417,7 +417,7 @@ export function UnitsManager({ canEdit }: { canEdit: boolean }) {
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Unit name — e.g. Bag" aria-label="New unit name" maxLength={60} className={inputClass} style={inputStyle} />
           </div>
           <SymbolPicker value={symbol} onChange={setSymbol} id="unitsmanager-new-symbol" />
-          <button type="submit" disabled={adding || !name.trim() || !symbol.trim()} className="flex min-h-10 shrink-0 items-center gap-1.5 rounded-md px-3.5 text-sm font-medium text-on-accent disabled:opacity-50" style={{ backgroundColor: 'var(--color-accent)' }}>
+          <button type="submit" disabled={adding || !name.trim() || !symbol.trim()} className="flex min-h-10 pointer-coarse:min-h-11 shrink-0 items-center gap-1.5 rounded-md px-3.5 text-sm font-medium text-on-accent disabled:opacity-50" style={{ backgroundColor: 'var(--color-accent)' }}>
             <Plus size={15} strokeWidth={2} />
             {adding ? 'Adding…' : 'Add'}
           </button>

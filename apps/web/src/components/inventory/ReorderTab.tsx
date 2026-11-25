@@ -196,12 +196,12 @@ export function ReorderTab() {
           {needing.length === 0 ? 'Nothing needs reordering right now.' : `${needing.length} ${needing.length === 1 ? 'item' : 'items'} to reorder`} · worked out from the last 90 days of sales, restock ~{plan.settings.leadTimeDays} days, orders cover {plan.settings.coverDays} days
         </p>
         <div className="flex items-center gap-2">
-          <label className="flex min-h-10 items-center gap-1.5 text-xs" style={{ color: 'var(--color-ink-600)' }}>
+          <label className="flex min-h-10 pointer-coarse:min-h-11 items-center gap-1.5 text-xs" style={{ color: 'var(--color-ink-600)' }}>
             <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} />
             Show items that are fine
           </label>
           {needing.some((i) => i.suggestedQty > 0) && (
-            <button type="button" onClick={copyList} className="flex min-h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
+            <button type="button" onClick={copyList} className="flex min-h-10 pointer-coarse:min-h-11 items-center gap-1.5 rounded-md border px-3 text-sm font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
               <Copy size={14} strokeWidth={2} />
               Copy order list
             </button>

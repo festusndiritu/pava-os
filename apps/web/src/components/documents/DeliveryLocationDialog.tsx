@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Truck } from 'lucide-react';
-import { PhoneInput } from '../ui/inputs';
+import { isValidPhone, PhoneInput } from '../ui/inputs';
 import { Modal } from '../ui/Modal';
 
 /**
@@ -67,7 +67,11 @@ export function DeliveryLocationDialog({
               style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-ink-900)' }}
             />
             <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>
-              Leave blank to use {customerPhone ? "the customer's stored number." : 'no contact number.'}
+              {isValidPhone(phone) ? (
+                <>Leave blank to use {customerPhone ? "the customer's stored number." : 'no contact number.'}</>
+              ) : (
+                <span style={{ color: 'var(--color-status-bad)' }}>Enter 10 digits starting 07 or 01.</span>
+              )}
             </p>
           </div>
         </div>
@@ -85,7 +89,7 @@ export function DeliveryLocationDialog({
           <button
             type="button"
             onClick={() => onConfirm(value.trim(), phone.trim())}
-            disabled={busy}
+            disabled={busy || !isValidPhone(phone)}
             className="rounded-md px-3 py-1.5 text-sm font-medium text-on-accent disabled:opacity-40"
             style={{ backgroundColor: 'var(--color-accent)' }}
           >

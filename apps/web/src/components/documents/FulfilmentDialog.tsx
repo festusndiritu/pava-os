@@ -65,6 +65,22 @@ export function FulfilmentDialog({
       </div>
 
       <div className="mt-4 flex-1 overflow-y-auto px-5">
+        <div className="mb-2 flex gap-2">
+          {[
+            { label: 'All from shop', pick: (r: FulfilmentLine) => defaultStockQty(r.qty, r.available) },
+            { label: 'All from elsewhere', pick: () => 0 },
+          ].map((o) => (
+            <button
+              key={o.label}
+              type="button"
+              onClick={() => setRows((prev) => prev.map((r) => ({ ...r, stockQty: o.pick(r) })))}
+              className="min-h-10 pointer-coarse:min-h-11 flex-1 rounded-md border px-3 text-xs font-medium"
+              style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
         <ul className="flex flex-col gap-2">
           {rows.map((r) => {
             const outside = r.qty - r.stockQty;
@@ -88,7 +104,7 @@ export function FulfilmentDialog({
                     From shop
                   </span>
                   <div className="flex items-center rounded-md border" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
-                    <button type="button" aria-label={`Less ${r.name} from shop`} onClick={() => patch(r.key, { stockQty: Math.max(0, r.stockQty - 1) })} className="flex h-10 w-10 items-center justify-center" style={{ color: 'var(--color-ink-600)' }}>
+                    <button type="button" aria-label={`Less ${r.name} from shop`} onClick={() => patch(r.key, { stockQty: Math.max(0, r.stockQty - 1) })} className="flex h-10 w-10 pointer-coarse:h-11 pointer-coarse:w-11 items-center justify-center" style={{ color: 'var(--color-ink-600)' }}>
                       <Minus size={14} strokeWidth={2} />
                     </button>
                     <CommittedNumberInput
@@ -100,14 +116,14 @@ export function FulfilmentDialog({
                       className="data-num w-14 border-0 bg-transparent text-center text-sm outline-none"
                       style={{ color: 'var(--color-ink-900)' }}
                     />
-                    <button type="button" aria-label={`More ${r.name} from shop`} onClick={() => patch(r.key, { stockQty: Math.min(max, r.stockQty + 1) })} className="flex h-10 w-10 items-center justify-center" style={{ color: 'var(--color-ink-600)' }}>
+                    <button type="button" aria-label={`More ${r.name} from shop`} onClick={() => patch(r.key, { stockQty: Math.min(max, r.stockQty + 1) })} className="flex h-10 w-10 pointer-coarse:h-11 pointer-coarse:w-11 items-center justify-center" style={{ color: 'var(--color-ink-600)' }}>
                       <Plus size={14} strokeWidth={2} />
                     </button>
                   </div>
-                  <button type="button" onClick={() => patch(r.key, { stockQty: max })} className="min-h-10 rounded-md border px-3 text-xs font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
+                  <button type="button" onClick={() => patch(r.key, { stockQty: max })} className="min-h-10 pointer-coarse:min-h-11 rounded-md border px-3 text-xs font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
                     {max >= r.qty ? 'All' : 'Max'}
                   </button>
-                  <button type="button" onClick={() => patch(r.key, { stockQty: 0 })} className="min-h-10 rounded-md border px-3 text-xs font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
+                  <button type="button" onClick={() => patch(r.key, { stockQty: 0 })} className="min-h-10 pointer-coarse:min-h-11 rounded-md border px-3 text-xs font-medium" style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-900)' }}>
                     None
                   </button>
                 </div>
@@ -123,7 +139,7 @@ export function FulfilmentDialog({
                       maxLength={120}
                       onChange={(e) => patch(r.key, { supplierSource: e.target.value })}
                       placeholder="Collect from (optional), e.g. Bamburi depot"
-                      className="mt-1.5 min-h-10 w-full rounded-md border px-3 text-sm"
+                      className="mt-1.5 min-h-10 pointer-coarse:min-h-11 w-full rounded-md border px-3 text-sm"
                       style={inputStyle}
                     />
                   </div>

@@ -1049,7 +1049,7 @@ export class DocumentsService {
     },
   ) {
     if (!input.items || input.items.length === 0) {
-      throw new BadRequestException('There is nothing to suspend');
+      throw new BadRequestException('There is nothing to hold');
     }
 
     const productIds = [...new Set(input.items.map((i) => i.productId))];
@@ -1112,9 +1112,9 @@ export class DocumentsService {
 
   async discardSuspended(id: string, actorId: string) {
     const doc = await this.prisma.document.findUnique({ where: { id } });
-    if (!doc) throw new NotFoundException('Suspended order not found');
+    if (!doc) throw new NotFoundException('Held order not found');
     if (doc.status !== DocumentStatus.SUSPENDED) {
-      throw new BadRequestException('Only a suspended order can be discarded');
+      throw new BadRequestException('Only a held order can be discarded');
     }
 
     await this.prisma.$transaction(async (tx) => {

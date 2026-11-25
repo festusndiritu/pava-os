@@ -18,7 +18,7 @@ import { RangeBar, useDateRange } from '../../../components/insights/RangeBar';
 import { ListRow, SectionCard, StatCard } from '../../../components/dashboard/DashboardPrimitives';
 import { fmtDate, money, paymentColor, paymentLabel, plural, trendBetween, truncate } from '../../../components/dashboard/dashboard-derive';
 
-const AXIS_TICK = { fontSize: 11, fill: 'var(--color-ink-600)' };
+const AXIS_TICK = { fontSize: 12, fill: 'var(--color-ink-600)' };
 const TOOLTIP_STYLE = {
   fontSize: 12,
   borderRadius: 6,

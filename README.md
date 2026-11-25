@@ -73,12 +73,18 @@ customer picker on top, the lines, then Fulfilment, the total and
 - **Cash** and **Split** open a dialog: how much was received and, when it
   is more than the total, whether to give the change back (only out of cash)
   or keep it on the customer's account as credit.
-- **Pay later**, **Transport**, **Hold cart**, **Recent sales** (the last 15
+- **Pay later**, **Transport**, **Hold**, **Recent sales** (the last 15
   sales, opening the usual document view for reprinting).
 - **Make quote** saves the cart as a quote — no stock taken, nothing paid.
   Shown only to people with the Quotes or Invoices permission.
 
 On a phone the cart is still one full-screen sheet.
+
+Fulfilment (shop or elsewhere) and transport are always the cashier's choice: the
+cart, quote form (transport), quote-to-invoice (fulfilment) and invoice-edit requests offer them. Fulfilment
+starts from the shop's stock as a suggestion, with one-tap *All from shop* /
+*All from elsewhere*. The cart is kept in the browser per signed-in user, so a
+refresh or an idle sign-out doesn't lose it, and removing a line offers an Undo.
 
 **Backorders on invoice edits.** Approving an edit request that adds units
 beyond what is on the shelf no longer just refuses. The admin sees what is

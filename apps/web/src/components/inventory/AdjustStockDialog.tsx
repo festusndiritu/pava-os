@@ -187,7 +187,7 @@ export function AdjustStockDialog({ product, onClose, onDone }: { product: Produ
                   type="button"
                   aria-pressed={selected}
                   onClick={() => switchMode(m.value)}
-                  className="min-h-10 rounded-md border px-2 text-sm font-medium"
+                  className="min-h-10 pointer-coarse:min-h-11 rounded-md border px-2 text-sm font-medium"
                   style={{
                     borderColor: selected ? 'var(--color-accent)' : 'var(--color-border)',
                     backgroundColor: selected ? 'var(--color-accent-soft)' : 'transparent',
