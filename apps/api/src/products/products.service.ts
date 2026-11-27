@@ -4,6 +4,7 @@ import { AuditService } from '../audit/audit.service.js';
 import { normalizeSearchTerm, parseSearchHints } from './search-normalize.js';
 import { nullsLast, parseSort, type SortDir } from '../common/paging.js';
 import { SettingsService } from '../settings/settings.service.js';
+import { ReorderService } from '../inventory/reorder.service.js';
 
 const INCLUDE = {
   brand: true,
@@ -63,6 +64,7 @@ export class ProductsService {
     private prisma: PrismaService,
     private audit: AuditService,
     private settings: SettingsService,
+    private reorder: ReorderService,
   ) {}
 
   private redactCost<T extends { lastCost?: number | null }>(product: T, canViewCost: boolean): T {
@@ -208,6 +210,7 @@ export class ProductsService {
   async create(data: ProductInput, actorId: string) {
     const { aliases, ...rest } = data;
     const product = await this.prisma.product.create({ data: rest });
+    this.reorder.invalidate();
     await this.setAliases(product.id, aliases);
     await this.audit.log({
       actorId,
@@ -223,6 +226,7 @@ export class ProductsService {
     const existing = await this.findOne(id);
     const { aliases, ...rest } = data;
     await this.prisma.product.update({ where: { id }, data: rest });
+    this.reorder.invalidate();
     await this.setAliases(id, aliases);
 
     if (data.basePrice !== undefined && data.basePrice !== existing.basePrice) {
@@ -260,18 +264,23 @@ export class ProductsService {
     return this.prisma.productFamily.findMany({ orderBy: { name: 'asc' } });
   }
 
-  createFamily(data: { name: string; aggregateLowStock?: boolean; lowStockThreshold?: number; leadTimeDays?: number | null }) {
-    return this.prisma.productFamily.create({ data });
+  async createFamily(data: { name: string; aggregateLowStock?: boolean; lowStockThreshold?: number; leadTimeDays?: number | null }) {
+    const family = await this.prisma.productFamily.create({ data });
+    this.reorder.invalidate();
+    return family;
   }
 
   async updateFamily(id: string, data: { name?: string; aggregateLowStock?: boolean; lowStockThreshold?: number | null; leadTimeDays?: number | null }) {
     const family = await this.prisma.productFamily.findUnique({ where: { id } });
     if (!family) throw new NotFoundException('Product family not found');
-    return this.prisma.productFamily.update({ where: { id }, data });
+    const updated = await this.prisma.productFamily.update({ where: { id }, data });
+    this.reorder.invalidate();
+    return updated;
   }
 
   async remove(id: string, actorId: string) {
     const product = await this.prisma.product.update({ where: { id }, data: { active: false } });
+    this.reorder.invalidate();
     await this.audit.log({
       actorId,
       action: 'product.archived',
@@ -284,6 +293,7 @@ export class ProductsService {
 
   async restore(id: string, actorId: string) {
     const product = await this.prisma.product.update({ where: { id }, data: { active: true } });
+    this.reorder.invalidate();
     await this.audit.log({ actorId, action: 'product.restored', entityType: 'Product', entityId: id, metadata: { name: product.name } });
     return product;
   }

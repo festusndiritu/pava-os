@@ -1,6 +1,4 @@
-/* Pava OS service worker — push notifications only.
- * Deliberately has no fetch handler and caches nothing, so it can never serve
- * a stale copy of the app or get in the way of API calls. */
+/* Pava OS service worker — push notifications only.*/
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
@@ -26,7 +24,14 @@ self.addEventListener('push', (event) => {
     options.renotify = true;
   }
 
-  event.waitUntil(self.registration.showNotification(data.title || 'Pava OS', options));
+  event.waitUntil(
+    (async () => {
+      // Open tabs refresh their unread count now instead of polling for it.
+      const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const client of windows) client.postMessage({ type: 'pava:push' });
+      await self.registration.showNotification(data.title || 'Pava OS', options);
+    })(),
+  );
 });
 
 self.addEventListener('notificationclick', (event) => {

@@ -5,6 +5,7 @@ import { MovementType } from '../../generated/prisma/client.js';
 import { roundMoney } from '../common/money.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { nullsLast, parseSort, type SortDir } from '../common/paging.js';
+import { ReorderAlertService } from './reorder-alert.service.js';
 
 // Simple markup-preserving suggestion for the "update selling price?" prompt on receiving (brief
 // §23) — not a general rounding/pricing engine (that's its own Settings-driven phase later).
@@ -55,6 +56,7 @@ export class InventoryService {
     private prisma: PrismaService,
     private audit: AuditService,
     private settings: SettingsService,
+    private reorderAlerts: ReorderAlertService,
   ) {}
 
   async receive(
@@ -118,6 +120,7 @@ export class InventoryService {
 
       return { receipt, lines: lineResults };
     });
+    this.reorderAlerts.stockChanged();
 
     await this.audit.log({
       actorId: receivedById,
@@ -210,7 +213,9 @@ export class InventoryService {
       };
     };
 
-    return client ? run(client) : this.prisma.$transaction(run);
+    const result = await (client ? run(client) : this.prisma.$transaction(run));
+    this.reorderAlerts.stockChanged();
+    return result;
   }
 
   // Puts stock back on the shelf.
@@ -241,7 +246,9 @@ export class InventoryService {
       return movement;
     };
 
-    return client ? run(client) : this.prisma.$transaction(run);
+    const result = await (client ? run(client) : this.prisma.$transaction(run));
+    this.reorderAlerts.stockChanged();
+    return result;
   }
 
   async adjust(input: AdjustInput, createdById: string) {
@@ -278,6 +285,7 @@ export class InventoryService {
         });
         return created;
       });
+      this.reorderAlerts.stockChanged();
 
       await this.audit.log({
         actorId: createdById,
@@ -330,7 +338,7 @@ export class InventoryService {
   // entered into the system — modeled as a receipt from a synthetic "Opening Balance" supplier so
   // FIFO has a real cost lot to consume from, rather than a bare quantity with no cost basis.
   async openingBalance(productId: string, quantity: number, unitCost: number, createdById: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const batch = await this.prisma.$transaction(async (tx) => {
       const receipt = await tx.inventoryReceipt.create({
         data: { supplier: OPENING_SUPPLIER, receivedById: createdById },
       });
@@ -346,6 +354,8 @@ export class InventoryService {
       });
       return batch;
     });
+    this.reorderAlerts.stockChanged();
+    return batch;
   }
 
   // Cost visibility is a permission axis separate from module access (a user can have INVENTORY

@@ -4,7 +4,10 @@ import { SettingsService } from '../settings/settings.service.js';
 import { forecast, splitByWeight, zForServiceLevel, type ReorderBasis, type ReorderStatus } from './reorder.calc.js';
 
 const WINDOW_DAYS = 90;
-const MEMO_MS = 30_000;
+// The plan only changes when stock, settings or product setup change, and all of those call
+// invalidate(), so it can be kept for a few minutes instead of being recomputed on every dashboard
+// load and Reorder tab view. The TTL is the safety net for anything that doesn't.
+const MEMO_MS = 3 * 60_000;
 
 export interface ReorderBrandRow {
   productId: string;
@@ -45,7 +48,8 @@ export interface ReorderPlan {
 export class ReorderService {
   private readonly timeZone = process.env.REMINDER_TIMEZONE?.trim() || 'Africa/Nairobi';
   private readonly dayFormat = new Intl.DateTimeFormat('en-CA', { timeZone: this.timeZone, year: 'numeric', month: '2-digit', day: '2-digit' });
-  private memo: { at: number; plan: ReorderPlan } | null = null;
+  private memo: { at: number; plan: ReorderPlan; settingsKey: string } | null = null;
+  private version = 0;
 
   constructor(
     private prisma: PrismaService,
@@ -64,6 +68,12 @@ export class ReorderService {
     return keys;
   }
 
+  /** Drops the remembered plan. Call after anything that changes stock or how items are planned. */
+  invalidate() {
+    this.version++;
+    this.memo = null;
+  }
+
   /** Everything the shop sells, with whether and how much to reorder. Only items that need it unless `all`. */
   async plan(opts: { all?: boolean } = {}): Promise<ReorderPlan> {
     const plan = await this.compute();
@@ -71,9 +81,10 @@ export class ReorderService {
   }
 
   private async compute(): Promise<ReorderPlan> {
-    if (this.memo && Date.now() - this.memo.at < MEMO_MS) return this.memo.plan;
-
     const settings = await this.settings.get();
+    const settingsKey = [settings.leadTimeDays, settings.coverDays, settings.serviceLevel, settings.lowStockThreshold].join('|');
+    if (this.memo && this.memo.settingsKey === settingsKey && Date.now() - this.memo.at < MEMO_MS) return this.memo.plan;
+    const startedVersion = this.version;
     const z = zForServiceLevel(settings.serviceLevel);
     const days = this.recentDays(WINDOW_DAYS);
     const windowStart = new Date(Date.now() - WINDOW_DAYS * 86_400_000);
@@ -96,23 +107,29 @@ export class ReorderService {
       }),
       // Every movement, not just sales: replaying them backwards from today's stock tells us what
       // was on the shelf each morning, so days the item was out of stock don't read as "no demand".
-      this.prisma.inventoryMovement.findMany({
-        where: { createdAt: { gte: windowStart } },
-        select: { productId: true, type: true, quantity: true, createdAt: true },
-      }),
+      // Summed per product, local day and type in the database, so a few thousand rows come back
+      // instead of every movement of the last 90 days.
+      this.prisma.$queryRaw<{ productId: string; day: string; type: string; qty: bigint | number }[]>`
+        SELECT "productId",
+               to_char(("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE ${this.timeZone}::text, 'YYYY-MM-DD') AS day,
+               "type"::text AS type,
+               SUM("quantity") AS qty
+        FROM "InventoryMovement"
+        WHERE "createdAt" >= ${windowStart}
+        GROUP BY 1, 2, 3`,
     ]);
 
     type Day = { net: number; demand: number };
     const perProduct = new Map<string, Map<string, Day>>();
     for (const m of movements) {
-      const key = this.dayKey(m.createdAt);
+      const qty = Number(m.qty);
       const byDay = perProduct.get(m.productId) ?? new Map<string, Day>();
-      const day = byDay.get(key) ?? { net: 0, demand: 0 };
-      day.net += m.quantity;
+      const day = byDay.get(m.day) ?? { net: 0, demand: 0 };
+      day.net += qty;
       // Sales leave the shop (negative); a customer return puts units back and cancels demand.
-      if (m.type === 'SALE') day.demand += -m.quantity;
-      else if (m.type === 'RETURN') day.demand -= m.quantity;
-      byDay.set(key, day);
+      if (m.type === 'SALE') day.demand += -qty;
+      else if (m.type === 'RETURN') day.demand -= qty;
+      byDay.set(m.day, day);
       perProduct.set(m.productId, byDay);
     }
 
@@ -229,7 +246,8 @@ export class ReorderService {
       settings: { leadTimeDays: settings.leadTimeDays, coverDays: settings.coverDays, serviceLevel: settings.serviceLevel },
       items,
     };
-    this.memo = { at: Date.now(), plan };
+    // Only remember it if nothing invalidated it while it was being worked out.
+    if (this.version === startedVersion) this.memo = { at: Date.now(), plan, settingsKey };
     return plan;
   }
 }

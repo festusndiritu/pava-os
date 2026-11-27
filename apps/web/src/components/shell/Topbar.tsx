@@ -51,15 +51,21 @@ function useUnreadCount(enabled: boolean) {
         .then((r) => !stale && setCount(r.count))
         .catch(() => {});
     load();
-    const id = setInterval(load, 45_000);
+    // Push and the app's own events deliver changes promptly; the timer is only a slow safety net,
+    // and it does nothing while the tab is hidden.
+    const id = setInterval(() => document.visibilityState === 'visible' && load(), 4 * 60_000);
     const onVisible = () => document.visibilityState === 'visible' && load();
+    // The service worker tells open tabs when a push arrives.
+    const onWorkerMessage = (e: MessageEvent) => e.data?.type === 'pava:push' && load();
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('pava:notifications-changed', load);
+    navigator.serviceWorker?.addEventListener('message', onWorkerMessage);
     return () => {
       stale = true;
       clearInterval(id);
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('pava:notifications-changed', load);
+      navigator.serviceWorker?.removeEventListener('message', onWorkerMessage);
     };
   }, [enabled]);
 

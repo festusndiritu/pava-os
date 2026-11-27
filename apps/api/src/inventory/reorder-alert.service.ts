@@ -3,23 +3,19 @@ import { Role } from '../../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { ReorderService, type ReorderItem } from './reorder.service.js';
+import { localNow, msUntilNextHour } from '../common/local-time.js';
 
-const TICK_MS = 10 * 60 * 1000;
-const FIRST_TICK_MS = 60 * 1000;
+// No fixed-interval polling. The check runs (1) shortly after stock changes, debounced so a busy
+// till doesn't trigger it per sale, (2) once a day at the summary hour, which also covers "still
+// short after its lead time", and (3) once after a restart.
+const DEBOUNCE_MS = 2 * 60 * 1000;
+const SETTLE_MS = 5 * 1000;
+const BOOT_CHECK_MS = 60 * 1000;
 const URL = '/inventory?tab=reorder';
 
 function readHour(): number {
   const n = Number(process.env.REMINDER_HOUR ?? 8);
   return Number.isInteger(n) && n >= 0 && n <= 23 ? n : 8;
-}
-
-function localNow(timeZone: string, at = new Date()) {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' })
-      .formatToParts(at)
-      .map((p) => [p.type, p.value]),
-  );
-  return { day: `${parts.year}-${parts.month}-${parts.day}`, hour: Number(parts.hour) };
 }
 
 function summary(items: ReorderItem[]) {
@@ -39,9 +35,12 @@ export class ReorderAlertService implements OnModuleInit, OnModuleDestroy {
   private readonly log = new Logger(ReorderAlertService.name);
   private readonly timeZone = process.env.REMINDER_TIMEZONE?.trim() || 'Africa/Nairobi';
   private readonly digestHour = readHour();
-  private timer: ReturnType<typeof setInterval> | null = null;
-  private first: ReturnType<typeof setTimeout> | null = null;
+  private daily: ReturnType<typeof setTimeout> | null = null;
+  private boot: ReturnType<typeof setTimeout> | null = null;
+  private debounce: ReturnType<typeof setTimeout> | null = null;
+  private settle: ReturnType<typeof setTimeout> | null = null;
   private running = false;
+  private rerun = false;
 
   constructor(
     private prisma: PrismaService,
@@ -50,18 +49,44 @@ export class ReorderAlertService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit() {
-    this.first = setTimeout(() => void this.tick(), FIRST_TICK_MS);
-    this.timer = setInterval(() => void this.tick(), TICK_MS);
-    this.log.log(`Reorder alerts on: checked every ${TICK_MS / 60000} min, morning summary from ${String(this.digestHour).padStart(2, '0')}:00 ${this.timeZone}`);
+    this.boot = setTimeout(() => void this.tick(), BOOT_CHECK_MS);
+    this.armDaily();
+    this.log.log(`Reorder alerts on: checked after stock changes and daily at ${String(this.digestHour).padStart(2, '0')}:00 ${this.timeZone}`);
   }
 
   onModuleDestroy() {
-    if (this.first) clearTimeout(this.first);
-    if (this.timer) clearInterval(this.timer);
+    for (const t of [this.daily, this.boot, this.debounce, this.settle]) if (t) clearTimeout(t);
+  }
+
+  private armDaily() {
+    if (this.daily) clearTimeout(this.daily);
+    this.daily = setTimeout(() => void this.tick().finally(() => this.armDaily()), msUntilNextHour(this.timeZone, this.digestHour) + 2000);
+  }
+
+  /**
+   * Stock moved (sale, receipt, adjustment, return). Drops the cached plan right away so the
+   * dashboard and Reorder tab are current, then checks for alerts once things have settled. The
+   * delay also lets the caller's transaction commit before the check reads stock.
+   */
+  stockChanged() {
+    this.reorder.invalidate();
+    if (this.settle) clearTimeout(this.settle);
+    this.settle = setTimeout(() => {
+      this.settle = null;
+      this.reorder.invalidate();
+    }, SETTLE_MS);
+    if (this.debounce) return;
+    this.debounce = setTimeout(() => {
+      this.debounce = null;
+      void this.tick();
+    }, DEBOUNCE_MS);
   }
 
   async tick() {
-    if (this.running) return;
+    if (this.running) {
+      this.rerun = true; // stock moved mid-check: go round once more afterwards
+      return;
+    }
     this.running = true;
     try {
       const plan = await this.reorder.plan();
@@ -72,6 +97,11 @@ export class ReorderAlertService implements OnModuleInit, OnModuleDestroy {
       this.log.error(`Reorder check failed: ${(err as Error)?.message ?? err}`);
     } finally {
       this.running = false;
+    }
+    if (this.rerun) {
+      this.rerun = false;
+      this.reorder.invalidate();
+      void this.tick();
     }
   }
 

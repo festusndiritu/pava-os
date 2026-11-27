@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuditService } from '../audit/audit.service.js';
+import { FollowUpReminderService } from '../notifications/follow-up-reminder.service.js';
 
 interface LeadInput {
   name: string;
@@ -21,7 +22,14 @@ export class LeadsService {
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
+    private followUps: FollowUpReminderService,
   ) {}
+
+  // The daily summary no longer polls, so a follow-up set for today after the summary hour asks for
+  // a (debounced) check instead of waiting for the next day.
+  private noteFollowUp(followUpAt?: string | null) {
+    if (followUpAt && new Date(followUpAt).getTime() < Date.now() + 86_400_000) this.followUps.requestCheck();
+  }
 
   findAll(params: { stage?: string; assignedToId?: string; status?: 'active' | 'archived' | 'all' } = {}) {
     const { status = 'active' } = params;
@@ -45,19 +53,23 @@ export class LeadsService {
     return lead;
   }
 
-  create(createdById: string, data: LeadInput) {
+  async create(createdById: string, data: LeadInput) {
     const { followUpAt, ...rest } = data;
-    return this.prisma.lead.create({
+    const lead = await this.prisma.lead.create({
       data: { ...rest, followUpAt: followUpAt ? new Date(followUpAt) : undefined, createdById } as any,
     });
+    this.noteFollowUp(followUpAt);
+    return lead;
   }
 
-  update(id: string, data: Partial<LeadInput>) {
+  async update(id: string, data: Partial<LeadInput>) {
     const { followUpAt, ...rest } = data;
-    return this.prisma.lead.update({
+    const lead = await this.prisma.lead.update({
       where: { id },
       data: { ...rest, ...(followUpAt === null ? { followUpAt: null } : followUpAt ? { followUpAt: new Date(followUpAt) } : {}) } as any,
     });
+    this.noteFollowUp(followUpAt);
+    return lead;
   }
 
   // Closes the loop brief §31 describes: Lead -> Quote -> Customer -> Sale.

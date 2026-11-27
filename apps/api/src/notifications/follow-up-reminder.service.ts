@@ -2,23 +2,19 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import { LeadStage, Role } from '../../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { NotificationsService } from './notifications.service.js';
+import { localNow, msUntilNextHour } from '../common/local-time.js';
 
-const TICK_MS = 5 * 60 * 1000;
-const FIRST_TICK_MS = 30 * 1000;
+// No polling: the service sleeps until the next reminder hour, runs once, and re-arms. The only
+// other wake-ups are one catch-up after a restart, a few spaced retries when a push fails for a
+// temporary reason, and a debounced check when a lead's follow-up is set for today.
+const BOOT_CATCHUP_MS = 30 * 1000;
+const RETRY_MS = 5 * 60 * 1000;
+const MAX_RETRIES = 3;
+const CHECK_DEBOUNCE_MS = 60 * 1000;
 
 function readHour(): number {
   const n = Number(process.env.REMINDER_HOUR ?? 8);
   return Number.isInteger(n) && n >= 0 && n <= 23 ? n : 8;
-}
-
-// The wall-clock date and hour in the business's time zone.
-function localNow(timeZone: string, at = new Date()) {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' })
-      .formatToParts(at)
-      .map((p) => [p.type, p.value]),
-  );
-  return { day: `${parts.year}-${parts.month}-${parts.day}`, hour: Number(parts.hour) };
 }
 
 /** Sends each person one summary a day of the leads they own that are due for a follow-up (today) or past due. */
@@ -27,8 +23,11 @@ export class FollowUpReminderService implements OnModuleInit, OnModuleDestroy {
   private readonly log = new Logger(FollowUpReminderService.name);
   private readonly timeZone = process.env.REMINDER_TIMEZONE?.trim() || 'Africa/Nairobi';
   readonly reminderHour = readHour();
-  private timer: ReturnType<typeof setInterval> | null = null;
-  private first: ReturnType<typeof setTimeout> | null = null;
+  private daily: ReturnType<typeof setTimeout> | null = null;
+  private retry: ReturnType<typeof setTimeout> | null = null;
+  private check: ReturnType<typeof setTimeout> | null = null;
+  private boot: ReturnType<typeof setTimeout> | null = null;
+  private retries = 0;
   private running = false;
 
   constructor(
@@ -38,31 +37,68 @@ export class FollowUpReminderService implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit() {
     if (!this.notifications.enabled) return;
-    this.first = setTimeout(() => void this.tick(), FIRST_TICK_MS);
-    this.timer = setInterval(() => void this.tick(), TICK_MS);
-    this.log.log(`Follow-up reminders on: daily from ${String(this.reminderHour).padStart(2, '0')}:00 ${this.timeZone}`);
+    this.armDaily();
+    // A restart after the reminder hour must still deliver today's summary (the per-user claim in
+    // FollowUpDigest makes this safe to run alongside the daily timer or another instance).
+    if (localNow(this.timeZone).hour >= this.reminderHour) {
+      this.boot = setTimeout(() => void this.tick(), BOOT_CATCHUP_MS);
+    }
+    this.log.log(`Follow-up reminders on: once a day at ${String(this.reminderHour).padStart(2, '0')}:00 ${this.timeZone}`);
   }
 
   onModuleDestroy() {
-    if (this.first) clearTimeout(this.first);
-    if (this.timer) clearInterval(this.timer);
+    for (const t of [this.daily, this.retry, this.check, this.boot]) if (t) clearTimeout(t);
+  }
+
+  /** Sleeps until the next reminder hour. Re-computed every day, so time-zone shifts can't drift it. */
+  private armDaily() {
+    if (this.daily) clearTimeout(this.daily);
+    this.daily = setTimeout(() => {
+      this.retries = 0;
+      void this.tick().finally(() => this.armDaily());
+    }, msUntilNextHour(this.timeZone, this.reminderHour) + 2000);
+  }
+
+  /**
+   * A lead was saved with a follow-up due today or earlier. If today's summary time has already
+   * passed, send it (debounced) so same-day leads still get announced, as the old all-day poll did.
+   */
+  requestCheck() {
+    if (!this.notifications.enabled || this.check) return;
+    if (localNow(this.timeZone).hour < this.reminderHour) return; // the daily run will pick it up
+    this.check = setTimeout(() => {
+      this.check = null;
+      void this.tick();
+    }, CHECK_DEBOUNCE_MS);
   }
 
   async tick() {
     if (this.running) return;
     this.running = true;
+    let again = false;
     try {
       const { day, hour } = localNow(this.timeZone);
       if (hour < this.reminderHour) return;
-      await this.sendDigests(day);
+      again = await this.sendDigests(day);
     } catch (err) {
+      again = true;
       this.log.error(`Follow-up reminder run failed: ${(err as Error)?.message ?? err}`);
     } finally {
       this.running = false;
     }
+    // A temporary failure gets a few spaced retries, not an all-day poll.
+    if (again && this.retries < MAX_RETRIES && !this.retry) {
+      this.retries++;
+      this.retry = setTimeout(() => {
+        this.retry = null;
+        void this.tick();
+      }, RETRY_MS);
+    }
   }
 
-  private async sendDigests(day: string) {
+  /** Returns true when a push failed for a temporary reason and the run should be retried shortly. */
+  private async sendDigests(day: string): Promise<boolean> {
+    let retryNeeded = false;
     const startOfTomorrow = new Date(`${day}T00:00:00.000Z`);
     startOfTomorrow.setUTCDate(startOfTomorrow.getUTCDate() + 1);
 
@@ -75,7 +111,7 @@ export class FollowUpReminderService implements OnModuleInit, OnModuleDestroy {
       select: { name: true, company: true, followUpAt: true, assignedToId: true, createdById: true },
       orderBy: { followUpAt: 'asc' },
     });
-    if (leads.length === 0) return;
+    if (leads.length === 0) return false;
 
     const byOwner = new Map<string, typeof leads>();
     for (const lead of leads) {
@@ -87,7 +123,7 @@ export class FollowUpReminderService implements OnModuleInit, OnModuleDestroy {
       where: { id: { in: [...byOwner.keys()] }, active: true, pushSubscriptions: { some: {} } },
       select: { id: true, role: true, permissions: true, pushSubscriptions: true },
     });
-    if (users.length === 0) return;
+    if (users.length === 0) return false;
 
     const already = new Set(
       (await this.prisma.followUpDigest.findMany({ where: { day, userId: { in: users.map((u) => u.id) } }, select: { userId: true } })).map((d) => d.userId),
@@ -122,7 +158,9 @@ export class FollowUpReminderService implements OnModuleInit, OnModuleDestroy {
       // Nothing got through for a temporary reason: give the claim back so the next tick tries again.
       if (result.delivered === 0 && result.failed > 0) {
         await this.prisma.followUpDigest.delete({ where: { userId_day: { userId: user.id, day } } }).catch(() => undefined);
+        retryNeeded = true;
       }
     }
+    return retryNeeded;
   }
 }
