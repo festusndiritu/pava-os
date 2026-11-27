@@ -180,6 +180,19 @@ function resolveNumber(doc: SaleDocument): string {
   );
 }
 
+function resolveSourceNumber(doc: SaleDocument): string {
+  return doc.receiptNumber ?? doc.invoiceNumber ?? doc.quoteNumber ?? doc.id.slice(0, 8).toUpperCase();
+}
+
+/** `INV-2026-000012` becomes `DN-2026-000012`: same order, its own prefix. A stored delivery note keeps its own number. */
+export function deliveryNoteLabel(doc: SaleDocument, settings: BusinessSettings | null): string {
+  if (doc.deliveryNoteNumber) return doc.deliveryNoteNumber;
+  const prefix = settings?.deliveryNotePrefix?.trim() || 'DN';
+  const source = resolveSourceNumber(doc);
+  const tail = /^[A-Za-z]+-(\d{4}-\d+)$/.exec(source);
+  return `${prefix}-${tail ? tail[1] : source}`;
+}
+
 function resolveSourceReference(doc: SaleDocument): string | null {
   return doc.sourceDocument?.receiptNumber ?? doc.sourceDocument?.invoiceNumber ?? doc.sourceDocument?.quoteNumber ?? null;
 }
@@ -239,7 +252,10 @@ export function buildDeliveryNoteViewModel(
   settings: BusinessSettings | null,
   site: { location?: string; phone?: string } = {},
 ): DocumentViewModel {
-  const number = resolveNumber(doc);
+  // A delivery note isn't stored, so it has no number of its own. It carries its order's reference, under the
+  // delivery note prefix from Settings, instead of passing itself off as the quote or invoice it came from.
+  const number = deliveryNoteLabel(doc, settings);
+  const orderReference = resolveSourceNumber(doc);
   return buildFromSource(
     {
       type: 'DELIVERY_NOTE',
@@ -250,7 +266,7 @@ export function buildDeliveryNoteViewModel(
       customerAddress: site.location?.trim() || null,
       customerPhone: site.phone?.trim() || null,
       issuedByName: null,
-      sourceReference: number,
+      sourceReference: orderReference,
       items: doc.items.map((item) => ({
         id: item.id,
         description: item.description,

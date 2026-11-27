@@ -43,12 +43,15 @@ async function refreshOnce(): Promise<boolean> {
 }
 
 interface ApiOptions extends RequestInit {
+  /** Give up and fail like a lost connection if there is no answer in this long (for flaky internet). */
+  timeoutMs?: number;
   auth?: boolean; // default true Called with the response headers of a successful request.
   onHeaders?: (headers: Headers) => void;
 }
 
 export async function apiFetch<T = unknown>(path: string, options: ApiOptions = {}): Promise<T> {
-  const { auth = true, headers, onHeaders, ...rest } = options;
+  const { auth = true, headers, onHeaders, timeoutMs, ...rest } = options;
+  if (timeoutMs && typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal) rest.signal = AbortSignal.timeout(timeoutMs);
 
   const buildHeaders = () => {
     const h = new Headers(headers);

@@ -19,6 +19,7 @@ deployed.
 - [Domain rules](#domain-rules)
 - [Product behaviour worth knowing](#product-behaviour-worth-knowing)
 - [Deployment and database cost](#deployment-and-database-cost)
+- [Offline use](#offline-use)
 - [Receipt printing](#receipt-printing)
 - [Performance notes](#performance-notes)
 - [Known gaps](#known-gaps)
@@ -166,7 +167,8 @@ Swagger UI at `/docs`.
 ### Web
 
 - Routes under `src/app/(app)/` are the authenticated screens; `login/` is
-  public. The shell (sidebar, top bar) is in `components/shell/`.
+  public. `/` is only a doorway that forwards to the last page visited (or the
+  dashboard, or sign-in). The shell (sidebar, top bar) is in `components/shell/`.
 - Each backend area has a typed client in `src/lib/*-api.ts`, built on
   `lib/api.ts`. Auth state is in `lib/auth-context.tsx`.
 - POS data uses TanStack Query (`QueryClientProvider` in
@@ -219,6 +221,12 @@ These are conventions the code depends on. Please follow them.
   oldest first through `InventoryService.consumeFifo`, so batches and
   `Product.stockQuantity` never drift apart. Do not edit `stockQuantity`
   directly.
+- **Delivery notes are not stored.** They are built on screen from their order
+  (`buildDeliveryNoteViewModel`) and carry the order's number under the delivery
+  note prefix from Settings (`INV-2026-000012` prints and shares as
+  `DN-2026-000012`); the order's own number appears as the order reference. The
+  API still has `POST /documents/:id/delivery-note` that stores one with its own
+  sequence, but the web app does not use it.
 - **Soft delete is the default.** `Customer`, `Product`, `Lead` and `Contact`
   have an `active` flag. The normal `DELETE` route archives; `POST :id/restore`
   reverses it. `Employee` uses `employmentStatus: TERMINATED` instead.
@@ -309,6 +317,59 @@ Run the API against a local Postgres with `log_statement=all`, leave it with
 no requests for 15 minutes after boot, and confirm no queries appear apart from
 the boot checks. In production, watch the Neon console's Monitoring tab for
 suspended periods overnight.
+
+## Offline use
+
+The till keeps working when the internet drops. This is deliberately narrow: only
+**ringing up a plain walk-in sale** and **looking up prices** work offline.
+Everything else (customers' accounts, pay-later, transport, holds, quotes,
+returns, edits, stock changes, reports) needs a connection and says so.
+
+How it works:
+
+- **App shell.** `apps/web/public/sw.js` caches the hashed `/_next/static/*`
+  files and, as a fallback only, the last page loads. Page loads always try the
+  network first (cached copy used if there is no answer within 4 s). API calls
+  are never cached by the service worker. It is registered on every production
+  load (`app/providers.tsx`).
+- **Catalogue on the device.** `lib/offline.ts` keeps all active products,
+  categories and the business settings in IndexedDB (never cost prices),
+  refreshed at most every 5 minutes while online. When the server can't be
+  reached, product lists and search fall back to that copy (`listProducts`,
+  `listCategories`). Offline sales reduce the device's stock counts so the next
+  offline sale sees them.
+- **Sale outbox.** `lib/outbox.ts`. Checkout sends the sale with a client
+  generated `clientId` and a 15 s timeout. If the server can't be reached the
+  sale is written to the outbox first, a receipt with a temporary number
+  (`OFF-XXX-0001`) is printed, and the sale is sent when the connection returns
+  (on `online`, when the app is opened or shown, and every minute while waiting),
+  oldest first, only by the person who rang it up. Printing works offline because
+  the print helper runs on localhost.
+- **Idempotency (server).** `Document.clientId` is unique. `POST
+  /documents/pos-sale` returns the existing sale if it sees the same `clientId`
+  again, so retries, double taps and requests that timed out after succeeding can
+  never record a sale twice.
+- **Replay rules (server).** A sale sent with `offline: true` is recorded even if
+  the shelf count has since dropped (the goods already left) and the shortfall is
+  flagged through the usual `document.stock_override_used` audit entry. The sale is
+  stamped with the time it happened (rejected if more than 30 days old), the audit
+  entry has `source: offline`, the temporary number and whether the server's total
+  differs from the receipt printed. A sale the server refuses (for example a
+  discount over the limit) stays in the outbox marked "needs attention" with the
+  reason; nothing is ever dropped silently.
+- **Sign-in.** The last signed-in person is remembered on the device (an explicit
+  *Sign out* forgets them; the idle timer and an expired session don't). If the
+  server can't be reached when the app opens, it opens in **offline till mode** as
+  that person, limited to `/pos` (prices and walk-in sales). Back online, the session
+  is re-checked and a stale one goes to sign-in. Idle sign-out is also paused while
+  offline or while sales are waiting. Signing in itself needs the server.
+
+Things to keep in mind when changing the till:
+
+- Anything added to the checkout payload must be safe to send later, or must block
+  offline mode in `offlineBlocker()` (`app/(app)/pos/page.tsx`).
+- The offline receipt is built from the cart's own totals (`buildOfflineReceipt`);
+  keep it in step with how the server prices a plain sale.
 
 ## Receipt printing
 

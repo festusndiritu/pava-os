@@ -30,6 +30,10 @@ export class UpdateSettingsDto {
   receiptPrefix?: string;
 
   @IsOptional()
+  @IsString()
+  deliveryNotePrefix?: string;
+
+  @IsOptional()
   @IsInt()
   @Min(1)
   roundingIncrement?: number;

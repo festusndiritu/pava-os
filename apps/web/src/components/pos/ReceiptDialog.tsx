@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Printer, Share2, Truck, X } from 'lucide-react';
 import type { PosSaleResult } from '../../lib/pos-api';
-import { settingsApi, type BusinessSettings } from '../../lib/settings-api';
+import type { BusinessSettings } from '../../lib/settings-api';
+import { loadSettings } from '../../lib/offline';
 import { buildPosReceiptViewModel } from '../../lib/document-view-model';
 import { shareNotice } from '../../lib/pdf';
 import { getAutoPrint, getPrintMode, printReceipt } from '../../lib/print-receipt';
@@ -32,8 +33,7 @@ export function ReceiptDialog({
   const mobile = useMediaQuery('(max-width: 767px)');
 
   useEffect(() => {
-    settingsApi
-      .get()
+    loadSettings()
       .then(setSettings)
       .catch(() => {})
       .finally(() => setSettingsReady(true));
@@ -50,6 +50,8 @@ export function ReceiptDialog({
   }, [settingsReady]);
   // A settle-later sale leaves the counter as an unpaid invoice, not a receipt.
   const unpaid = sale.status === 'INVOICED';
+  // Rung up with no internet: saved on this device and sent to the server when the connection returns.
+  const savedOffline = sale.id.startsWith('offline-');
 
   async function handleShare() {
     setSharing(true);
@@ -75,7 +77,7 @@ export function ReceiptDialog({
           <div className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: 'var(--color-border)' }}>
             <div className="min-w-0">
               <p className="text-sm font-semibold" style={{ color: 'var(--color-ink-900)' }}>
-                {unpaid ? 'Goods handed over — unpaid' : 'Sale complete'}
+                {unpaid ? 'Goods handed over — unpaid' : savedOffline ? 'Sale saved offline' : 'Sale complete'}
               </p>
               <p className="data-num truncate text-xs" style={{ color: 'var(--color-ink-600)' }}>
                 {vm.number}
@@ -85,6 +87,12 @@ export function ReceiptDialog({
               <X size={17} strokeWidth={2} />
             </button>
           </div>
+
+          {savedOffline && (
+            <p className="border-b px-4 py-2 text-xs" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-warning-soft, #fff7e6)', color: 'var(--color-ink-900)' }}>
+              No internet. This sale is saved on this device and will be recorded automatically when the connection is back. The receipt number is temporary.
+            </p>
+          )}
 
           <div className="flex-1 overflow-y-auto p-4">
             <div className="mx-auto max-w-[320px] rounded-md border" style={{ borderColor: 'var(--color-border)' }}>

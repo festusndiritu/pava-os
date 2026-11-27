@@ -8,6 +8,7 @@ import { ApiError } from '../../lib/api';
 import { toast } from '../../components/ui/Toast';
 import { Avatar } from '../../components/Avatar';
 import { ThemeToggle } from '../../components/ThemeToggle';
+import { homePath } from '../../lib/home-path';
 import { BrandPanel } from '../../components/login/BrandPanel';
 import { StaffGrid } from '../../components/login/StaffGrid';
 import { PinPad } from '../../components/login/PinPad';
@@ -23,7 +24,7 @@ type Mode = 'staff-grid' | 'staff-pin' | 'admin';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { user, loading, loginWithPin } = useAuth();
+  const { user, loading, offlineSession, loginWithPin } = useAuth();
 
   const [mode, setMode] = useState<Mode>('staff-grid');
   const [selectedStaff, setSelectedStaff] = useState<StaffOption | null>(null);
@@ -32,9 +33,9 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!loading && user) {
-      router.replace('/dashboard');
+      router.replace(homePath(offlineSession));
     }
-  }, [loading, user, router]);
+  }, [loading, user, offlineSession, router]);
 
   async function handlePinComplete(pin: string) {
     if (!selectedStaff) return;
@@ -44,7 +45,7 @@ export default function LoginPage() {
 
     try {
       await loginWithPin(selectedStaff.id, pin);
-      router.replace('/dashboard');
+      router.replace(homePath());
     } catch (err) {
       setPinError(true);
       toast.error(err instanceof ApiError ? err.message : "Couldn't sign in");
@@ -142,7 +143,7 @@ export default function LoginPage() {
 
           {mode === 'admin' && (
             <AdminLoginForm
-              onSuccess={() => router.replace('/dashboard')}
+              onSuccess={() => router.replace(homePath())}
             />
           )}
 

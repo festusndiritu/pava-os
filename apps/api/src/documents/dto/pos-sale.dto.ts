@@ -1,4 +1,4 @@
-import { ArrayMinSize, IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, MaxLength, Min, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { IsMoney } from '../../common/validation/money.validator.js';
 import { CHANGE_ACTIONS, PaymentLineDto } from './payment.dto.js';
@@ -139,6 +139,33 @@ export class CreatePosSaleDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  // --- Safe retries and offline sync ---
+  /** The device's id for this sale. Sending the same one twice returns the sale already recorded. */
+  @IsOptional()
+  @IsUUID()
+  clientId?: string;
+
+  /** True when the sale was rung up while the till had no internet and is being sent afterwards. */
+  @IsOptional()
+  @IsBoolean()
+  offline?: boolean;
+
+  /** The provisional receipt number printed at the till while offline. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  offlineNumber?: string;
+
+  /** When the sale really happened, according to the device. */
+  @IsOptional()
+  @IsDateString()
+  occurredAt?: string;
+
+  /** What the receipt printed offline said the total was, kept so a difference can be spotted. */
+  @IsOptional()
+  @IsInt()
+  clientTotal?: number;
 }
 
 export class SuspendOrderDto {

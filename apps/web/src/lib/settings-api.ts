@@ -32,7 +32,7 @@ export interface BusinessSettings {
 export type UpdateBusinessSettings = Partial<
   Pick<
     BusinessSettings,
-    'businessName' | 'address' | 'phone' | 'email' | 'quotePrefix' | 'invoicePrefix' | 'receiptPrefix' | 'roundingIncrement' | 'lowStockThreshold' | 'quoteValidityDays' | 'leadTimeDays' | 'coverDays' | 'serviceLevel' | 'documentFooter' | 'paymentDetails'
+    'businessName' | 'address' | 'phone' | 'email' | 'quotePrefix' | 'invoicePrefix' | 'receiptPrefix' | 'deliveryNotePrefix' | 'roundingIncrement' | 'lowStockThreshold' | 'quoteValidityDays' | 'leadTimeDays' | 'coverDays' | 'serviceLevel' | 'documentFooter' | 'paymentDetails'
   >
 >;
 

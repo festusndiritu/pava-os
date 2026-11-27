@@ -33,13 +33,24 @@ function download(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
+const WHATSAPP_WINDOW = 'pava-whatsapp';
+
 function openWhatsAppWeb({ phone, message }: ShareOptions): boolean {
   const digits = phone ? waDigits(phone) : '';
   const params = new URLSearchParams();
   if (digits) params.set('phone', digits);
   if (digits && message) params.set('text', message);
   const url = digits ? `https://web.whatsapp.com/send?${params}` : 'https://web.whatsapp.com/';
-  return window.open(url, '_blank', 'noopener,noreferrer') !== null;
+  // A fixed window name makes the browser reuse the one WhatsApp tab instead of piling up a new tab per
+  // share. (No `noopener`: it would force a new tab every time, which defeats the reuse. The target is WhatsApp's own site.)
+  const win = window.open(url, WHATSAPP_WINDOW);
+  if (!win) return false;
+  try {
+    win.focus();
+  } catch {
+    /* nothing to do */
+  }
+  return true;
 }
 
 // Hands the file to the OS share sheet on a phone or tablet; on a computer it downloads the file

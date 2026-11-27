@@ -471,6 +471,10 @@ model Contact {
 // Quote -> Invoice -> Receipt is ONE record; status tracks its lifecycle.
 model Document {
   id                 String         @id @default(cuid())
+  // Set on sales rung up while the till was offline: the device's own id for the sale (so a retried
+  // sync can never create it twice) and the provisional receipt number that was printed for it.
+  clientId           String?        @unique
+  offlineNumber      String?
   type               DocumentType
   status             DocumentStatus @default(DRAFT)
   customerId         String?

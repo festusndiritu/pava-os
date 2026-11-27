@@ -822,8 +822,36 @@ export class DocumentsService {
       .map(([date, total]) => ({ date, total }));
   }
 
+  private async findPosSaleByClientId(clientId: string) {
+    return this.prisma.document.findUnique({
+      where: { clientId },
+      include: { items: { include: { product: true } }, payments: true, customer: true, createdBy: { select: { name: true } } },
+    });
+  }
+
+  // The device clock is only trusted within sensible bounds, so a wrong clock can't back-date or post-date
+  // a sale far from when it was really rung up.
+  private validOccurredAt(raw?: string): Date {
+    const at = raw ? new Date(raw) : new Date();
+    const now = Date.now();
+    if (Number.isNaN(at.getTime())) return new Date();
+    if (at.getTime() > now + 5 * 60_000) return new Date(now);
+    if (at.getTime() < now - 30 * 86_400_000) throw new BadRequestException('This offline sale is more than 30 days old; check it with an admin before recording it');
+    return at;
+  }
+
   // The POS checkout path (brief §14-17, §27, §59).
   async posSale(actorId: string, actorRole: Role, input: CreatePosSaleDto) {
+    // A sale rung up offline arrives with the device's own id. If that sale is already recorded (a retry, a
+    // double tap, a connection that dropped after the server committed), hand back the existing one.
+    const offline = !!input.offline;
+    if (offline && !input.clientId) throw new BadRequestException('An offline sale needs its clientId');
+    if (input.clientId) {
+      const already = await this.findPosSaleByClientId(input.clientId);
+      if (already) return already;
+    }
+    const occurredAt = offline ? this.validOccurredAt(input.occurredAt) : undefined;
+
     const productIds = [...new Set(input.items.map((i) => i.productId))];
     const products = await this.prisma.product.findMany({ where: { id: { in: productIds } }, include: { brand: true } });
     const productMap = new Map(products.map((p) => [p.id, p]));
@@ -839,7 +867,9 @@ export class DocumentsService {
     if (input.allowNegativeStock && !canOverrideStock) {
       throw new ForbiddenException('You are not authorized to invoice against stock the system does not have recorded');
     }
-    const allowNegative = !!input.allowNegativeStock && canOverrideStock;
+    // An offline sale has already happened: the goods left the shop. It is recorded even if the shelf count
+    // has since moved, and any shortfall is flagged in the audit log (document.stock_override_used) for review.
+    const allowNegative = (!!input.allowNegativeStock && canOverrideStock) || offline;
     // Only the part leaving the shop's own stock has to be on the shelf.
     const fulfilment = this.resolveFulfilment(
       input.items.map((i) => ({ productId: i.productId, qty: i.qty, description: productMap.get(i.productId) ? lineLabel(productMap.get(i.productId)!) : undefined })),
@@ -916,13 +946,17 @@ export class DocumentsService {
     const settleLater = !!input.settleLater;
     const type = settleLater ? DocumentType.INVOICE : DocumentType.RECEIPT;
     const status = settleLater ? DocumentStatus.INVOICED : DocumentStatus.PAID;
-    const now = new Date();
+    const now = occurredAt ?? new Date();
 
-    const doc = await this.prisma.$transaction(async (tx) => {
+    let doc;
+    try {
+      doc = await this.prisma.$transaction(async (tx) => {
       const number = settleLater ? await this.settings.nextNumber('INVOICE', tx) : await this.settings.nextNumber('RECEIPT', tx);
 
       const created = await tx.document.create({
         data: {
+          ...(input.clientId ? { clientId: input.clientId } : {}),
+          ...(offline ? { offlineNumber: input.offlineNumber, createdAt: now } : {}),
           type,
           status,
           customerId: input.customerId,
@@ -979,7 +1013,15 @@ export class DocumentsService {
         where: { id: created.id },
         include: { items: { include: { product: true } }, payments: true, customer: true, createdBy: { select: { name: true } } },
       });
-    });
+      });
+    } catch (err) {
+      // Two syncs of the same sale racing each other: the second one finds the first's record.
+      if (input.clientId && (err as { code?: string })?.code === 'P2002') {
+        const existing = await this.findPosSaleByClientId(input.clientId!);
+        if (existing) return existing;
+      }
+      throw err;
+    }
 
     await this.audit.log({
       actorId,
@@ -996,6 +1038,18 @@ export class DocumentsService {
         balanceCollected: balanceCollected || undefined,
         balanceLeft: balanceLeft || undefined,
         itemCount: input.items.length,
+        ...(input.clientId ? { clientId: input.clientId } : {}),
+        ...(offline
+          ? {
+              source: 'offline',
+              offlineNumber: input.offlineNumber,
+              occurredAt: occurredAt?.toISOString(),
+              syncedAt: new Date().toISOString(),
+              // Printed at the till while offline vs what the server worked out; a difference is worth a look.
+              clientTotal: input.clientTotal,
+              totalDiffersFromReceipt: input.clientTotal !== undefined && input.clientTotal !== total ? true : undefined,
+            }
+          : {}),
       },
     });
 

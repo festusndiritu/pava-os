@@ -106,6 +106,7 @@ export default function SettingsPage() {
         quotePrefix: form.quotePrefix,
         invoicePrefix: form.invoicePrefix,
         receiptPrefix: form.receiptPrefix,
+        deliveryNotePrefix: form.deliveryNotePrefix,
         roundingIncrement,
         lowStockThreshold,
         quoteValidityDays,
@@ -188,6 +189,11 @@ export default function SettingsPage() {
               <label htmlFor="settings-receipt-prefix" className={labelClass} style={labelStyle}>Receipt prefix</label>
               <input id="settings-receipt-prefix" value={form.receiptPrefix ?? ''} onChange={(e) => setForm((f) => ({ ...f, receiptPrefix: e.target.value }))} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
               <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>Next: {settings.receiptPrefix}-{new Date().getFullYear()}-{String(settings.nextReceiptSeq).padStart(6, '0')}</p>
+            </div>
+            <div>
+              <label htmlFor="settings-delivery-note-prefix" className={labelClass} style={labelStyle}>Delivery note prefix</label>
+              <input id="settings-delivery-note-prefix" value={form.deliveryNotePrefix ?? ''} onChange={(e) => setForm((f) => ({ ...f, deliveryNotePrefix: e.target.value }))} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]" style={inputStyle} />
+              <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-600)' }}>A delivery note reuses its order&apos;s number: {settings.invoicePrefix}-{new Date().getFullYear()}-000012 prints as {form.deliveryNotePrefix || settings.deliveryNotePrefix}-{new Date().getFullYear()}-000012</p>
             </div>
           </div>
         </Section>

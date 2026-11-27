@@ -10,12 +10,13 @@ import { BottomNav } from '../../components/shell/BottomNav';
 import { NavSheet } from '../../components/shell/NavSheet';
 import { Topbar } from '../../components/shell/Topbar';
 import { IdleWarningDialog } from '../../components/shell/IdleWarningDialog';
+import { rememberPath } from '../../lib/home-path';
 import { PushSync } from '../../components/shell/PushSync';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, loading, hasPermission } = useAuth();
+  const { user, loading, hasPermission, offlineSession } = useAuth();
   const [navOpen, setNavOpen] = useState(false);
 
   const isPos = pathname?.startsWith('/pos');
@@ -29,6 +30,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!loading && !user) router.replace('/login');
   }, [loading, user, router]);
+
+  // Remembered so the installed app reopens where you left off.
+  useEffect(() => {
+    if (user && pathname && !offlineSession) rememberPath(pathname);
+  }, [user, pathname, offlineSession]);
+
+  // With no connection to the server only the till (prices and walk-in sales) works.
+  useEffect(() => {
+    if (user && offlineSession && !pathname?.startsWith('/pos')) router.replace('/pos');
+  }, [user, offlineSession, pathname, router]);
 
   // While the session loads, show the shell outline instead of a blank screen. A logged-out visitor
   // renders nothing — the effect above is already sending them to /login.

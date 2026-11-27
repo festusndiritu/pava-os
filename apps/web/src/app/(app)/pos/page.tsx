@@ -25,6 +25,7 @@ import { customersApi, type Customer } from '../../../lib/customers-api';
 import {
   posApi,
   readStockShortfalls,
+  type PosSaleInput,
   type PosSaleResult,
   type SuspendedOrder,
 } from '../../../lib/pos-api';
@@ -40,7 +41,10 @@ import { RecentSalesDialog } from '../../../components/pos/RecentSalesDialog';
 import { DocumentDetailDrawer } from '../../../components/documents/DocumentDetailDrawer';
 import { FulfilmentDialog, defaultStockQty, type FulfilmentLine } from '../../../components/documents/FulfilmentDialog';
 import { DeliveryNoteDialog } from '../../../components/documents/DeliveryNoteDialog';
-import { ApiError } from '../../../lib/api';
+import { api, ApiError } from '../../../lib/api';
+import { applySaleToCatalogue, isNetworkError, listCategories, listProducts, refreshCatalogue } from '../../../lib/offline';
+import { flushOutbox, queueSale } from '../../../lib/outbox';
+import { OfflineBanner } from '../../../components/pos/OfflineBanner';
 import { useAuth } from '../../../lib/auth-context';
 import { usePersistedState } from '../../../lib/use-persisted-state';
 import { CommittedNumberInput } from '../../../components/ui/inputs';
@@ -91,6 +95,9 @@ export default function PosPage() {
   const [sourcing, setSourcing] = usePersistedState<Record<string, Sourcing>>(till('sourcing'), {});
   const [fulfilmentOpen, setFulfilmentOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // One id per sale attempt. If a request times out or is tapped twice, the server sees the same id and
+  // records the sale once.
+  const attemptId = useRef<string | null>(null);
   const [receipt, setReceipt] = useState<PosSaleResult | null>(null);
   const [deliveryNoteBusy, setDeliveryNoteBusy] = useState(false);
   const [deliveryNoteDoc, setDeliveryNoteDoc] = useState<SaleDocument | null>(null);
@@ -163,15 +170,34 @@ export default function PosPage() {
     refreshHeldCount();
   }, [refreshHeldCount]);
 
+  // Keep a copy of the catalogue on this device (so prices can be checked with no internet), and send any
+  // sales rung up offline as soon as there is a connection.
+  useEffect(() => {
+    const sync = () => {
+      // Waiting sales go first, so the catalogue copy isn't refreshed from numbers that don't include them yet.
+      void flushOutbox(user?.id ?? null).then((sent) => refreshCatalogue(sent > 0));
+    };
+    const onVisible = () => document.visibilityState === 'visible' && sync();
+    sync();
+    window.addEventListener('online', sync);
+    document.addEventListener('visibilitychange', onVisible);
+    const id = setInterval(() => navigator.onLine && sync(), 60_000);
+    return () => {
+      window.removeEventListener('online', sync);
+      document.removeEventListener('visibilitychange', onVisible);
+      clearInterval(id);
+    };
+  }, [user?.id]);
+
   const { data: categories = [] } = useQuery<Category[]>({
     queryKey: ['categories'],
-    queryFn: () => productsApi.categories(),
+    queryFn: () => listCategories(),
     staleTime: 10 * 60_000,
   });
 
   const { data: browseProducts = [] } = useQuery<Product[]>({
     queryKey: ['pos-products', 'browse', activeCategory],
-    queryFn: () => productsApi.list({ categoryId: activeCategory || undefined, limit: 60 }),
+    queryFn: () => listProducts({ categoryId: activeCategory || undefined, limit: 60 }),
     placeholderData: keepPreviousData,
   });
 
@@ -182,7 +208,7 @@ export default function PosPage() {
 
   const { data: results = [] } = useQuery<Product[]>({
     queryKey: ['pos-products', 'search', debouncedQuery],
-    queryFn: () => productsApi.list({ search: debouncedQuery, limit: 24 }),
+    queryFn: () => listProducts({ search: debouncedQuery, limit: 24 }),
     enabled: debouncedQuery.length > 0,
     placeholderData: keepPreviousData,
   });
@@ -266,6 +292,7 @@ export default function PosPage() {
   }
 
   function clearCounter() {
+    attemptId.current = null;
     setCart([]);
     setTransport(null);
     setSelectedCustomer(null);
@@ -343,6 +370,61 @@ export default function PosPage() {
     setCart((prev) => prev.map((l) => ({ ...l, product: fresh.find((p) => p.id === l.product.id) ?? l.product })));
   }
 
+  // Only a plain walk-in, fully paid sale can be saved offline: anything that needs the customer's account,
+  // credit, a held order or transport maths has to wait for the connection.
+  function offlineBlocker(): string | null {
+    if (!user) return 'Sign in again to sell.';
+    if (settleLater) return 'Pay-later sales need internet. Take payment now, or wait for the connection.';
+    if (hasCustomer) return 'Customer sales need internet. Switch to a walk-in customer to sell now.';
+    if (transportAmount > 0) return 'Transport needs internet. Remove it to sell now.';
+    if (resumedFromId) return 'A held order needs internet to complete.';
+    if (balanceAdded > 0 || paying.creditApplied > 0 || paying.balanceLeft > 0) return 'Account balances need internet.';
+    return null;
+  }
+
+  // The receipt printed while offline: the same figures the server will record for a plain sale, with a
+  // temporary number that is replaced by the real one once the sale is sent.
+  function buildOfflineReceipt(offlineNumber: string, occurredAt: string): PosSaleResult {
+    const tenders = paying.tenders;
+    const methods = new Set((tenders ?? []).map((t) => t.method));
+    const paymentMethod = tenders ? (methods.size > 1 ? 'MIXED' : tenders[0].method) : (paying.method ?? 'MPESA');
+    return {
+      id: `offline-${offlineNumber}`,
+      type: 'RECEIPT',
+      status: 'PAID',
+      invoiceNumber: null,
+      receiptNumber: offlineNumber,
+      subtotal,
+      discount: 0,
+      total: estimatedTotal,
+      transportAmount: 0,
+      transportMode: 'NONE',
+      roundingAdjustment: 0,
+      paymentMethod,
+      changeGiven: paying.changeAction === 'GIVE' ? paying.over : 0,
+      changeToCredit: 0,
+      creditApplied: 0,
+      balanceCollected: 0,
+      balanceLeft: 0,
+      payments: (tenders ?? [{ method: paying.method ?? 'MPESA', amount: estimatedTotal }]).map((t, i) => ({ id: `${offlineNumber}-${i}`, method: t.method, amount: t.amount })),
+      customerName: walkinName || null,
+      customer: null,
+      items: cart.map((l) => ({
+        id: `${offlineNumber}-${l.product.id}`,
+        description: l.product.displayName ?? l.product.name,
+        qty: l.qty,
+        basePrice: l.product.basePrice,
+        unitPrice: l.unitPrice,
+        discount: 0,
+        lineTotal: l.qty * l.unitPrice,
+        transportAllocated: 0,
+        roundingAdjustment: 0,
+        product: l.product,
+      })),
+      createdAt: occurredAt,
+    };
+  }
+
   async function checkout() {
     if (cart.length === 0) return;
     if (!settleLater && paying.problem) {
@@ -351,7 +433,9 @@ export default function PosPage() {
     }
     setSubmitting(true);
     try {
-      const sale = await posApi.checkout({
+      attemptId.current ??= crypto.randomUUID();
+      const clientId = attemptId.current;
+      const input: PosSaleInput = {
         customerId: customerMode === 'existing' ? selectedCustomer?.id : undefined,
         customerName: customerMode === 'walkin' ? walkinName || undefined : undefined,
         items: cart.map((l) => {
@@ -377,7 +461,22 @@ export default function PosPage() {
         leaveBalance: !settleLater && paying.balanceLeft > 0 ? true : undefined,
         settleLater: settleLater || undefined,
         suspendedFromId: resumedFromId ?? undefined,
-      });
+      };
+      let sale: PosSaleResult;
+      try {
+        // A slow connection that never answers is treated like no connection at all.
+        sale = await api.post<PosSaleResult>('/documents/pos-sale', { ...input, clientId }, { timeoutMs: 15_000 });
+      } catch (err) {
+        if (!isNetworkError(err)) throw err;
+        const blocked = offlineBlocker();
+        if (blocked) {
+          toast.error(`No connection. ${blocked}`);
+          return;
+        }
+        sale = await queueSale({ clientId, input, user: { id: user!.id, name: user!.name }, buildReceipt: buildOfflineReceipt });
+        await applySaleToCatalogue(cart.map((l) => ({ productId: l.product.id, qty: fromShop(l) })));
+        toast.success('No connection: sale saved on this device');
+      }
       setReceipt(sale);
       clearCounter();
       refreshHeldCount();
@@ -948,6 +1047,7 @@ export default function PosPage() {
 
   return (
     <div className={`flex flex-col ${focusMode ? 'h-[100dvh]' : 'h-[calc(100dvh-56px)]'}`}>
+      <OfflineBanner />
       <div className="flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
         <Link
           href="/dashboard"
